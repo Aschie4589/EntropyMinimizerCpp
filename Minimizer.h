@@ -31,7 +31,7 @@ private:
     std::vector<std::complex<double> >* input_matrix;
     std::vector<std::complex<double> >* output_matrix; // is this one necessary?
     int printMatrix(std::vector<std::complex<double> >* matrix_pointer, int n, int m);
-    int Minimizer::applyChannel(std::vector<std::complex<double> >* kraus,std::vector<std::complex<double> >* in_matrix,std::vector<std::complex<double> >* out_matrix, int number_kraus, int in_dimension, int out_dimension)
+    int applyChannel(std::vector<std::complex<double> >* kraus,std::vector<std::complex<double> >* in_matrix,std::vector<std::complex<double> >* out_matrix, int number_kraus, int in_dimension, int out_dimension);
 };
 
 #endif

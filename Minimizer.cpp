@@ -101,7 +101,7 @@ int Minimizer::updateProjector(){
 int Minimizer::applyChannel(std::vector<std::complex<double> >* kraus,std::vector<std::complex<double> >* in_matrix,std::vector<std::complex<double> >* out_matrix, int number_kraus, int in_dimension, int out_dimension){
     // The three pointers are for: - where kraus ops are stored; - where input matrix is stored; where output matrix needs to be stored
     // Then we need to know how many kraus operators there are, and what is their size.
-
+    return 0;
 }
 
 
