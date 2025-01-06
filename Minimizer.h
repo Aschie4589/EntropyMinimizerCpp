@@ -14,6 +14,7 @@ private:
     double epsilon;
     std::vector<std::complex<double> >* kraus_operators;
     std::vector<std::complex<double> >* vector_state;
+    
 };
 
 #endif
