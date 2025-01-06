@@ -1,0 +1,14 @@
+# Ignore build directories and object files
+build/
+*.o
+*.obj
+*.out
+*.exe
+
+# Ignore editor-specific files
+.vscode/
+.idea/
+
+# Ignore system files
+.DS_Store        # macOS specific
+Thumbs.db        # Windows specific
