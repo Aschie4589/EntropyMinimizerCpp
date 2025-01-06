@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX = /usr/bin/g++
-CXXFLAGS = -fdiagnostics-color=always -g
+CXXFLAGS = -std=c++17 -fdiagnostics-color=always
 LDFLAGS = -L/opt/homebrew/opt/lapack/lib
 INCLUDES = -I/opt/homebrew/opt/lapack/include
 LIBS = -llapack -llapacke

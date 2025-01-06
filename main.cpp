@@ -11,17 +11,23 @@ const int N = 200;
 
 
 int main() {
-    kraus_operators = new std::vector<std::complex<double> >(10,std::complex<double>(10.1f,10.2f)); // kraus_operators is the pointer.
+    std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(10,std::complex<double>(10.1f,10.2f)); // kraus_operators is the pointer.
+    std::vector<std::complex<double> >* vector = new std::vector<std::complex<double> >(3,std::complex<double>(1.0f,0.0f)); // kraus_operators is the pointer.
     // A is a 3x3 matrix and b is a 3x1 vector (Ax = b)
-    const int N = 3;
+    const int N = 4;
     const int d = 5;
 
 
-    Minimizer obj = Minimizer(kraus_operators);  // Dynamically allocate object on the heap
-    obj.sayHello();
-//    delete obj;  // Automatically calls the destructor and deallocates memory
+    Minimizer minimizer = Minimizer(*kraus_operators, d, N, N);  // Dynamically allocate object on the heap
+
+    minimizer.initializeRandomVector();
+    minimizer.updateProjector();
+    minimizer.printState();
+    return 0;
+}
 
 
+void foo() {
 
     double A[9] = {2.0, 1.0, -1.0, 
                    2.0, -1.0, 1.0, 
@@ -47,5 +53,4 @@ int main() {
         cout << "The function failed. Info: " << info << endl;
     }
 
-    return 0;
 }
