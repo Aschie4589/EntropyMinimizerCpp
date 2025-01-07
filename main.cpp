@@ -6,8 +6,8 @@
 #include <random>
 #include <cmath>
 
-const int d = 4;
-const int N = 50;
+const int d = 6;
+const int N = 64;
 
 std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
     // Step 0: Initialize output
@@ -61,7 +61,7 @@ int main() {
 
     minimizer.initializeRandomVector();
 
-    for (int i=0; i< 100000; i++){
+    for (int i=0; i< 1; i++){
         minimizer.stepAlgorithm();
         std::cout << i << ": ";
         minimizer.calculateEntropy();

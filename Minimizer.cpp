@@ -207,12 +207,12 @@ int Minimizer::applyEpsilonChannel(std::vector<std::complex<double> >* kraus,std
     // Step 1: apply the channel without the epsilon
     applyChannel(kraus,in_matrix,out_matrix,number_kraus,in_dimension,out_dimension);
 
-    // Step 2: interpolate: scale the output of the previous operation by (1-epsilon), then add epsilon on the diagonal
+    // Step 2: interpolate: scale the output of the previous operation by (1-epsilon), then add epsilon/d on the diagonal
     for (int i=0; i<out_matrix->size();i++){
         out_matrix->at(i) *= (1-epsilon);
     }
     for (int i=0; i<out_dimension; i++){
-        out_matrix->at(i*out_dimension+i) += std::complex<double>(epsilon, 0.0f);
+        out_matrix->at(i*out_dimension+i) += std::complex<double>(epsilon, 0.0f)/std::complex<double>(out_dimension, 0.0f);
     }
     return 0;
 }
@@ -226,7 +226,7 @@ int Minimizer::applyDualEpsilonChannel(std::vector<std::complex<double> >* kraus
         out_matrix->at(i) *= (1-epsilon);
     }
     for (int i=0; i<out_dimension; i++){
-        out_matrix->at(i*out_dimension+i) += std::complex<double>(epsilon, 0.0f);
+        out_matrix->at(i*out_dimension+i) += std::complex<double>(epsilon, 0.0f)/std::complex<double>(out_dimension, 0.0f);
     }
     return 0;
 }
@@ -296,10 +296,15 @@ int Minimizer::calculateEntropy(){
     std::vector<double> eigvals = std::vector<double>(N);
     int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'N', 'U', M, reinterpret_cast<lapack_complex_double*>(output_matrix->data()),M,eigvals.data());
     entropy = 0.0f;
+    double s = 0.0f;
     for (int i = 0; i< M; i++){
         // WARNING: We are assuming that the diagonal here is real (which it is since it contains the eigs of a hermitian matrix)
         entropy -= output_matrix->at(i*M+i).real()*std::log(output_matrix->at(i*M+i).real());
+        std::cout << output_matrix->at(i*M+i).real() << " ";
+        s+=output_matrix->at(i*M+i).real();
     }
+    std::cout << std::endl;
+    std::cout << s << std::endl;
     std::cout<< "Current entropy: " << std::fixed << std::setprecision(15) <<entropy << std::endl;
 
     return 0;
