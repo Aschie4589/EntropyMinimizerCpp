@@ -1,9 +1,9 @@
 # Compiler and flags
 CXX = /usr/bin/g++
 CXXFLAGS = -std=c++17 -fdiagnostics-color=always
-LDFLAGS = -L/opt/homebrew/opt/lapack/lib
-INCLUDES = -I/opt/homebrew/opt/lapack/include
-LIBS = -llapack -llapacke
+LDFLAGS = -L/opt/homebrew/opt/lapack/lib -L/usr/local/lib
+INCLUDES = -I/opt/homebrew/opt/lapack/include -I/usr/local/include
+LIBS = -llapack -llapacke -lblas -lopenblas
 
 # Source and target
 SOURCES = main.cpp Minimizer.cpp

@@ -5,6 +5,9 @@ build/
 *.out
 *.exe
 
+#Ignore compiled files
+out
+
 # Ignore editor-specific files
 .vscode/
 .idea/
