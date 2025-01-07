@@ -5,16 +5,8 @@
 #include <complex>
 #include <random>
 #include <lapacke.h>
-
-// Declare the LAPACK function in the extern "C" block to avoid name mangling
-// This effectively tells the compiler of the LAPACK functions that are "somewhere" on the PC and can be imported.
-// For some reason double precision complex matrix multiplication is not part of LAPACKE...
-extern "C" {
-    void zgemm_(const char* transa, const char* transb, const int* m, const int* n, const int* k,
-                const lapack_complex_double* alpha, const lapack_complex_double* A, const int* lda,
-                const lapack_complex_double* B, const int* ldb, const lapack_complex_double* beta,
-                lapack_complex_double* C, const int* ldc);
-}
+#include <cblas.h>
+#include <cmath>
 
 
 Minimizer::Minimizer(std::vector<std::complex<double> >* kraus_ops, 
@@ -130,32 +122,32 @@ int Minimizer::applyChannel(std::vector<std::complex<double> >* kraus,std::vecto
         std::complex<double>* kraus_pointer = &(kraus->at(m*in_dimension*out_dimension));
   
         // Step 1: create temporary value Kraus[i] * in_matrix. Save in "channel_application_intermediate matrix".
-        zgemm_(
-            "N",                      // No transpose for A
-            "N",                      // No transpose for B
-            &out_dimension, &in_dimension, &in_dimension,                  // Matrix dimensions (#rows of C, #cols of C, contracted dimension)
+        cblas_zgemm(CblasColMajor,
+            CblasNoTrans,                      // No transpose for A
+            CblasNoTrans,                      // No transpose for B
+            out_dimension, in_dimension, in_dimension,                  // Matrix dimensions (#rows of C, #cols of C, contracted dimension)
             &one,                    // Scalar alpha
             reinterpret_cast<lapack_complex_double*>(kraus_pointer),  // Matrix A
-            &out_dimension,                        // Leading dimension of A (=how many elements to skip to get to next column) (=number of rows). K is MxN so it has M rows
+            out_dimension,                        // Leading dimension of A (=how many elements to skip to get to next column) (=number of rows). K is MxN so it has M rows
             reinterpret_cast<lapack_complex_double*>(in_matrix->data()),  // Matrix B
-            &in_dimension,                        // Leading dimension of B. in_matrix is NxN so N
+            in_dimension,                        // Leading dimension of B. in_matrix is NxN so N
             &zero,                     // Scalar beta
             reinterpret_cast<lapack_complex_double*>(tmp_pointer->data()),  // Matrix C (result)
-            &out_dimension                         // Leading dimension of C. C is MxN so M
+            out_dimension                         // Leading dimension of C. C is MxN so M
         );
         // Step 2: add channel_application_intermediate_matrix * conj(Kraus^T)=K[i]*in*conj(K^T) to out_matrix.
-        zgemm_(
-            "N",                      // No transpose for A
-            "C",                      // Transpose conjugate for B (need Kraus^H)
-            &out_dimension, &in_dimension, &in_dimension,                  // Matrix dimensions (#rows of C, #cols of C, contracted dimension)
+        cblas_zgemm(CblasColMajor,
+            CblasNoTrans,                   // No transpose for A
+            CblasConjTrans,                      // Transpose conjugate for B (need Kraus^H)
+            out_dimension, in_dimension, in_dimension,                  // Matrix dimensions (#rows of C, #cols of C, contracted dimension)
             &one,                    // Scalar alpha
             reinterpret_cast<lapack_complex_double*>(tmp_pointer->data()),  // Matrix A
-            &out_dimension,                        // Leading dimension of A (=how many elements to skip to get to next column) (=number of rows). K*in_matrix is MxN so it has M rows
+            out_dimension,                        // Leading dimension of A (=how many elements to skip to get to next column) (=number of rows). K*in_matrix is MxN so it has M rows
             reinterpret_cast<lapack_complex_double*>(kraus_pointer),  // Matrix B
-            &in_dimension,                        // Leading dimension of B. K^H is NxM, so N
+            in_dimension,                        // Leading dimension of B. K^H is NxM, so N
             &one,                     // Scalar beta
             reinterpret_cast<lapack_complex_double*>(out_matrix->data()),  // Matrix C (result)
-            &out_dimension                         // Leading dimension of C. C is MxM so M
+            out_dimension                         // Leading dimension of C. C is MxM so M
         );
 
     }
@@ -180,34 +172,33 @@ int Minimizer::applyDualChannel(std::vector<std::complex<double> >* kraus,std::v
         std::complex<double>* kraus_pointer = &(kraus->at(m*in_dimension*out_dimension));
   
         // Step 1: create temporary value Kraus[i] * in_matrix. Save in "channel_application_intermediate matrix".
-        zgemm_(
-            "C",                      // Transpose for A
-            "N",                      // No transpose for B
-            &out_dimension, &in_dimension, &in_dimension,                  // Matrix dimensions (#rows of C, #cols of C, contracted dimension)
+        cblas_zgemm(CblasColMajor,
+            CblasConjTrans,                      // No transpose for A
+            CblasNoTrans,                      // No transpose for B
+            out_dimension, in_dimension, in_dimension,                  // Matrix dimensions (#rows of C, #cols of C, contracted dimension)
             &one,                    // Scalar alpha
             reinterpret_cast<lapack_complex_double*>(kraus_pointer),  // Matrix A
-            &out_dimension,                        // Leading dimension of A (=how many elements to skip to get to next column) (=number of rows). K is MxN so it has M rows
+            out_dimension,                        // Leading dimension of A (=how many elements to skip to get to next column) (=number of rows). K is MxN so it has M rows
             reinterpret_cast<lapack_complex_double*>(in_matrix->data()),  // Matrix B
-            &in_dimension,                        // Leading dimension of B. in_matrix is NxN so N
+            in_dimension,                        // Leading dimension of B. in_matrix is NxN so N
             &zero,                     // Scalar beta
             reinterpret_cast<lapack_complex_double*>(tmp_pointer->data()),  // Matrix C (result)
-            &out_dimension                         // Leading dimension of C. C is MxN so M
+            out_dimension                         // Leading dimension of C. C is MxN so M
         );
         // Step 2: add channel_application_intermediate_matrix * conj(Kraus^T)=K[i]*in*conj(K^T) to out_matrix.
-        zgemm_(
-            "N",                      // No transpose for A
-            "N",                      // Transpose conjugate for B (need Kraus^H)
-            &out_dimension, &in_dimension, &in_dimension,                  // Matrix dimensions (#rows of C, #cols of C, contracted dimension)
+        cblas_zgemm(CblasColMajor,
+            CblasNoTrans,                   // No transpose for A
+            CblasNoTrans,                      // Transpose conjugate for B (need Kraus^H)
+            out_dimension, in_dimension, in_dimension,                  // Matrix dimensions (#rows of C, #cols of C, contracted dimension)
             &one,                    // Scalar alpha
             reinterpret_cast<lapack_complex_double*>(tmp_pointer->data()),  // Matrix A
-            &out_dimension,                        // Leading dimension of A (=how many elements to skip to get to next column) (=number of rows). K*in_matrix is MxN so it has M rows
+            out_dimension,                        // Leading dimension of A (=how many elements to skip to get to next column) (=number of rows). K*in_matrix is MxN so it has M rows
             reinterpret_cast<lapack_complex_double*>(kraus_pointer),  // Matrix B
-            &in_dimension,                        // Leading dimension of B. K^H is NxM, so N
+            in_dimension,                        // Leading dimension of B. K^H is NxM, so N
             &one,                     // Scalar beta
             reinterpret_cast<lapack_complex_double*>(out_matrix->data()),  // Matrix C (result)
-            &out_dimension                         // Leading dimension of C. C is MxM so M
+            out_dimension                         // Leading dimension of C. C is MxM so M
         );
-
     }
     return 0;
 }
@@ -243,9 +234,9 @@ int Minimizer::applyDualEpsilonChannel(std::vector<std::complex<double> >* kraus
 int Minimizer::stepAlgorithm(){
     // Step 1: update the projector based on the vector
     updateProjector();
-
     // Step 2: compute Phi_e(rho)
     applyEpsilonChannel(kraus_operators,input_matrix, output_matrix, d, N, M, epsilon);
+
     // Step 3: compute log(Phi_e(rho))
     // Step 3.1: diagonalize output matrix
     std::vector<double> eigvals(M);
@@ -266,12 +257,17 @@ int Minimizer::stepAlgorithm(){
     std::vector<std::complex<double> >* tmp_mat = new std::vector<std::complex<double> >(N*N);
     lapack_complex_double one(1.0f+0.0fi);
     lapack_complex_double zero(0.0f+0.0fi);
-    zgemm_("N","N",&M,&M,&M,&one,reinterpret_cast<lapack_complex_double*>(eig_mat->data()),&M,reinterpret_cast<lapack_complex_double*>(output_matrix->data()),&M,&zero,reinterpret_cast<lapack_complex_double*>(tmp_mat->data()),&M);
+    cblas_zgemm(CblasColMajor,CblasNoTrans,CblasConjTrans,M,M,M,&one,reinterpret_cast<lapack_complex_double*>(eig_mat->data()),M,reinterpret_cast<lapack_complex_double*>(output_matrix->data()),M,&zero,reinterpret_cast<lapack_complex_double*>(tmp_mat->data()),M);
     // Then do conj(eigs^T)*tmp_mat
-    zgemm_("C","N",&M,&M,&M,&one,reinterpret_cast<lapack_complex_double*>(output_matrix->data()),&M,reinterpret_cast<lapack_complex_double*>(tmp_mat->data()),&M,&zero,reinterpret_cast<lapack_complex_double*>(eig_mat->data()),&M);
+    cblas_zgemm(CblasColMajor,CblasNoTrans,CblasNoTrans,M,M,M,&one,reinterpret_cast<lapack_complex_double*>(output_matrix->data()),M,reinterpret_cast<lapack_complex_double*>(tmp_mat->data()),M,&zero,reinterpret_cast<lapack_complex_double*>(eig_mat->data()),M);
     for (int i=0; i< M*M; i++){
         output_matrix->at(i) = eig_mat->at(i);
     }
+    delete eig_mat;
+    delete tmp_mat;
+
+    // As far as I can tell, the matrix logarithm is calculated correctly.
+
     // Step 4: compute Phi_e^*(log(Phi_e(rho)))
     applyDualChannel(kraus_operators,output_matrix,input_matrix,d,M,N);
 
@@ -282,6 +278,8 @@ int Minimizer::stepAlgorithm(){
         std::cout << "Something went wrong in diagonalizing the matrix...!" <<std::endl;
         return 1;
     }
+
+
     // Update the vector state to the last column, which corresponds to the highest eigenvalue.
     for (int i=0; i< N; i++){
         vector_state->at(i) = input_matrix->at(N*(N-1)+i);
@@ -290,6 +288,9 @@ int Minimizer::stepAlgorithm(){
 }
 
 int Minimizer::calculateEntropy(){
+    // Get the vN entropy of Phi_e(state).
+    // This works, pending verification on the application of the EpsilonChannel.
+
     updateProjector();
     applyEpsilonChannel(kraus_operators, input_matrix, output_matrix, d, N, M, epsilon);
     std::vector<double> eigvals = std::vector<double>(N);
@@ -299,7 +300,7 @@ int Minimizer::calculateEntropy(){
         // WARNING: We are assuming that the diagonal here is real (which it is since it contains the eigs of a hermitian matrix)
         entropy -= output_matrix->at(i*M+i).real()*std::log(output_matrix->at(i*M+i).real());
     }
-    std::cout<< "Current entropy: " << entropy << std::endl;
+    std::cout<< "Current entropy: " << std::fixed << std::setprecision(15) <<entropy << std::endl;
 
     return 0;
 
@@ -329,7 +330,7 @@ int Minimizer::printVectorState(){
         for (int i = 0; i < size; i++) {
                 double r = (*vector_state)[i].real();
                 double j = (*vector_state)[i].imag();
-                std::cout <<std::fixed << std::setprecision(4)<< r;
+                std::cout <<std::fixed << std::setprecision(4) << r;
                 if (j>-1e-10){
                     std::cout << "+";
                 }
@@ -351,11 +352,11 @@ int Minimizer::printMatrix(std::vector<std::complex<double> >* matrix_pointer, i
         for (int j=0;j<m; j++){
                 double re = (*matrix_pointer)[j*m+i].real();
                 double im = (*matrix_pointer)[j*m+i].imag();
-                if (re>-1e-10){
+                if (re>-1e-15){
                     std::cout << " ";
                 }
                 std::cout <<std::fixed << std::setprecision(4)<< re;
-                if (im>-1e-10){
+                if (im>-1e-15){
                     std::cout << "+";
                 }
                 std::cout <<std::fixed << std::setprecision(4)<<im << "j ";

@@ -4,11 +4,10 @@
 #include <lapacke.h>
 #include <cblas.h>
 #include <random>
-using namespace std;
+#include <cmath>
 
-
-const int d = 24;
-const int N = 1000;
+const int d = 4;
+const int N = 50;
 
 std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
     // Step 0: Initialize output
@@ -43,29 +42,31 @@ std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
 }
 
 int main() {
-    openblas_set_num_threads(4); // Use 4 threads
+    openblas_set_num_threads(16); // Use 4 threads
 
     std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.
     for (int m = 0; m < d; m++){
+        std::cout << "Generating Haar random unitary " << m+1 << " of " << d << "... ";
         // append a new unitary at position i of the kraus operator.
         std::vector<std::complex<double> >* new_haar_unitary = generateHaarRandomUnitary(N);
         for (int i = 0; i < N*N ;i++){
             kraus_operators->at(m*N*N+i) = new_haar_unitary->at(i)/std::sqrt(double(d));
         }
+        std::cout << "Done!" << std::endl;
         delete new_haar_unitary;
     }
 
-    Minimizer minimizer = Minimizer(kraus_operators, d, N, N);  // Dynamically allocate object on the heap
+
+    Minimizer minimizer = Minimizer(kraus_operators, d, N, N); 
 
     minimizer.initializeRandomVector();
-    minimizer.updateProjector();
 
-    for (int i=0; i< 10000; i++){
+    for (int i=0; i< 100000; i++){
         minimizer.stepAlgorithm();
         std::cout << i << ": ";
         minimizer.calculateEntropy();
     }
-
+    delete kraus_operators;
     return 0;
 }
 
