@@ -1,16 +1,10 @@
-#include <iostream>
-#include <iomanip>
-#include <vector>
-#include <random>
-#include <cmath>
-// These two could need to be installed
-#include <cblas.h>
-#include <lapacke.h>
+#include "common_includes.h"
 // My headers
-#include "Minimizer.h"
-#include "EntropyMinimizer.h"
-
-
+#include "minimizer.h"
+#include "entropy_minimizer.h"
+#include "message_handler.h"
+#include "logger.h"
+#include "config.h"
 
 const int d = 5;
 const int N = 30;
@@ -48,6 +42,20 @@ std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
 }
 
 int main() {
+
+
+    MessageHandler message_handler;
+    message_handler.createLogger("sasdasd.txt");
+    message_handler.createPrinter();
+    message_handler.setLogging(true);
+    message_handler.setPrinting(false);
+    message_handler.message("Messaggio di prova!");
+
+}
+
+
+
+int foo() {
 
     // Step 1: Generate the Kraus operators of the random unitary channel
     std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.

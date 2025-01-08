@@ -1,9 +1,8 @@
-#include <iostream>
-#include <iomanip>
+#include "common_includes.h"
 
-#include "EntropyMinimizer.h"
-#include "Config.h"
-#include "Minimizer.h"
+#include "entropy_minimizer.h"
+#include "config.h"
+#include "minimizer.h"
 
 
 EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension,double eps){

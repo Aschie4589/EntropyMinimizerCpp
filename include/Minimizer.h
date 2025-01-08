@@ -2,9 +2,8 @@
 #ifndef MINIMIZER_H  // Include guard to prevent multiple inclusions
 #define MINIMIZER_H
 
-#include <complex>
+#include "config.h"
 
-#include "Config.h"
 class Minimizer {
 public:
     Minimizer(std::vector<std::complex<double> >* kraus_ops,int kraus_number,int kraus_in_dimension,int kraus_out_dimension, double eps = EPS);             // Constructor declaration

@@ -1,16 +1,7 @@
 // Minimizer.cpp
-#include <iostream>
-#include <iomanip>
-#include <complex>
-#include <random>
-#include <cmath>
-#include <queue>
-
-#include <cblas.h>
-#include <lapacke.h>
-
-#include "Minimizer.h"
-#include "Config.h"
+#include "common_includes.h"
+#include "minimizer.h"
+#include "config.h"
 
 
 Minimizer::Minimizer(std::vector<std::complex<double> >* kraus_ops, 

@@ -11,6 +11,7 @@ out
 # Ignore editor-specific files
 .vscode/
 .idea/
+save/
 
 # Ignore system files
 .DS_Store        # macOS specific

@@ -1,8 +1,8 @@
 #ifndef ENTROPY_MINIMIZER_H
 #define ENTROPY_MINIMIZER_H
 
-#include "Config.h"
-#include "Minimizer.h"
+#include "config.h"
+#include "minimizer.h"
 
 class EntropyMinimizer {
 public:
