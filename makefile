@@ -3,10 +3,10 @@ CXX = /usr/bin/g++
 CXXFLAGS = -std=c++17 -fdiagnostics-color=always
 LDFLAGS = -L/opt/homebrew/opt/lapack/lib -L/opt/homebrew/opt/openblas/lib
 INCLUDES = -I/opt/homebrew/opt/lapack/include -I/opt/homebrew/opt/openblas/include
-LIBS = -llapack -llapacke -lblas -lopenblas
+LIBS = -lopenblas -lblas -llapack -llapacke
 
 # Source and target
-SOURCES = main.cpp Minimizer.cpp
+SOURCES = Main.cpp Minimizer.cpp
 BUILD_DIR = build
 OBJECTS = $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
 TARGET = out  # Name of the final executable

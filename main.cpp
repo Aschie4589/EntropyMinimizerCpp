@@ -1,16 +1,19 @@
-#include "Minimizer.h"
-#include "Constants.h"
 #include <iostream>
 #include <iomanip>
 #include <vector>
-#include <lapacke.h>
-#include <cblas.h>
 #include <random>
 #include <cmath>
+// These two could need to be installed
+#include <cblas.h>
+#include <lapacke.h>
+// My headers
+#include "Minimizer.h"
+#include "Config.h"
 
 
-const int d = 3;
-const int N = 6;
+
+const int d = 20;
+const int N = 1000;
 
 std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
     // Step 0: Initialize output
@@ -45,8 +48,6 @@ std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
 }
 
 int main() {
-    openblas_set_num_threads(16); // Use 4 threads
-
     std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.
     for (int m = 0; m < d; m++){
         std::cout << "Generating Haar random unitary " << m+1 << " of " << d << "... ";
@@ -58,31 +59,13 @@ int main() {
         std::cout << "Done!" << std::endl;
         delete new_haar_unitary;
     }
-    // DEBUG: PRINT THE HAAR UNITARY
-    std::cout << "The generated kraus operators are:" << std::endl;
-    for (int m=0; m< d; m++){
-        for (int i=0; i<N; i++){
-        for (int j=0;j<N; j++){
-                double re = (*kraus_operators)[N*N*m+j*N+i].real();
-                double im = (*kraus_operators)[N*N*m+j*N+i].imag();
-                if (re>-1e-15){
-                    std::cout << " ";
-                }
-                std::cout <<std::fixed << std::setprecision(PRECISION)<< re;
-                if (im>-1e-15){
-                    std::cout << "+";
-                }
-                std::cout <<std::fixed << std::setprecision(PRECISION)<<im << "j ";
-        }
-        std::cout << std::endl;
-    }
-    }
+
 
     Minimizer minimizer = Minimizer(kraus_operators, d, N, N); 
 
     minimizer.initializeRandomVector();
 
-    for (int i=0; i< 2; i++){
+    for (int i=0; i< 100000; i++){
         minimizer.stepAlgorithm();
         std::cout << i << ": ";
         minimizer.calculateEntropy();

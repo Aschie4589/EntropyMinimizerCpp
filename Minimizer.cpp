@@ -1,13 +1,15 @@
 // Minimizer.cpp
-#include "Minimizer.h"
-#include "Constants.h"
 #include <iostream>
 #include <iomanip>
 #include <complex>
 #include <random>
-#include <lapacke.h>
-#include <cblas.h>
 #include <cmath>
+
+#include <cblas.h>
+#include <lapacke.h>
+
+#include "Minimizer.h"
+#include "Config.h"
 
 
 Minimizer::Minimizer(std::vector<std::complex<double> >* kraus_ops, 
@@ -151,19 +153,6 @@ int Minimizer::applyChannel(std::vector<std::complex<double> >* kraus,std::vecto
             out_dimension                         // Leading dimension of C. C is MxM so M
         );
     }
-    // DEBUG: PRINT THE EIGENVALUES OF THIS?
-    std::vector<double> eigvals(M);
-    std::vector<std::complex<double> > tmp(M*M);
-    for (int i=0; i < M*M; i++){
-        tmp.at(i) = out_matrix->at(i);
-    }
-    int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'V', 'U', M, reinterpret_cast<lapack_complex_double*>(tmp.data()),M,eigvals.data());
-    std::cout << "The eigenvalues after I apply the channel are:" << std::endl;
-    for (int i=0; i < M; i++){
-        std::cout << eigvals.at(i) << ", ";
-    }
-    std::cout << std::endl;
-
     return 0;
 }
     
@@ -227,19 +216,6 @@ int Minimizer::applyEpsilonChannel(std::vector<std::complex<double> >* kraus,std
     for (int i=0; i<out_dimension; i++){
         out_matrix->at(i*out_dimension+i) += std::complex<double>(epsilon, 0.0f)/std::complex<double>(out_dimension, 0.0f);
     }
-    // DEBUG: PRINT THE EIGENVALUES OF THIS?
-    std::vector<double> eigvals(M);
-    std::vector<std::complex<double> > tmp(M*M);
-    for (int i=0; i < M*M; i++){
-        tmp.at(i) = out_matrix->at(i);
-    }
-    int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'V', 'U', M, reinterpret_cast<lapack_complex_double*>(tmp.data()),M,eigvals.data());
-    std::cout << "The eigenvalues after I apply the epsilon channel are:" << std::endl;
-    for (int i=0; i < M; i++){
-        std::cout << eigvals.at(i) << ", ";
-    }
-    std::cout << std::endl;
-
     return 0;
 }
 
@@ -260,12 +236,9 @@ int Minimizer::applyDualEpsilonChannel(std::vector<std::complex<double> >* kraus
 int Minimizer::stepAlgorithm(){
     // Step 1: update the projector based on the vector
     updateProjector();
-    std::cout << "Step 1: I have updated the projector...! Here it is." << std::endl;
-    printMatrix(input_matrix, M, M);
+
     // Step 2: compute Phi_e(rho)
     applyEpsilonChannel(kraus_operators,input_matrix, output_matrix, d, N, M, epsilon);
-    std::cout << "Step 2: I have computed Phi(rho)...! Here it is." << std::endl;
-    printMatrix(output_matrix, M, M);
 
     // Step 3: compute log(Phi_e(rho))
     // Step 3.1: diagonalize output matrix
@@ -296,15 +269,10 @@ int Minimizer::stepAlgorithm(){
     delete eig_mat;
     delete tmp_mat;
 
-    std::cout << "Step 3: I have computed log(Phi(rho))...! Here it is." << std::endl;
-    printMatrix(output_matrix, M, M);
-
     // As far as I can tell, the matrix logarithm is calculated correctly.
 
     // Step 4: compute Phi_e^*(log(Phi_e(rho)))
     applyDualChannel(kraus_operators,output_matrix,input_matrix,d,M,N);
-    std::cout << "Step 4: I have computed Phi^*(log(Phi(rho)))...! Here it is." << std::endl;
-    printMatrix(input_matrix, N, N);
 
     // Step 5: find eigenvector with highest eigenvalues
     eigvals.resize(N);
@@ -313,8 +281,6 @@ int Minimizer::stepAlgorithm(){
         std::cout << "Something went wrong in diagonalizing the matrix...!" <<std::endl;
         return 1;
     }
-    std::cout << "Step 5: I have diagonalized Phi^*(log(Phi(rho)))...! Here are the eigenvectors." << std::endl;
-    printMatrix(input_matrix, N, N);
 
     
 
@@ -322,20 +288,8 @@ int Minimizer::stepAlgorithm(){
     for (int i=0; i< N; i++){
         vector_state->at(i) = input_matrix->at(N*(N-1)+i);
     }
-    // DEBUG: PRINT THE EIGENVALUES OF PHI*LOG PHI RHO
-    std::cout << "The eigenvalues of Phi*(log(Phi(rho))) are: " <<std::endl; 
-    for (int i=0; i< N; i++){
-        std::cout << eigvals.at(i) << ", ";
-    }
-    std::cout << std::endl;
 
 
-    // DEBUG: PRINT THE VECTOR!
-    std::cout << "Step 5.1: The new state vector is:" << std::endl;
-    for (int i=0; i< N; i++){
-        std::cout << vector_state->at(i) << " ";
-    }
-    std::cout << std::endl;
 
     return 0;
 }
@@ -351,19 +305,13 @@ int Minimizer::calculateEntropy(){
     for (int i=0; i < M*M; i++){
         tmp.at(i) = output_matrix->at(i);
     }
-    int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'V', 'U', M, reinterpret_cast<lapack_complex_double*>(tmp.data()),M,eigvals.data());
+    int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'N', 'U', M, reinterpret_cast<lapack_complex_double*>(tmp.data()),M,eigvals.data());
     entropy = 0.0f;
-    double s = 0.0f;
-    std::cout << "The eigenvalues we are using for calculating the entropy are:" <<std::endl;
     for (int i = 0; i< M; i++){
         // WARNING: We are assuming that the diagonal here is real (which it is since it contains the eigs of a hermitian matrix)
         entropy -= eigvals.at(i)*std::log(eigvals.at(i));
-        std::cout << eigvals.at(i) << " ";
-        s+=eigvals.at(i);
     }
-    std::cout << std::endl;
-    std::cout << s << std::endl;
-    std::cout<< "Current entropy: " << std::fixed << std::setprecision(PRECISION) <<entropy << std::endl;
+    std::cout<< "Current entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) <<entropy << std::endl;
 
     return 0;
 
@@ -393,11 +341,11 @@ int Minimizer::printVectorState(){
         for (int i = 0; i < size; i++) {
                 double r = (*vector_state)[i].real();
                 double j = (*vector_state)[i].imag();
-                std::cout <<std::fixed << std::setprecision(PRECISION) << r;
+                std::cout <<std::fixed << std::setprecision(PRINT_PRECISION) << r;
                 if (j>-1e-10){
                     std::cout << "+";
                 }
-                std::cout <<std::fixed << std::setprecision(PRECISION)<<j << "j, ";
+                std::cout <<std::fixed << std::setprecision(PRINT_PRECISION)<<j << "j, ";
         }
         std::cout << "]"<< std::endl;
         return 0;
@@ -418,11 +366,11 @@ int Minimizer::printMatrix(std::vector<std::complex<double> >* matrix_pointer, i
                 if (re>-1e-15){
                     std::cout << " ";
                 }
-                std::cout <<std::fixed << std::setprecision(PRECISION)<< re;
+                std::cout <<std::fixed << std::setprecision(PRINT_PRECISION)<< re;
                 if (im>-1e-15){
                     std::cout << "+";
                 }
-                std::cout <<std::fixed << std::setprecision(PRECISION)<<im << "j ";
+                std::cout <<std::fixed << std::setprecision(PRINT_PRECISION)<<im << "j ";
         }
         std::cout << std::endl;
     }
