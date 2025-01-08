@@ -5,7 +5,7 @@ Ideally, it should make use of LAPACK and CBLAS to perform matrix operations fas
 
 **Known issues:**
 - The algorithm seems to not always improve the entropy, and indeed sometimes the numbers go up. Needs further investigation
-- A possible place to start: why is it that applying a channel with d Kraus operators to a rank 1 operator produces a rank 7 output? This is visible in the entropy calculation...
+- A possible place to start: why is it that applying a channel with d Kraus operators to a rank 1 operator produces a rank d+1 output? This is visible in the entropy calculation...
 
 **TO-DO:**
 - Implement logs

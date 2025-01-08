@@ -150,8 +150,20 @@ int Minimizer::applyChannel(std::vector<std::complex<double> >* kraus,std::vecto
             reinterpret_cast<lapack_complex_double*>(out_matrix->data()),  // Matrix C (result)
             out_dimension                         // Leading dimension of C. C is MxM so M
         );
-
     }
+    // DEBUG: PRINT THE EIGENVALUES OF THIS?
+    std::vector<double> eigvals(M);
+    std::vector<std::complex<double> > tmp(M*M);
+    for (int i=0; i < M*M; i++){
+        tmp.at(i) = out_matrix->at(i);
+    }
+    int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'V', 'U', M, reinterpret_cast<lapack_complex_double*>(tmp.data()),M,eigvals.data());
+    std::cout << "The eigenvalues after I apply the channel are:" << std::endl;
+    for (int i=0; i < M; i++){
+        std::cout << eigvals.at(i) << ", ";
+    }
+    std::cout << std::endl;
+
     return 0;
 }
     
@@ -215,6 +227,19 @@ int Minimizer::applyEpsilonChannel(std::vector<std::complex<double> >* kraus,std
     for (int i=0; i<out_dimension; i++){
         out_matrix->at(i*out_dimension+i) += std::complex<double>(epsilon, 0.0f)/std::complex<double>(out_dimension, 0.0f);
     }
+    // DEBUG: PRINT THE EIGENVALUES OF THIS?
+    std::vector<double> eigvals(M);
+    std::vector<std::complex<double> > tmp(M*M);
+    for (int i=0; i < M*M; i++){
+        tmp.at(i) = out_matrix->at(i);
+    }
+    int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'V', 'U', M, reinterpret_cast<lapack_complex_double*>(tmp.data()),M,eigvals.data());
+    std::cout << "The eigenvalues after I apply the epsilon channel are:" << std::endl;
+    for (int i=0; i < M; i++){
+        std::cout << eigvals.at(i) << ", ";
+    }
+    std::cout << std::endl;
+
     return 0;
 }
 
@@ -322,14 +347,19 @@ int Minimizer::calculateEntropy(){
     updateProjector();
     applyEpsilonChannel(kraus_operators, input_matrix, output_matrix, d, N, M, epsilon);
     std::vector<double> eigvals = std::vector<double>(N);
-    int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'N', 'U', M, reinterpret_cast<lapack_complex_double*>(output_matrix->data()),M,eigvals.data());
+    std::vector<std::complex<double> > tmp(M*M);
+    for (int i=0; i < M*M; i++){
+        tmp.at(i) = output_matrix->at(i);
+    }
+    int info = LAPACKE_zheev(LAPACK_COL_MAJOR, 'V', 'U', M, reinterpret_cast<lapack_complex_double*>(tmp.data()),M,eigvals.data());
     entropy = 0.0f;
     double s = 0.0f;
+    std::cout << "The eigenvalues we are using for calculating the entropy are:" <<std::endl;
     for (int i = 0; i< M; i++){
         // WARNING: We are assuming that the diagonal here is real (which it is since it contains the eigs of a hermitian matrix)
-        entropy -= output_matrix->at(i*M+i).real()*std::log(output_matrix->at(i*M+i).real());
-        std::cout << output_matrix->at(i*M+i).real() << " ";
-        s+=output_matrix->at(i*M+i).real();
+        entropy -= eigvals.at(i)*std::log(eigvals.at(i));
+        std::cout << eigvals.at(i) << " ";
+        s+=eigvals.at(i);
     }
     std::cout << std::endl;
     std::cout << s << std::endl;
