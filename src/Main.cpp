@@ -8,12 +8,12 @@
 #include <lapacke.h>
 // My headers
 #include "Minimizer.h"
-#include "Config.h"
+#include "EntropyMinimizer.h"
 
 
 
-const int d = 20;
-const int N = 1000;
+const int d = 5;
+const int N = 30;
 
 std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
     // Step 0: Initialize output
@@ -48,6 +48,8 @@ std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
 }
 
 int main() {
+
+    // Step 1: Generate the Kraus operators of the random unitary channel
     std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.
     for (int m = 0; m < d; m++){
         std::cout << "Generating Haar random unitary " << m+1 << " of " << d << "... ";
@@ -60,16 +62,17 @@ int main() {
         delete new_haar_unitary;
     }
 
+    // Step 2: initialize the minimizer that will take care of finding the MOE
+    EntropyMinimizer minimizer = EntropyMinimizer(kraus_operators, d, N, N); 
 
-    Minimizer minimizer = Minimizer(kraus_operators, d, N, N); 
+    // Step 3: get a random initial vector for the minimizer
+    minimizer.minimizer->initializeRandomVector();
 
-    minimizer.initializeRandomVector();
 
-    for (int i=0; i< 100000; i++){
-        minimizer.stepAlgorithm();
-        std::cout << i << ": ";
-        minimizer.calculateEntropy();
-    }
+    // Step 4: run a minimization run
+    minimizer.runMinimization();
+
+    // Step 5: free memory
     delete kraus_operators;
     return 0;
 }

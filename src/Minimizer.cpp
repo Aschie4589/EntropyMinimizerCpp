@@ -4,6 +4,7 @@
 #include <complex>
 #include <random>
 #include <cmath>
+#include <queue>
 
 #include <cblas.h>
 #include <lapacke.h>
@@ -13,7 +14,7 @@
 
 
 Minimizer::Minimizer(std::vector<std::complex<double> >* kraus_ops, 
-                        int kraus_number, int kraus_in_dimension, int kraus_out_dimension,double epsilon) {
+                        int kraus_number, int kraus_in_dimension, int kraus_out_dimension,double eps) {
     // PARAMETERS ASSIGNMENT
     // kraus_operators stores the pointer to a vector of double precision complex numbers. I don't want to have two large objects in memory so this is the way to go.
     // It consists of a list of d contiguous NxN matrices, each stored in column-major order.
@@ -25,7 +26,7 @@ Minimizer::Minimizer(std::vector<std::complex<double> >* kraus_ops,
     N = kraus_in_dimension;
     M = kraus_out_dimension;
     // assign precision
-    this->epsilon = epsilon; // "this" is like self for python, but returns a pointer to the instance of the class
+    epsilon = eps; 
 
     // INITIALIZATION OF MATRICES AND VECTORS
     // start by initializing the vector_state to a zero vector, to avoid seg faults.
@@ -311,24 +312,28 @@ int Minimizer::calculateEntropy(){
         // WARNING: We are assuming that the diagonal here is real (which it is since it contains the eigs of a hermitian matrix)
         entropy -= eigvals.at(i)*std::log(eigvals.at(i));
     }
-    std::cout<< "Current entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) <<entropy << std::endl;
+    //std::cout<< "Current entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) <<entropy << std::endl;
 
     return 0;
 
 }
+
+int Minimizer::step(){
+    stepAlgorithm();
+    calculateEntropy();
+    return 0;
+}
+
 /// GETTERS
 std::vector<std::complex<double> >* Minimizer::getState(){
     return input_matrix;
 }
 
-
+double* Minimizer::getEntropy(){
+    return &entropy;
+}
 
 /// DEBUGGING AND PRINTING AND ETC
-
-int Minimizer::test(){
-    std::cout << "The vector state pointer is:" << vector_state << std::endl;
-    return 0;
-}
 
 int Minimizer::printVectorState(){
     // Print a list. Some variables are hard coded!
