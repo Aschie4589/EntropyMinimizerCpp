@@ -9,20 +9,18 @@ These are expanded at compile time, so they will be hard-coded in the program.
 #define CONFIG_H
 
 /* 
-Minimizer parameters
+EntropyMinimizer parameters
 */
-#define EPS 1.0f/1000                      // The default value of epsilon that is passed to the minimizer.
 
-#define MAX_ITERATIONS 500000           // How many iterations of the algorithm to run before giving up. Has to be less than uint32_t range
-
+// Default parameters that can be changed in MinimizerConfig
+#define DEFAULT_MINIMIZER_MAX_ITERATIONS 500000             // How many iterations of the algorithm to run before giving up. Has to be less than uint32_t range
+#define DEFAULT_MINIMIZER_LOG false                         // Should the minimizer write messages to a log file?
+#define DEFAULT_MINIMIZER_LOG_FILENAME "default_log.log"
+#define DEFAULT_MINIMIZER_PRINT true                        // Should the minimizer print messages to the console?
+#define DEFAULT_MINIMIZER_EPSILON 1.0f/1000                 // What is the default epsilon by which to perturb the channel to ensure full rank?
+// Other parameters that are just baked in at compile
 #define CONVERGENCE_TOLERANCE 1e-15     // When running the algorithm, if the improvement is below this threshold value for CONVERGENCE_ITERS iterations, 
 #define CONVERGENCE_ITERS 20            // 
-
-/*
-The Minimizer class provides a few methods for printing vectors and matrices (which are not too advanced!)
-Here you can change their behavior.
-*/
-#define PRINT_PRECISION 15  // How many digits to print in print statements
 
 
 /*
@@ -34,7 +32,7 @@ File save parameters
 #define KRAUS_DIRECTORY "kraus"         // Subfolder for saving kraus operators
 
 /*
-LOGGING
+LOGGING configuration. These are baked in.
 */
 #define LOGGER_CONTEXT_TIMESTAMP true       // Whether to include timestamp in the log line or not
 #define LOGGER_CONTEXT_UUID false            // Whether to include the logger UUID in the log line
@@ -47,5 +45,11 @@ LOGGING
 #define LOG_LEVEL_ERROR 2
 #define LOGGER_TIME_FORMAT "%Y-%m-%d %H:%M:%S"
 #define LOGGER_APPEND_MILLIS true           // This appends ".mmm" at the end of the timestamp string, however it may be formatted!
+
+
+/*
+Misc
+*/
+#define PRINT_PRECISION 15  // How many digits to print in print statements
 
 #endif

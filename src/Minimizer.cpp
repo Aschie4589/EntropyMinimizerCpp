@@ -42,7 +42,8 @@ int Minimizer::initializeVector(std::vector<std::complex<double> >* pointer) {
     // Step 1: Check that the pointer points to a valid, non-empty vector:
     if (pointer == nullptr || pointer->empty()){
         std::cout << "Wait a second, no starting vector was provided! I will generate a random one..." << std::endl;
-        return initializeRandomVector();
+        initializeRandomVector();
+        return 2;
     } 
     // Step 2: Check that the vector has the right dimension (equal to the input dimension)
     if (pointer->size()==N){
@@ -53,7 +54,8 @@ int Minimizer::initializeVector(std::vector<std::complex<double> >* pointer) {
     } else {
         // If it doesn't, generate a random vector as a fallback.
         std::cout << "The vector does not match the specified dimension! Fallback: generating random vector..." << std::endl;
-        return initializeRandomVector();
+        initializeRandomVector();
+        return 1;
     }
 }
 

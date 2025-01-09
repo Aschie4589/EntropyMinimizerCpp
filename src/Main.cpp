@@ -41,21 +41,8 @@ std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
     return out;
 }
 
+
 int main() {
-
-
-    MessageHandler message_handler;
-    message_handler.createLogger("sasdasd.txt");
-    message_handler.createPrinter();
-    message_handler.setLogging(true);
-    message_handler.setPrinting(false);
-    message_handler.message("Messaggio di prova!");
-
-}
-
-
-
-int foo() {
 
     // Step 1: Generate the Kraus operators of the random unitary channel
     std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.
@@ -71,7 +58,13 @@ int foo() {
     }
 
     // Step 2: initialize the minimizer that will take care of finding the MOE
-    EntropyMinimizer minimizer = EntropyMinimizer(kraus_operators, d, N, N); 
+    // Config setup
+    EntropyConfig config = EntropyConfig();
+    config.setLogging(false);
+    config.setLogFile("loglog.log");
+    config.setPrinting(true);
+    // Actual minimizer
+    EntropyMinimizer minimizer = EntropyMinimizer(kraus_operators, d, N, N, &config); 
 
     // Step 3: get a random initial vector for the minimizer
     minimizer.minimizer->initializeRandomVector();

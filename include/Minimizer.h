@@ -6,7 +6,7 @@
 
 class Minimizer {
 public:
-    Minimizer(std::vector<std::complex<double> >* kraus_ops,int kraus_number,int kraus_in_dimension,int kraus_out_dimension, double eps = EPS);             // Constructor declaration
+    Minimizer(std::vector<std::complex<double> >* kraus_ops,int kraus_number,int kraus_in_dimension,int kraus_out_dimension, double eps);             // Constructor declaration
     ~Minimizer();            // Destructor declaration
     // Initialization
     int initializeVector(std::vector<std::complex<double> >* vector_pointer); // This initializes the vector to a given one. If dimensions don't match, it defaults to initializing a random vector
