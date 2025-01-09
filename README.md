@@ -10,10 +10,12 @@ So far, none! Wheev...
 To compile, open a terminal in the main folder and execute:
 ```batch
 make
+```
  
 The compiled binary will be called `out`. Run the minimizer by calling:
-```
+``` batch
 ./out
+```
 
 In the relevant folder.
 
