@@ -1,0 +1,47 @@
+# Cross-compiler and flags
+CXX = icpx  # Use your cross-compiler here
+CXXFLAGS = -std=c++17 -fdiagnostics-color=always -march=skylake -DMKL_ILP64 -m64  # Ensure you're using 64-bit integers
+LDFLAGS = -fiopenmp -fopenmp-targets=spir64  -fsycl  /opt/intel/oneapi/mkl/latest/lib/libmkl_sycl.a /opt/intel/oneapi/mkl/latest/lib/libmkl_scalapack_ilp64.a -Wl,--start-group /opt/intel/oneapi/mkl/latest/lib/libmkl_cdft_core.a /opt/intel/oneapi/mkl/latest/lib/libmkl_intel_ilp64.a /opt/intel/oneapi/mkl/latest/lib/libmkl_intel_thread.a /opt/intel/oneapi/mkl/latest/lib/libmkl_core.a /opt/intel/oneapi/mkl/latest/lib/libmkl_blacs_intelmpi_ilp64.a  -Wl,--end-group -liomp5 /opt/intel/oneapi/compiler/latest/lib/libiomp5.a -lsycl -lOpenCL -lstdc++ -lpthread -lm -ldl
+
+# Set MKL directories for static libraries
+MKL_DIR = llatest/lib/intel64
+MKL_INCLUDE_DIR = /opt/intel/oneapi/mkl/latest/include
+IOLMP_DIR = /opt/intel/oneapi/compiler/latest/lib
+
+# Compiler flags
+INCLUDES = -I$(MKL_INCLUDE_DIR) -I./include   # Include directories
+LIBS = -L$(MKL_DIR) -L$(IOLMP_DIR)
+
+# Architecture-specific optimizations (targeting Skylake)
+CXXFLAGS += -fiopenmp -fopenmp-targets=spir64 -m64 -DMKL_ILP64 -mtune=skylake -mavx2 -mavx512f -msse4.2 -mpopcnt -O3  # Enable AVX2 and AVX512 optimizations
+
+# Directories
+SRC_DIR = src
+OBJ_DIR = build
+INCLUDE_DIR = include
+
+# Source and object files
+SOURCES := $(wildcard $(SRC_DIR)/*.cpp)
+OBJECTS := $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+
+# Target
+TARGET = out_hpc  # Name of the final executable
+
+# Default build rule
+all: $(TARGET)
+
+# Create object directory if it doesn't exist
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
+
+# Link the target
+$(TARGET): $(OBJ_DIR) $(OBJECTS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(OBJECTS) $(LDFLAGS) $(LIBS) 
+
+# Compile each .cpp file into .o in the obj directory
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+# Clean up
+clean:
+	rm -rf $(OBJ_DIR) $(TARGET)

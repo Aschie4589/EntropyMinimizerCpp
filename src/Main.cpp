@@ -5,9 +5,10 @@
 #include "message_handler.h"
 #include "logger.h"
 #include "config.h"
+#include "matrix_operations.h"
 
-const int d = 5;
-const int N = 30;
+const int d = 3;
+const int N = 512;
 
 std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
     // Step 0: Initialize output
@@ -27,22 +28,32 @@ std::vector<std::complex<double> >* generateHaarRandomUnitary(int N){
     // Step 3: Perform QR decomposition
     std::vector<std::complex<double> > tau(N);
     std::complex<double> work_size;
-    // Query the optimal work size
-    LAPACKE_zgeqrfp_work(LAPACK_COL_MAJOR, N, N, reinterpret_cast<lapack_complex_double*>(out->data()),N,reinterpret_cast<lapack_complex_double*>(tau.data()),reinterpret_cast<lapack_complex_double*>(&work_size),-1);
+    // Query the optimal work size    
+    zgeqrfp_wrapper(N, N, out, N, &tau, &work_size,-1);
     // Actually perform QR
     int lwork = static_cast<int>(work_size.real());
     std::vector<std::complex<double>> work(lwork);
-    LAPACKE_zgeqrfp_work(LAPACK_COL_MAJOR, N, N, reinterpret_cast<lapack_complex_double*>(out->data()),N,reinterpret_cast<lapack_complex_double*>(tau.data()),reinterpret_cast<lapack_complex_double*>(work.data()), lwork);
+    zgeqrfp_wrapper(N, N, out, N, &tau, &work, lwork);
     // Query optimal work size to reconstruct Q
-    LAPACKE_zungqr_work(LAPACK_COL_MAJOR, N,N,N,reinterpret_cast<lapack_complex_double*>(out->data()),N,reinterpret_cast<lapack_complex_double*>(tau.data()),reinterpret_cast<lapack_complex_double*>(&work_size),-1);
+    zungqr_wrapper(N,N,N,out,N,&tau,&work_size,-1);
     lwork = static_cast<int>(work_size.real());
     work.resize(lwork);
-    LAPACKE_zungqr_work(LAPACK_COL_MAJOR, N,N,N,reinterpret_cast<lapack_complex_double*>(out->data()),N,reinterpret_cast<lapack_complex_double*>(tau.data()),reinterpret_cast<lapack_complex_double*>(work.data()), lwork);
+    zungqr_wrapper(N,N,N,out,N,&tau,&work, lwork);
     return out;
 }
 
 
 int main() {
+
+    // Check if Accelerate is running in single-threaded or multi-threaded mode
+    #ifdef LAPACK_ACCELERATE
+    BLAS_THREADING mode = BLASGetThreading();
+    if (mode == BLAS_THREADING_SINGLE_THREADED) {
+        std::cout << "BLAS is running in single-threaded mode." << std::endl;
+    } else if (mode == BLAS_THREADING_MULTI_THREADED) {
+        std::cout << "BLAS is running in multi-threaded mode." << std::endl;
+    }
+    #endif
 
     // Step 1: Generate the Kraus operators of the random unitary channel
     std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.

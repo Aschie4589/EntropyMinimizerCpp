@@ -8,10 +8,13 @@ build/
 #Ignore compiled files
 out
 
+# Ignore save files if present
+save/
+data/
+
 # Ignore editor-specific files
 .vscode/
 .idea/
-save/
 
 # Ignore system files
 .DS_Store        # macOS specific

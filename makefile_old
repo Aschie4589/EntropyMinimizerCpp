@@ -1,0 +1,36 @@
+# Compiler and flags
+CXX = /usr/bin/g++
+CXXFLAGS = -std=c++17 -fdiagnostics-color=always -arch x86_64
+LDFLAGS = -L/opt/intel/oneapi/mkl/latest/lib -L/opt/intel/oneapi/compiler/latest/mac/compiler/lib
+INCLUDES = -I/opt/intel/oneapi/mkl/latest/include -I./include
+LIBS = -lmkl_rt -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -liomp5 -lpthread -lm -ldl -Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib
+# Directories
+SRC_DIR = src
+OBJ_DIR = build
+INCLUDE_DIR = include
+
+# Source and object files
+SOURCES := $(wildcard $(SRC_DIR)/*.cpp)
+OBJECTS := $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+
+# Target
+TARGET = out  # Name of the final executable
+
+# Default build rule
+all: $(TARGET)
+
+# Create object directory if it doesn't exist
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
+
+# Link the target
+$(TARGET): $(OBJ_DIR) $(OBJECTS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(OBJECTS) $(LDFLAGS) $(LIBS)
+
+# Compile each .cpp file into .o in the obj directory
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+# Clean up
+clean:
+	rm -rf $(OBJ_DIR) $(TARGET)
