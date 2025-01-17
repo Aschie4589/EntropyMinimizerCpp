@@ -3,6 +3,7 @@
 #define MINIMIZER_H
 
 #include "config.h"
+#include "vector_serializer.h"
 
 class Minimizer {
 public:
@@ -33,11 +34,13 @@ private:
     // Members
     int N, M, d;
     double epsilon, bin_entropy, entropy_error, entropy, estimated_entropy, estimated_entropy_ub, estimated_entropy_lb;
-    
+    // Matrices and vectors
     std::vector<std::complex<double> >* kraus_operators;
     std::vector<std::complex<double> >* vector_state;
     std::vector<std::complex<double> >* input_matrix;
     std::vector<std::complex<double> >* output_matrix; // is this one necessary?
+    // Seralizer
+    VectorSerializer* serializer;
     // Methods
     int printMatrix(std::vector<std::complex<double> >* matrix_pointer, int n, int m);
     int applyChannel(std::vector<std::complex<double> >* kraus,std::vector<std::complex<double> >* in_matrix,std::vector<std::complex<double> >* out_matrix, int number_kraus, int in_dimension, int out_dimension);

@@ -26,6 +26,9 @@ Minimizer::Minimizer(std::vector<std::complex<double> >* kraus_ops,
     input_matrix = new std::vector(N*N,std::complex<double>(0.0f,0.0f));
     output_matrix = new std::vector(M*M,std::complex<double>(0.0f,0.0f));
 
+    // INITIALIZATION OF SERIALIZER
+    serializer = new VectorSerializer();
+
     // OTHER USEFUL CONSTANTS
     entropy = -1;
     // We need to know the binary entropy of epsilon, which is used in obtaining the error in the approximation of the entropy
@@ -227,6 +230,7 @@ int Minimizer::applyDualEpsilonChannel(std::vector<std::complex<double> >* kraus
     return 0;
 }
 
+
 int Minimizer::stepAlgorithm(){
     // Step 1: update the projector based on the vector
     updateProjector();
@@ -376,4 +380,5 @@ Minimizer::~Minimizer() {
     delete vector_state;
     delete input_matrix;
     delete output_matrix;
+    delete serializer;
 }

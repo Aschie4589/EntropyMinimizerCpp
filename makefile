@@ -14,7 +14,9 @@ CXXFLAGS = -std=c++17
 # Default platform. Used to determine which libraries to link against and which compiler to use (g++ or icpcx)
 PLATFORM ?= apple # Options: "apple", "linux"
 # What linear algebra package to use
-LAPACK ?= openblas # Use this to specify the linear algebra package to use. Options: "mkl", "openblas", "accelerate"
+ifeq ($(origin LAPACK), undefined)
+    LAPACK = openblas# Use this to specify the default linear algebra package to use. Options: "mkl", "openblas", "accelerate". NO TRAILING SPACES!
+endif 
 
 # Default architecture
 ifeq ($(PLATFORM), apple)
@@ -58,12 +60,15 @@ else ifeq ($(LAPACK), mkl)
     LIBDIRFLAGS = -L/opt/intel/oneapi/mkl/latest/lib -L/opt/intel/oneapi/compiler/latest/mac/compiler/lib
     LIBS = -lmkl_rt -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -liomp5 -lpthread -lm -ldl -Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib
 
-else ifeq ($(LAPACK), openblas)
+else ifeq ($(LAPACK),openblas)
     # Add headers for OpenBLAS
     CXXFLAGS += -DLAPACK_OPENBLAS
     INCLUDES += -I/opt/homebrew/opt/lapack/include -I/opt/homebrew/opt/openblas/include
     LIBDIRFLAGS = -L/opt/homebrew/opt/lapack/lib -L/opt/homebrew/opt/openblas/lib
     LIBS = -lopenblas -lblas -llapack -llapacke
+else
+    $(error "Invalid LAPACK setting: $(LAPACK). Please choose accelerate, mkl, or openblas.")
+
 endif
 
 # Source and object files

@@ -14,7 +14,7 @@
 #include "vector_serializer.h"
 
 const int d = 10;
-const int N = 50;
+const int N = 500;
 
 
 int main() {
@@ -56,23 +56,10 @@ int main() {
 
 
     // Step 4: run a minimization run
-    // minimizer.runMinimization();
+    minimizer.runMinimization();
 
-    // Step 4-b: save kraus operators
-    VectorSerializer serializer = VectorSerializer();
-    //serializer.serializeVector(kraus_operators, "kraus_operators.dat");
-
-    // Step 4-c: load kraus operators
-    std::vector<std::complex<double> >* loaded_kraus_operators = serializer.deserializeVector("kraus_operators.dat");
-
-    // print kraus vectors
-    for (int i = 0; i < d; i++){
-        std::cout << "Kraus operator " << i << std::endl;
-        for (int j = 0; j < N*N; j++){
-            std::cout << loaded_kraus_operators->at(i*N*N+j) << " ";
-        }
-        std::cout << std::endl;
-    }
+    // Step 5: save final state
+    // minimizer.minimizer->saveState("final_state.dat");
 
     // Step 5: free memory
     delete kraus_operators;
