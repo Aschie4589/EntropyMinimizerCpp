@@ -4,6 +4,7 @@ build/
 *.obj
 *.out
 *.exe
+*.dat
 
 #Ignore compiled files
 out
