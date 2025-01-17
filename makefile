@@ -32,7 +32,7 @@ ifeq ($(PLATFORM), apple)
     # Other stuff to add for apple
 
 else ifeq ($(PLATFORM), linux)
-    CXX = icpcx # Ehm is this right? Use intel compiler
+    CXX = icpx # Ehm is this right? Use intel compiler
     CXXFLAGS += -DTARGET_LINUX # This makes sure that "TARGET_LINUX" is defined in the code as a preprocessor macro
     CXXFLAGS += -qdiagnostics-color=always # Color diagnostic message
     CXXFLAGS += -arch $(ARCH)
