@@ -1,5 +1,6 @@
 **TO-DO:**
 - Implement save states.
+    - `VectorSerializer` needs to be implemented in `minimizer.cpp`.
 - Implement command line interaction.
     - This would ideally mean that the program can just be run from command line, something like:
     ```
@@ -9,4 +10,4 @@
 - Track resource usage in separate log file.
 
 **DONE:**
-- Implement logs and printing (through MessageHandler class).
+- Implement logs and printing (through `MessageHandler` class).
