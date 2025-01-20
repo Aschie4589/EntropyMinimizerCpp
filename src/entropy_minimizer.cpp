@@ -19,7 +19,14 @@ EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops
     message_handler->createLogger(config->log_file);
     message_handler->setLogging(config->log);
     message_handler->setPrinting(config->print);  
-//    std::ostringstream oss;  
+
+    // INITIALIZATION OF SERIALIZER
+    serializer = new VectorSerializer();
+
+    // INITIALIZATION OF ENTROPY ESTIMATOR 
+    entropy_estimator = new EntropyEstimator();
+
+
     // Initialize the current iteration and current MOE
     current_iteration = 0;
     MOE = -1;
@@ -38,6 +45,10 @@ int EntropyMinimizer::initializeRun(){
     // Compute the entropy of the start vector and save it in the buffer
     minimizer->calculateEntropy();
     entropy_buffer[0] = *minimizer->getEntropy();
+
+    // Reset the entropy estimator
+    entropy_estimator->reset();
+    entropy_estimator->appendEntropy(*minimizer->getEntropy());
 
     // Check if we have found a new MOE
     if (MOE < 0 || entropy_buffer[0] < MOE) {
@@ -65,6 +76,11 @@ int EntropyMinimizer::initializeRun(std::vector<std::complex<double> >* start_ve
     minimizer->calculateEntropy();
     entropy_buffer[0] = *minimizer->getEntropy();
 
+    // Reset the entropy estimator
+    entropy_estimator->reset();
+    entropy_estimator->appendEntropy(*minimizer->getEntropy());
+
+
     // Check if we have found a new MOE
     if (MOE < 0 || entropy_buffer[0] < MOE) {
         MOE = entropy_buffer[0];
@@ -79,9 +95,10 @@ int EntropyMinimizer::stepMinimization(){
     current_iteration +=1;
 
     // Step 2: update the MOE if the newly found MOE is lower
-    // 2.1: Compute the entropy of the state and save it in the buffer. Buffer is CONVERGENCE_ITERS long.
+    // 2.1: Compute the entropy of the state and save it in the buffer. Buffer is CONVERGENCE_ITERS long. Also update the entropy estimator buffer
     minimizer->calculateEntropy();
     entropy_buffer[current_iteration % CONVERGENCE_ITERS] = *minimizer->getEntropy();
+    entropy_estimator->appendEntropy(*minimizer->getEntropy());
     // 2.2: Check if we have found a new MOE
     if (entropy_buffer[0] < MOE) {
         MOE = entropy_buffer[current_iteration % CONVERGENCE_ITERS];
@@ -126,9 +143,89 @@ int EntropyMinimizer::runMinimization() {
 }
 
 
+int EntropyMinimizer::findMOE(){
+    // Print message
+    oss.str("");
+    oss << "Will try to find MOE. Running" << config->minimization_attempts << " minimization attempts.";
+    message_handler->message(oss.str());
+
+    // Step through the minimization attempts
+    for (int i=0; i<config->minimization_attempts; i++){
+        // Initialize a new run
+        initializeRun();
+        // Print message
+        oss.str("");
+        oss << "Initializing minimization attempt " << i+1 << " of " << config->minimization_attempts << ".";
+        message_handler->message(oss.str());
+
+        // Perform the minimization
+        message_handler->message("Starting minimization...");
+        // Initialize a flag that, if MOE prediction is used, will stop the minimization
+        bool predict_stop = false;
+        while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop){
+            // Print the current entropy from this run. 
+            oss.str("");
+            oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
+            message_handler->message(oss.str());
+            // If necessary, update the MOE
+            double new_entropy = *minimizer->getEntropy();
+            if (new_entropy < MOE){
+                MOE = new_entropy;
+            }
+            // Also print the current MOE
+            oss.str("");
+            oss << "Current MOE: " << MOE;
+            message_handler->message(oss.str());
+            // Check if we need to stop because of MOE prediction
+            if (config->MOE_use_prediction){
+                // First update the model
+                double Rsquared = entropy_estimator->exponentialFit();
+
+                // If fit is good, and the slope points the right way, predict the final entropy
+                if (Rsquared > RSQUARED_THRESHOLD && entropy_estimator->model_params[1] < 0){
+                    // Predict the final entropy and the number of steps
+                    double predicted_entropy = entropy_estimator->predictFinalEntropy();
+                    int predicted_steps = entropy_estimator->predictFinalSteps();
+
+                    // Entropy is negative. A negative prediction means that the model is not valid.
+                    if (predicted_entropy>0){
+                        // Print log message, use many digits
+                        oss.str("");
+                        oss << "Predicted final entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << predicted_entropy << " at iteration " << predicted_steps;
+                        message_handler->message(oss.str());
+                    }
+                    if (predicted_entropy - MOE > config->MOE_prediction_tolerance){
+                        predict_stop = true;
+                    }
+
+                }                
+
+            }
+        }
+        if (current_iteration >= config->max_iterations){
+            message_handler->message("We reached the maximum number of iterations! Aborting...");
+        } else {
+            message_handler->message("We reached the tolerance: we have converged!");
+        }
+
+
+    }
+
+    // We have finished the minimization attempts. Print the final MOE
+    oss.str("");
+    oss << "Final MOE: " << MOE;
+    message_handler->message(oss.str());
+    
+
+    return 0;
+}
+
 
 EntropyMinimizer::~EntropyMinimizer()
 {
     delete minimizer;
+    delete serializer;
+    delete entropy_estimator;
+
 }
 

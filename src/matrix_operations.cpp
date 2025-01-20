@@ -71,3 +71,13 @@ void zheev_wrapper(char jobz, char uplo, int N, std::vector<std::complex<double>
         LAPACKE_zheev(LAPACK_COL_MAJOR, jobz, uplo, N, reinterpret_cast<lapack_complex_t*>(A->data()), lda, w->data());
     #endif
 }
+
+void dgesv_wrapper(int N, int NRHS, double* A, int lda, int* ipiv, double* B, int ldb){
+    #ifdef LAPACK_ACCELERATE
+        int info = 0;
+        dgesv_(&N, &NRHS, A, &lda, ipiv, B, &ldb, &info);
+    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS)
+        LAPACKE_dgesv(LAPACK_COL_MAJOR, N, NRHS, A, lda, ipiv, B, ldb);
+    #endif
+}
+

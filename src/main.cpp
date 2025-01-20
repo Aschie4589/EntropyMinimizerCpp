@@ -13,8 +13,10 @@
 
 #include "vector_serializer.h"
 
-const int d = 10;
-const int N = 500;
+#include "entropy_estimator.h"
+
+const int d = 20;
+const int N = 1024;
 
 
 int main() {
@@ -45,7 +47,7 @@ int main() {
     // Step 2: initialize the minimizer that will take care of finding the MOE
     // Config setup
     EntropyConfig config = EntropyConfig();
-    config.setLogging(false);
+    config.setLogging(true);
     config.setLogFile("loglog.log");
     config.setPrinting(true);
     // Actual minimizer
@@ -56,7 +58,7 @@ int main() {
 
 
     // Step 4: run a minimization run
-    minimizer.runMinimization();
+    minimizer.findMOE();
 
     // Step 5: save final state
     // minimizer.minimizer->saveState("final_state.dat");

@@ -17,6 +17,7 @@ public:
     // Algorithm functions
     int stepMinimization();                     // Do one step of minimization, then check if we need to stop. Return 1 if we need to stop, 0 othwerise.
     int runMinimization();
+    int findMOE();                              // This function finds the MOE of the channel
 
     Minimizer* minimizer;
     EntropyConfig* config;
@@ -26,6 +27,10 @@ private:
     int current_iteration;                      // This is the index of the current iteration, also used for insertion and deletion of elements fromt eh queue
     std::ostringstream oss;                      // Useful for formatting certain strings
     MessageHandler* message_handler;            // This makes sure logs and messages are handled correctly.
+    // Seralizer
+    VectorSerializer* serializer;               // This is used to save the state of the vector
+    // Entropy estimator
+    EntropyEstimator* entropy_estimator;       // This is used to estimate the entropy of the state
 
     double MOE;
 

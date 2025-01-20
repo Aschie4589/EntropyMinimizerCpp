@@ -1,17 +1,25 @@
 #ifndef ENTROPY_CONFIG_H
 #define ENTROPY_CONFIG_H
 
+#include "common_includes.h"
+
 class EntropyConfig {
 
     public:
         // Algorithm config
-        int max_iterations;
+        int max_iterations, minimization_attempts;
         double epsilon;
+        // Specific to prediction of final entropy of a run
+        bool MOE_use_prediction;
+        double MOE_prediction_tolerance;
+
 
         // Messages config
 
         bool log, print;
         std::string log_file;
+
+
 
         EntropyConfig();
 
@@ -20,6 +28,8 @@ class EntropyConfig {
         int setLogging(bool l);
         int setPrinting(bool p);
         int setLogFile(const std::string& lf);
+        int setMOEUsePrediction(bool mup);
+        int setMOEPredictionTolerance(double mpt);
 
 };
 

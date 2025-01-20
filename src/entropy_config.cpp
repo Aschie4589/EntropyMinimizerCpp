@@ -9,6 +9,11 @@ EntropyConfig::EntropyConfig() {
     //Algorithm
     max_iterations = DEFAULT_MINIMIZER_MAX_ITERATIONS;
     epsilon = DEFAULT_MINIMIZER_EPSILON;
+    minimization_attempts = DEFAULT_MINIMIZER_MINIMIZATION_ATTEMPTS;
+
+    // MOE prediction
+    MOE_use_prediction = DEFAULT_MINIMIZER_USE_MOE_PREDICTION;
+    MOE_prediction_tolerance = DEFAULT_MINIMIZER_MOE_PREDICTION_TOLERANCE;
 
     //Logging and messaging
     log = DEFAULT_MINIMIZER_LOG;
@@ -17,6 +22,16 @@ EntropyConfig::EntropyConfig() {
     
 
 
+}
+
+int EntropyConfig::setMOEUsePrediction(bool mup){
+    MOE_use_prediction = mup;
+    return 0;
+}
+
+int EntropyConfig::setMOEPredictionTolerance(double mpt){
+    MOE_prediction_tolerance = mpt;
+    return 0;
 }
 
 int EntropyConfig::setEpsilon(double eps){

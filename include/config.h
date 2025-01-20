@@ -18,9 +18,20 @@ EntropyMinimizer parameters
 #define DEFAULT_MINIMIZER_LOG_FILENAME "default_log.log"
 #define DEFAULT_MINIMIZER_PRINT true                        // Should the minimizer print messages to the console?
 #define DEFAULT_MINIMIZER_EPSILON 1.0f/1000                 // What is the default epsilon by which to perturb the channel to ensure full rank?
-// Other parameters that are just baked in at compile
+#define DEFAULT_MINIMIZER_USE_MOE_PREDICTION true           // Should the minimizer use the prediction of the final MOE to stop the algorithm?
+#define DEFAULT_MINIMIZER_MOE_PREDICTION_TOLERANCE 1e-5     // What is the tolerance for the MOE prediction?
+#define DEFAULT_MINIMIZER_MINIMIZATION_ATTEMPTS 100         // How many times to run the minimization algorithm before giving up
+
+// These other parameters that are just baked in at compile
 #define CONVERGENCE_TOLERANCE 1e-15     // When running the algorithm, if the improvement is below this threshold value for CONVERGENCE_ITERS iterations, 
-#define CONVERGENCE_ITERS 20            // 
+#define CONVERGENCE_ITERS 20            // How many iterations to average over to check for convergence
+#define RSQUARED_THRESHOLD 0.999        // What is the threshold for the R^2 value of the linear fit to be considered good enough
+
+/*
+Entropy estimator parameters
+*/
+#define ENTROPY_ESTIMATOR_MAX_WINDOW_SIZE 500
+#define ENTROPY_ESTIMATOR_DEFAULT_WINDOW_SIZE 200
 
 
 /*
