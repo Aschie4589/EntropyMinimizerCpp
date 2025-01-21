@@ -5,7 +5,7 @@ build/
 *.out
 *.exe
 *.dat
-
+Launch*/
 #Ignore compiled files
 out
 
