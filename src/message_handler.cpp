@@ -14,6 +14,12 @@ int MessageHandler::createLogger(const std::string& f){
     return 0;
 }
 
+int MessageHandler::createLogger(){
+    loggers.emplace_back(new Logger());
+    return 0;
+}
+
+
 int MessageHandler::createPrinter(){
     printers.emplace_back(new Printer());
     return 0;

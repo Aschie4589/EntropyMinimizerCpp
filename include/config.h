@@ -15,7 +15,7 @@ EntropyMinimizer parameters
 // Default parameters that can be changed in MinimizerConfig
 #define DEFAULT_MINIMIZER_MAX_ITERATIONS 500000             // How many iterations of the algorithm to run before giving up. Has to be less than uint32_t range
 #define DEFAULT_MINIMIZER_LOG false                         // Should the minimizer write messages to a log file?
-#define DEFAULT_MINIMIZER_LOG_FILENAME "default_log.log"
+#define DEFAULT_MINIMIZER_LOG_PREFIX "log"
 #define DEFAULT_MINIMIZER_PRINT true                        // Should the minimizer print messages to the console?
 #define DEFAULT_MINIMIZER_EPSILON 1.0f/1000                 // What is the default epsilon by which to perturb the channel to ensure full rank?
 #define DEFAULT_MINIMIZER_USE_MOE_PREDICTION true           // Should the minimizer use the prediction of the final MOE to stop the algorithm?

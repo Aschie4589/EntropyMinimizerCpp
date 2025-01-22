@@ -6,6 +6,8 @@
 #include "printer.h"
 #include "config.h"
 
+#include "uuid.h"
+
 namespace fs = std::filesystem;
 
 Printer::Printer(std::string uuidStr)
@@ -19,10 +21,11 @@ Printer::Printer(std::string uuidStr)
 
 }
 
-Printer::Printer() : Printer("123e4567-e89b-12d3-a456-426614174000"){
+Printer::Printer() : Printer(generate_uuid_v4()) {
     // Handle the missing UUID, then call the other logger!
-    // TODO: IMPLEMENT!!!
-    std::cout << "Printer was called without UUID. Since UUID creation has not been implemented, will use 123e4567-e89b-12d3-a456-426614174000 as a default!" << std::endl;
+    // Notice that this is a delegation constructor, which is a C++11 feature.
+    std::cout << "Printer was called without UUID. Since UUID creation has been implemented, will use random one as a default!" << std::endl;
+    std::cout << "The UUID is: " << uuid << std::endl;
 }
 
 

@@ -16,7 +16,13 @@ EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops
     // Setup logging and messages
     message_handler = new MessageHandler();
     message_handler->createPrinter();
-    message_handler->createLogger(config->log_file);
+
+    if (config->use_custom_log_file){
+        message_handler->createLogger(config->log_file);
+    } else {
+        message_handler->createLogger();
+    }
+
     message_handler->setLogging(config->log);
     message_handler->setPrinting(config->print);  
 
@@ -94,9 +100,8 @@ int EntropyMinimizer::stepMinimization(){
     minimizer->step();
     current_iteration +=1;
 
-    // Step 2: update the MOE if the newly found MOE is lower
+    // Step 2: update the MOE if the newly found MOE is lower. No need to calculate the entropy, since it already is done when minimizer steps
     // 2.1: Compute the entropy of the state and save it in the buffer. Buffer is CONVERGENCE_ITERS long. Also update the entropy estimator buffer
-    minimizer->calculateEntropy();
     entropy_buffer[current_iteration % CONVERGENCE_ITERS] = *minimizer->getEntropy();
     entropy_estimator->appendEntropy(*minimizer->getEntropy());
     // 2.2: Check if we have found a new MOE

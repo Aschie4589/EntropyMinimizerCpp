@@ -17,6 +17,7 @@ public:
     ~MessageHandler();
 
     int createLogger(const std::string& filename);
+    int createLogger();
     int createPrinter();
 
     int setLogging(bool logging);

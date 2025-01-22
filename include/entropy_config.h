@@ -18,7 +18,7 @@ class EntropyConfig {
 
         bool log, print;
         std::string log_file;
-
+        bool use_custom_log_file;
 
 
         EntropyConfig();

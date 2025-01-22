@@ -6,6 +6,8 @@
 #include "logger.h"
 #include "config.h"
 
+#include "uuid.h"
+
 namespace fs = std::filesystem;
 
 Logger::Logger(std::string filename, std::string uuidStr, int log_level) : log_file(filename)
@@ -25,11 +27,22 @@ Logger::Logger(std::string filename, std::string uuidStr, int log_level) : log_f
 
 }
 
-Logger::Logger(std::string filename, int log_level) : Logger(filename, "123e4567-e89b-12d3-a456-426614174000", log_level) {
+Logger::Logger(std::string filename, int log_level) : Logger(filename, generate_uuid_v4(), log_level) {
     // Handle the missing UUID, then call the other logger!
-    // TODO: IMPLEMENT!!! Note that I need a function called above...! because that is the only way to "delegate a constructor". 
-    std::cout << "Logger was called without UUID. Since UUID creation has not been implemented, will use 123e4567-e89b-12d3-a456-426614174000 as a default!" << std::endl;
+    // Notice that this is a delegation constructor, which is a C++11 feature.
+    std::cout << "Logger was called without UUID. Since UUID creation has been implemented, will use random one as a default!" << std::endl;
+    std::cout << "The UUID is: " << uuid << std::endl;
+}
 
+Logger::Logger(int log_level) : Logger("placeholder.log", generate_uuid_v4(), log_level) {
+    // Handle the missing UUID, then call the other logger!
+    // Notice that this is a delegation constructor, which is a C++11 feature.
+    std::cout << "Logger was called without UUID. Since UUID creation has been implemented, will use random one as a default!" << std::endl;
+    std::cout << "The UUID is: " << uuid << std::endl;
+    // Update the filename. Format is "prefix_uuid.log". Make sure to include the _.
+    log_file = std::string(DEFAULT_MINIMIZER_LOG_PREFIX) + "_" + uuid + ".log";
+    // Log that to the console
+    std::cout << "The log file is: " << log_file << std::endl;
 }
 
 

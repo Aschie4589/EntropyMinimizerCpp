@@ -2,35 +2,25 @@
 #include "common_includes.h"
 #include "config.h"
 
+#include "matrix_operations.h"
+
 #include "minimizer.h"
 #include "entropy_minimizer.h"
+#include "vector_serializer.h"
+#include "entropy_estimator.h"
 
 #include "message_handler.h"
 #include "logger.h"
-#include "matrix_operations.h"
 
 #include "generate_haar_unitary.h"
 
-#include "vector_serializer.h"
-
-#include "entropy_estimator.h"
+#include "uuid.h"
 
 const int d = 20;
-const int N = 1024;
+const int N = 1000;
 
 
 int main() {
-
-    // Check if Accelerate is running in single-threaded or multi-threaded mode
-    #ifdef LAPACK_ACCELERATE
-    BLAS_THREADING mode = BLASGetThreading();
-    if (mode == BLAS_THREADING_SINGLE_THREADED) {
-        std::cout << "BLAS is running in single-threaded mode." << std::endl;
-    } else if (mode == BLAS_THREADING_MULTI_THREADED) {
-        std::cout << "BLAS is running in multi-threaded mode." << std::endl;
-    }
-    #endif
-
     // Step 1: Generate the Kraus operators of the random unitary channel
     std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.
     for (int m = 0; m < d; m++){
@@ -48,7 +38,7 @@ int main() {
     // Config setup
     EntropyConfig config = EntropyConfig();
     config.setLogging(true);
-    config.setLogFile("loglog.log");
+//    config.setLogFile("loglog.log");
     config.setPrinting(true);
     // Actual minimizer
     EntropyMinimizer minimizer = EntropyMinimizer(kraus_operators, d, N, N, &config); 

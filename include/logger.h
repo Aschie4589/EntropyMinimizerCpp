@@ -19,7 +19,7 @@ private:
 public:
     Logger(std::string filename, std::string uuidStr, int log_level=LOG_LEVEL_INFO);
     Logger(std::string filename, int log_level=LOG_LEVEL_INFO);
-
+    Logger(int log_level=LOG_LEVEL_INFO);
     std::string log_file;
 
 

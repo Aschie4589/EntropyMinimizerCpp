@@ -17,9 +17,9 @@ EntropyConfig::EntropyConfig() {
 
     //Logging and messaging
     log = DEFAULT_MINIMIZER_LOG;
-    log_file = DEFAULT_MINIMIZER_LOG_FILENAME;
+    log_file = "log.log";
     print = DEFAULT_MINIMIZER_PRINT;
-    
+    use_custom_log_file = false;
 
 
 }
@@ -51,5 +51,6 @@ int EntropyConfig::setPrinting(bool p){
 
 int EntropyConfig::setLogFile(const std::string& lf){
     log_file = lf;
+    use_custom_log_file = true;
     return 0;
 }
