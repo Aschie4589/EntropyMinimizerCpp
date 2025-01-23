@@ -5,7 +5,7 @@
 argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     // Input command line arguments. See TODO.
     argparse::ArgumentParser* parser = new argparse::ArgumentParser("moe", "0.1", argparse::default_arguments::help);
-    parser->add_description("Entropy minimization for quantum channels, given a set of Kraus operators");
+    parser->add_description("Entropy minimization tools for quantum channels.");
     // Use subparsers for different commands
 
     /*
@@ -34,6 +34,16 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     haar_parser->add_argument("--output", "-o")
     .help("path to save the Kraus operators")
     .required();
+    // logging?
+    haar_parser->add_argument("--logging", "-l")
+    .help("enable logging")
+    .default_value(false)
+    .implicit_value(true);
+    // printing?
+    haar_parser->add_argument("--silent", "-s")
+    .help("disable printing")
+    .default_value(false)
+    .implicit_value(true);
 
 
     // SUBPARSER 2: Single-shot entropy minimization

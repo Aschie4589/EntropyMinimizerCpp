@@ -12,6 +12,10 @@ These are expanded at compile time, so they will be hard-coded in the program.
 EntropyMinimizer parameters
 */
 
+// Define version number
+#define VERSION "0.1"
+
+
 // Default parameters that can be changed in MinimizerConfig
 #define DEFAULT_MINIMIZER_MAX_ITERATIONS 500000             // How many iterations of the algorithm to run before giving up. Has to be less than uint32_t range
 #define DEFAULT_MINIMIZER_LOG false                         // Should the minimizer write messages to a log file?
