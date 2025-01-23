@@ -26,6 +26,8 @@ public:
     // Getters
     std::vector<std::complex<double> >* getState();
     double* getEntropy();
+    int getN();
+    int getD();
 
     // Various helper functions (printing and testing, logging, debugging)
     int printVectorState();

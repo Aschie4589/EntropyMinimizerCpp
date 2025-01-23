@@ -48,16 +48,31 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
 
     // SUBPARSER 2: Single-shot entropy minimization
     argparse::ArgumentParser* single_shot_parser = new argparse::ArgumentParser("singleshot", "0.1", argparse::default_arguments::help);
-    single_shot_parser->add_description("Single-shot entropy minimization");
+    single_shot_parser->add_description("SINGLE-SHOT ENTROPY MINIMIZATION.\n\nWith a randomly initialized vector, run the algorithm until convergence.");
     parser->add_subparser(*single_shot_parser);  
+    single_shot_parser->add_group("Required arguments");
     // option to load from file
     single_shot_parser->add_argument("-k", "--kraus")
     .help("path to stored Kraus operators")
-    .required();
+    .required()
+    .metavar("FILE");
+
+    single_shot_parser->add_group("Other arguments");
+    // save flag for final vector
+    single_shot_parser->add_argument("--save", "-S")
+    .help("save the final vector")
+    .default_value(false)
+    .implicit_value(true);
+
+
+
     // how many iterations to run the minimizer for
     single_shot_parser->add_argument("-i", "--iters")
-    .help("number of iterations")
-    .scan<'i', int>();
+    .help("max number of iterations")
+    .scan<'i', int>()
+    .metavar("INT");
+
+    single_shot_parser->add_group("Printing arguments");
     // logging?
     single_shot_parser->add_argument("--logging", "-l")
     .help("enable logging")
@@ -75,20 +90,34 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
 
     // SUBPARSER 3: Multi-shot entropy minimization
     argparse::ArgumentParser* multi_shot_parser = new argparse::ArgumentParser("multishot", "0.1", argparse::default_arguments::help);
-    multi_shot_parser->add_description("Multi-shot entropy minimization");
+    multi_shot_parser->add_description("MULTI-SHOT ENTROPY MINIMIZATION.\n\nRun the algorithm multiple times with different starting vectors.");
     parser->add_subparser(*multi_shot_parser);
+
+    multi_shot_parser->add_group("Required arguments");
     // add option to load kraus operators from file
     multi_shot_parser->add_argument("-k", "--kraus")
     .help("path to stored Kraus operators")
-    .required();
+    .required()
+    .metavar("FILE");
+    multi_shot_parser->add_group("Other arguments");
+    // save flag for final vector
+    multi_shot_parser->add_argument("--save", "-S")
+    .help("save the final vector")
+    .default_value(false)
+    .implicit_value(true);
+
+
     // how many iterations to run the minimizer for
     multi_shot_parser->add_argument("-i", "--iters")
     .help("number of iterations")
-    .scan<'i', int>();
+    .scan<'i', int>()
+    .metavar("INT");
     // how many times to run the minimizer
     multi_shot_parser->add_argument("-a", "--atts")
     .help("number of minimization attempts")
-    .scan<'i', int>();
+    .scan<'i', int>()
+    .metavar("INT");
+    multi_shot_parser->add_group("Printing arguments");
     // logging?
     multi_shot_parser->add_argument("--logging", "-l")
     .help("enable logging")

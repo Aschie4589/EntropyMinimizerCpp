@@ -19,10 +19,15 @@ public:
     int runMinimization();
     int findMOE();                              // This function finds the MOE of the channel
 
+    // IO functions
+    int saveState(); // Save the state of the minimizer to a file
+
     Minimizer* minimizer;
     EntropyConfig* config;
 
 private:
+    std::string run_id;                         // This is the id of the run
+    std::string minimizer_id;                   // This is the id of the minimizer
     double entropy_buffer[CONVERGENCE_ITERS];   // This array keeps track of past iterations of entropy
     int current_iteration;                      // This is the index of the current iteration, also used for insertion and deletion of elements fromt eh queue
     std::ostringstream oss;                      // Useful for formatting certain strings

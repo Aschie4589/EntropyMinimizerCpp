@@ -166,6 +166,12 @@ int main(int argc, char** argv){
             // run single shot
             minimizer->initializeRun();
             minimizer->runMinimization();
+            // save the state if selected
+
+            if (subparser->is_used("-S")){
+                minimizer->saveState();
+            }
+
         }
 
         // Option 3: multishot was called
@@ -175,6 +181,11 @@ int main(int argc, char** argv){
 
             // run multishot
             minimizer->findMOE();
+            // save the state if selected
+            if (subparser->is_used("-S")){
+                minimizer->saveState();
+            }
+
         }
         delete minimizer;
     }

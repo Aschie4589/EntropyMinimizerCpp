@@ -5,6 +5,8 @@
 #include "minimizer.h"
 #include "message_handler.h"
 
+#include "uuid.h"
+
 
 EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf){
 
@@ -26,6 +28,9 @@ EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops
     message_handler->setLogging(config->log);
     message_handler->setPrinting(config->print);  
 
+    // get uuid for minimizer
+    minimizer_id = generate_uuid_v4();
+
     // INITIALIZATION OF SERIALIZER
     serializer = new VectorSerializer();
 
@@ -45,6 +50,8 @@ int EntropyMinimizer::initializeRun(){
     message_handler->message("Initializing new run. No starting vector detected, generating random one...");
     int info = minimizer->initializeRandomVector();
     message_handler->message("Vector generated!");
+    // get new uuid
+    run_id = generate_uuid_v4();
 
     current_iteration = 0;
 
@@ -67,6 +74,8 @@ int EntropyMinimizer::initializeRun(){
 int EntropyMinimizer::initializeRun(std::vector<std::complex<double> >* start_vector){
     message_handler->message("Initializing new run. A vector was passed as input...");
 
+    
+
     int info = minimizer->initializeVector(start_vector);
     if (info == 0){
         message_handler->message("Successfully initialized run with given vector!");
@@ -76,6 +85,9 @@ int EntropyMinimizer::initializeRun(std::vector<std::complex<double> >* start_ve
         message_handler->message("The vector passed was empty. I have instead generated a random one!");
     }
 
+    // get new uuid
+    run_id = generate_uuid_v4();
+    
     current_iteration = 0;
 
     // Compute the entropy of the start vector and save it in the buffer
@@ -222,6 +234,37 @@ int EntropyMinimizer::findMOE(){
     message_handler->message(oss.str());
     
 
+    return 0;
+}
+
+int EntropyMinimizer::saveState(){
+    // Save the state of the minimizer to a file
+    // First, get the state of the minimizer
+    std::vector<std::complex<double> >* state = minimizer->getState();
+    // Now, serialize the state
+    // File is is SAVE_DIRECTORY/VECTORS_DIRECTORY/minimizer_id/run_id/state_timestamp.dat
+    // use a path object then convert to string
+    std::filesystem::path save_path = std::filesystem::path(SAVE_DIRECTORY) / std::filesystem::path(VECTORS_DIRECTORY) / std::filesystem::path(minimizer_id) / std::filesystem::path(run_id);
+    // make sure the directory exists
+    std::filesystem::create_directories(save_path);
+    // Get the current time as a time_point
+    auto now = std::chrono::system_clock::now();
+    // Convert to time_t (the type used for time)
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    // Format the time as a string
+    std::tm tm = *std::localtime(&now_c);
+    // Create a stringstream to format the time in a custom format
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y%m%d%H%M%S");
+    std::string timestamp = oss.str();
+    // create the filename
+    std::string filename = save_path.string() + "/state_" + timestamp + ".dat";
+    // serialize    
+    serializer->serialize("vector",filename, *state,"Save state", minimizer->getD(), minimizer->getN());
+    // Print message
+    oss.str("");
+    oss << "State saved to " << filename;
+    message_handler->message(oss.str());
     return 0;
 }
 

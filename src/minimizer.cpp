@@ -318,6 +318,15 @@ double* Minimizer::getEntropy(){
     return &entropy;
 }
 
+int Minimizer::getN(){
+    return N;
+}
+
+int Minimizer::getD(){
+    return d;
+}
+
+
 /// DEBUGGING AND PRINTING AND ETC
 
 int Minimizer::printVectorState(){
