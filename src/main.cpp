@@ -16,11 +16,50 @@
 
 #include "uuid.h"
 
-const int d = 20;
-const int N = 1000;
+#include "parse_arguments.h"
+#include "argparse/argparse.hpp"
 
 
-int main() {
+int main(int argc, char** argv){
+
+    // Step 0: Parse command line arguments. Parser is created with new, so it must be deleted.
+    argparse::ArgumentParser* parser = parse_arguments(argc, argv);
+
+   if (parser->is_subcommand_used("kraus")){
+    /// print
+    std::cout << "Subcommand kraus was used" << std::endl;
+    // was entropy also used as subparser of kraus?
+    if (parser->at<argparse::ArgumentParser>("kraus").is_subcommand_used("entropy")){
+        std::cout << "Subcommand entropy was used" << std::endl;
+       }
+    }
+    // check if kraus was chosen
+
+
+    // print N and d from command line
+    std::cout << "N: " << parser->get<int>("-N") << std::endl;
+    std::cout << "d: " << parser->get<int>("-d") << std::endl;
+    // print the path to the kraus operators
+    std::cout << "Kraus operators path: " << parser->get<std::string>("--kraus") << std::endl;
+    // Assign the values of N and d to the global variables
+    const int N = parser->get<int>("-N");
+    const int d = parser->get<int>("-d");
+
+    // Config setup
+    EntropyConfig config = EntropyConfig();
+    config.setLogging(parser->get<bool>("--logging"));
+    config.setPrinting(!parser->get<bool>("--silent"));
+
+
+
+    // get number of iterations
+    int iterations = parser->get<int>("-i");
+    std::cout << "Number of iterations: " << iterations << std::endl;
+
+    // Delete the parser
+    delete parser;
+
+
     // Step 1: Generate the Kraus operators of the random unitary channel
     std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.
     for (int m = 0; m < d; m++){
@@ -35,11 +74,6 @@ int main() {
     }
 
     // Step 2: initialize the minimizer that will take care of finding the MOE
-    // Config setup
-    EntropyConfig config = EntropyConfig();
-    config.setLogging(true);
-//    config.setLogFile("loglog.log");
-    config.setPrinting(true);
     // Actual minimizer
     EntropyMinimizer minimizer = EntropyMinimizer(kraus_operators, d, N, N, &config); 
 

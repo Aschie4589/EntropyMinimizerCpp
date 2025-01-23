@@ -8,7 +8,7 @@ build/
 Launch*/
 #Ignore compiled files
 out
-
+moe
 # Ignore save files if present
 save/
 data/

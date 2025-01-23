@@ -12,7 +12,7 @@ private:
     int log_level;
 
     // Utilities
-    std::string getCurrentTimeString();         //Returns the current time, formatted as a string (formatting is)
+    std::string getCurrentTimeString(bool millis=true);         //Returns the current time, formatted as a string (formatting is)
     std::string getLogContext(int log_level);
 
     /* data */

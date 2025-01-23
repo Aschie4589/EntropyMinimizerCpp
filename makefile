@@ -76,7 +76,7 @@ SOURCES := $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS := $(SOURCES:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
 # Target
-TARGET = out  # Name of the final executable
+TARGET = moe  # Name of the final executable
 
 # Default build rule
 all: $(TARGET)

@@ -30,7 +30,8 @@ class EntropyConfig {
         int setLogFile(const std::string& lf);
         int setMOEUsePrediction(bool mup);
         int setMOEPredictionTolerance(double mpt);
-
+        int setMaxIterations(int mi);
+        int setMinimizationAttempts(int ma);
 };
 
 #endif

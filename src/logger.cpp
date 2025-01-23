@@ -39,8 +39,19 @@ Logger::Logger(int log_level) : Logger("placeholder.log", generate_uuid_v4(), lo
     // Notice that this is a delegation constructor, which is a C++11 feature.
     std::cout << "Logger was called without UUID. Since UUID creation has been implemented, will use random one as a default!" << std::endl;
     std::cout << "The UUID is: " << uuid << std::endl;
+    // Include the timestamp for when the logger was created to the file name
+    // Get the current time as a time_point
+    auto now = std::chrono::system_clock::now();    
+    // Convert to time_t (the type used for time)
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    // Format the time as a string
+    std::tm tm = *std::localtime(&now_c);
+    // Create a stringstream to format the time in a custom format
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y_%m_%d_%H_%M_%S"); 
+
     // Update the filename. Format is "prefix_uuid.log". Make sure to include the _.
-    log_file = std::string(DEFAULT_MINIMIZER_LOG_PREFIX) + "_" + uuid + ".log";
+    log_file = std::string(DEFAULT_MINIMIZER_LOG_PREFIX) + "_" + oss.str() + "_"+ uuid + ".log";
     // Log that to the console
     std::cout << "The log file is: " << log_file << std::endl;
 }
@@ -70,7 +81,7 @@ int Logger::logMessage(const std::string& message){
     return logMessage(message, LOG_LEVEL_INFO);
 }
 
-std::string Logger::getCurrentTimeString() {
+std::string Logger::getCurrentTimeString(bool millis) {
     // Get the current time as a time_point
     auto now = std::chrono::system_clock::now();
     
@@ -85,7 +96,7 @@ std::string Logger::getCurrentTimeString() {
     oss << std::put_time(&tm, LOGGER_TIME_FORMAT); 
 
     // Append milliseconds if needed
-    if (LOGGER_APPEND_MILLIS){
+    if (millis && LOGGER_APPEND_MILLIS){
         std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
         oss << "." << std::setw(3) << std::setfill('0') << ms.count();
     }

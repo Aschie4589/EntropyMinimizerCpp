@@ -24,6 +24,70 @@ The compiled binary will be called `out`. Run the minimizer by calling:
 in the relevant folder.
 
 ## Usage
-*For now no command line options are available. To be updated...*
+[This part was generated automatically]
+### General Syntax
+```bash
+moe <command> [options]
+```
 
+---
+
+## Commands
+
+### 1. `kraus`: Generate Kraus Operators
+Generates Kraus operators for a quantum channel using different methods.
+
+#### Subcommand: `haar`
+Generates Kraus operators using Haar random unitaries.
+
+**Options:**
+- `-N <int>`: Dimension of the Hilbert space (**required**).
+- `-d <int>`: Number of Kraus operators (**required**).
+- `--output`, `-o <path>`: Path to save the Kraus operators (**required**).
+
+**Example:**
+```bash
+moe kraus haar -N 4 -d 3 --output kraus_operators.txt
+```
+
+---
+
+### 2. `singleshot`: Single-Shot Entropy Minimization
+Performs single-shot entropy minimization for quantum channels.
+
+**Options:**
+- `-k`, `--kraus <path>`: Path to stored Kraus operators (**required**).
+- `-i`, `--iters <int>`: Number of iterations for the minimizer (optional).
+- `--logging`, `-l`: Enable logging (optional; default: `false`).
+- `--silent`, `-s`: Disable printing (optional; default: `false`).
+
+**Example:**
+```bash
+moe singleshot -k kraus_operators.txt -i 100 --logging
+```
+
+---
+
+### 3. `multishot`: Multi-Shot Entropy Minimization
+Performs multi-shot entropy minimization for quantum channels.
+
+**Options:**
+- `-k`, `--kraus <path>`: Path to stored Kraus operators (**required**).
+- `-i`, `--iters <int>`: Number of iterations for the minimizer (optional).
+- `-a`, `--atts <int>`: Number of minimization attempts (optional).
+- `--logging`, `-l`: Enable logging (optional; default: `false`).
+- `--silent`, `-s`: Disable printing (optional; default: `false`).
+
+**Example:**
+```bash
+moe multishot -k kraus_operators.txt -i 100 -a 10 --logging
+```
+
+---
+
+## Notes
+- The program automatically displays help messages for any command by using the `--help` flag. For example:
+  ```bash
+  moe kraus --help
+  ```
 

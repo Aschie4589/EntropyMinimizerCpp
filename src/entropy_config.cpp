@@ -24,6 +24,17 @@ EntropyConfig::EntropyConfig() {
 
 }
 
+int EntropyConfig::setMinimizationAttempts(int ma){
+    minimization_attempts = ma;
+    return 0;
+}
+
+
+int EntropyConfig::setMaxIterations(int mi){
+    max_iterations = mi;
+    return 0;
+}
+
 int EntropyConfig::setMOEUsePrediction(bool mup){
     MOE_use_prediction = mup;
     return 0;
