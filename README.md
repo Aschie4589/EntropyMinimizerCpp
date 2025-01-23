@@ -27,7 +27,6 @@ moe <command> [options]
 ```
 
 ---
-
 ## Commands
 
 ### 1. `kraus`: Generate Kraus Operators
@@ -40,6 +39,8 @@ Generates Kraus operators using Haar random unitaries.
 - `-N <int>`: Dimension of the Hilbert space (**required**).
 - `-d <int>`: Number of Kraus operators (**required**).
 - `--output`, `-o <path>`: Path to save the Kraus operators (**required**).
+- `--logging`, `-l`: Enable logging (optional; default: `false`).
+- `--silent`, `-s`: Disable printing (optional; default: `false`).
 
 **Example:**
 ```bash
@@ -51,15 +52,23 @@ moe kraus haar -N 4 -d 3 --output kraus_operators.txt
 ### 2. `singleshot`: Single-Shot Entropy Minimization
 Performs single-shot entropy minimization for quantum channels.
 
-**Options:**
+**Description:**
+With a randomly initialized vector, the algorithm runs until convergence.
+
+#### Required Arguments:
 - `-k`, `--kraus <path>`: Path to stored Kraus operators (**required**).
-- `-i`, `--iters <int>`: Number of iterations for the minimizer (optional).
+
+#### Other Arguments:
+- `--save`, `-S`: Save the final vector (optional; default: `false`).
+- `-i`, `--iters <int>`: Maximum number of iterations for the minimizer (optional).
+
+#### Printing Arguments:
 - `--logging`, `-l`: Enable logging (optional; default: `false`).
 - `--silent`, `-s`: Disable printing (optional; default: `false`).
 
 **Example:**
 ```bash
-moe singleshot -k kraus_operators.txt -i 100 --logging
+moe singleshot -k kraus_operators.txt -i 100 --save --logging
 ```
 
 ---
@@ -67,10 +76,18 @@ moe singleshot -k kraus_operators.txt -i 100 --logging
 ### 3. `multishot`: Multi-Shot Entropy Minimization
 Performs multi-shot entropy minimization for quantum channels.
 
-**Options:**
+**Description:**
+Run the algorithm multiple times with different starting vectors.
+
+#### Required Arguments:
 - `-k`, `--kraus <path>`: Path to stored Kraus operators (**required**).
+
+#### Other Arguments:
+- `--save`, `-S`: Save the final vector (optional; default: `false`).
 - `-i`, `--iters <int>`: Number of iterations for the minimizer (optional).
 - `-a`, `--atts <int>`: Number of minimization attempts (optional).
+
+#### Printing Arguments:
 - `--logging`, `-l`: Enable logging (optional; default: `false`).
 - `--silent`, `-s`: Disable printing (optional; default: `false`).
 
@@ -86,4 +103,3 @@ moe multishot -k kraus_operators.txt -i 100 -a 10 --logging
   ```bash
   moe kraus --help
   ```
-
