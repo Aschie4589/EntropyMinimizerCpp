@@ -17,11 +17,7 @@ Available flags are:
 
 **Important:** In order to compile, please make sure that the location of the relevant LAPACK libraries is set correctly (check `makefile`).
 
-The compiled binary will be called `out`. Run the minimizer by calling:
-``` batch
-./out
-```
-in the relevant folder.
+The compiled binary will be called `moe`.
 
 ## Usage
 [This part was generated automatically]
