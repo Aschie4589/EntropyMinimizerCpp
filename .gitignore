@@ -18,5 +18,5 @@ data/
 .idea/
 
 # Ignore system files
-.DS_Store        # macOS specific
-Thumbs.db        # Windows specific
+.DS_Store
+Thumbs.db

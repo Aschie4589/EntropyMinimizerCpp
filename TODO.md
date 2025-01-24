@@ -1,5 +1,6 @@
 **TO-DO:**
 - Implement partial save states.
+- The entropy prediction window can dynamically vary. Implement.
 - Add prediction of entropy (that is, the actual entropy of the channel and not the epsilon entropy).
 - Implement a full search of MOE by discarding the branches that are not promising, exploiting exponential convergence.
 - Track resource usage in separate log file.
