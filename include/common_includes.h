@@ -27,6 +27,10 @@ typedef lapack_complex_double lapack_complex_t;
 #include <cblas.h>
 #include <lapacke.h>
 typedef lapack_complex_double lapack_complex_t;
+#elif defined(LAPACK_AMD)
+#include <cblas.h>
+#include <lapacke.h>
+typedef lapack_complex_double lapack_complex_t;
 #else
 #error "No LAPACK backend defined. Define LAPACK_ACCELERATE, LAPACK_MKL, or LAPACK_OPENBLAS."
 #endif
