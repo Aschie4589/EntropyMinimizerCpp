@@ -25,7 +25,7 @@ ifeq ($(PLATFORM), apple)
 else ifeq ($(PLATFORM), linux)
     ARCH ?= x86_64
 else ifeq ($(PLATFORM), erda)
-    ARCH ?= arm64
+    ARCH ?= x86_64
 endif
 
 # Flags based on PLATFORM, to include the correct libraries etc.
@@ -40,6 +40,13 @@ else ifeq ($(PLATFORM), linux)
     CXX = icpx # Ehm is this right? Use intel compiler
     CXXFLAGS += -DTARGET_LINUX # This makes sure that "TARGET_LINUX" is defined in the code as a preprocessor macro
     CXXFLAGS += -qdiagnostics-color=always # Color diagnostic message
+    CXXFLAGS += -arch $(ARCH)
+    # Other stuff to add for linux
+
+else ifeq ($(PLATFORM), erda)
+    CXX = g++ # Ehm is this right? Use intel compiler
+    CXXFLAGS += -DTARGET_ERDA # This makes sure that "TARGET_ERDA" is defined in the code as a preprocessor macro
+    CXXFLAGS += -fdiagnostics-color=always # Color diagnostic message
     CXXFLAGS += -arch $(ARCH)
     # Other stuff to add for linux
 
