@@ -98,8 +98,8 @@ else ifeq ($(LAPACK), openblas)
 else ifeq ($(LAPACK), aocllibm)# AMD Math Library
     # Add headers for AMD Math Library
     CXXFLAGS += -DLAPACK_AMD
-    INCLUDES += -I$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_blas/include  -I$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_blas/include -I$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_lapack/include
-    LIBDIRFLAGS += -L$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_blas/lib  -L$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_blas/lib -L$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_lapack/lib
+    INCLUDES += -I$(CONDA_PREFIX)/libs/aocl_blas/include  -I$(CONDA_PREFIX)/libs/aocl_blas/include -I$(CONDA_PREFIX)/libs/aocl_lapack/include
+    LIBDIRFLAGS += -L$(CONDA_PREFIX)/libs/aocl_blas/lib  -L$(CONDA_PREFIX)/libs/aocl_blas/lib -L$(CONDA_PREFIX)/libs/aocl_lapack/lib
     LIBS += -lopenblas -lblas -llapack -llapacke
 
 else
