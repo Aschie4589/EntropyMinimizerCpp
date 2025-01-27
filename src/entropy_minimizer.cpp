@@ -49,7 +49,14 @@ EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops
 int EntropyMinimizer::initializeRun(){
     message_handler->message("Initializing new run. No starting vector detected, generating random one...");
     int info = minimizer->initializeRandomVector();
-    message_handler->message("Vector generated!");
+    // print info
+    if (info == 0){
+        message_handler->message("Successfully initialized run with random vector!");
+    } else if (info==1) {
+        message_handler->message("The vector passed did not match the right dimension. I have instead generated a random one!");
+    } else if (info==2){
+        message_handler->message("The vector passed was empty. I have instead generated a random one!");
+    }
     // print vector
     std::vector<std::complex<double> >* vector = minimizer->getState();
     std::string vector_string = "Vector: ";
