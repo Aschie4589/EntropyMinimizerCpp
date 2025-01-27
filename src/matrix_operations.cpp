@@ -6,7 +6,7 @@ void zgeqrfp_wrapper(int M, int N, std::vector<std::complex<double> >* A, int ld
     #ifdef LAPACK_ACCELERATE
         int info = 0;
         zgeqrf_(&M, &N, reinterpret_cast<lapack_complex_t*>(A->data()),&lda,reinterpret_cast<lapack_complex_t*>(tau->data()),reinterpret_cast<lapack_complex_t*>(work), &lwork, &info);
-    #elif (defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS))
+    #elif (defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS)) || defined(LAPACK_AMD)
         LAPACKE_zgeqrfp_work(LAPACK_COL_MAJOR, M, N, reinterpret_cast<lapack_complex_t*>(A->data()),lda,reinterpret_cast<lapack_complex_t*>(tau->data()),reinterpret_cast<lapack_complex_t*>(work), lwork);
     #endif
 }
@@ -15,7 +15,7 @@ void zgeqrfp_wrapper(int M, int N, std::vector<std::complex<double> >* A, int ld
     #ifdef LAPACK_ACCELERATE
         int info = 0;
         zgeqrf_(&M, &N, reinterpret_cast<lapack_complex_t*>(A->data()),&lda,reinterpret_cast<lapack_complex_t*>(tau->data()),reinterpret_cast<lapack_complex_t*>(work->data()), &lwork, &info);
-    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS)
+    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS) || defined(LAPACK_AMD)
         LAPACKE_zgeqrfp_work(LAPACK_COL_MAJOR, M, N, reinterpret_cast<lapack_complex_t*>(A->data()),lda,reinterpret_cast<lapack_complex_t*>(tau->data()),reinterpret_cast<lapack_complex_t*>(work->data()), lwork);
     #endif
 }
@@ -24,7 +24,7 @@ void zungqr_wrapper(int M, int N, int K, std::vector<std::complex<double> >* A, 
     #ifdef LAPACK_ACCELERATE
         int info = 0;
         zungqr_(&M, &N, &K, reinterpret_cast<lapack_complex_t*>(A->data()),&lda,reinterpret_cast<lapack_complex_t*>(tau->data()),reinterpret_cast<lapack_complex_t*>(work), &lwork, &info);
-    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS)
+    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS) || defined(LAPACK_AMD)
         LAPACKE_zungqr_work(LAPACK_COL_MAJOR, M, N, K, reinterpret_cast<lapack_complex_t*>(A->data()),lda,reinterpret_cast<lapack_complex_t*>(tau->data()),reinterpret_cast<lapack_complex_t*>(work), lwork);
     #endif
 }
@@ -33,7 +33,7 @@ void zungqr_wrapper(int M, int N, int K, std::vector<std::complex<double> >* A, 
     #ifdef LAPACK_ACCELERATE
         int info = 0;
         zungqr_(&M, &N, &K, reinterpret_cast<lapack_complex_t*>(A->data()),&lda,reinterpret_cast<lapack_complex_t*>(tau->data()),reinterpret_cast<lapack_complex_t*>(work->data()), &lwork, &info);
-    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS)
+    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS) || defined(LAPACK_AMD)
         LAPACKE_zungqr_work(LAPACK_COL_MAJOR, M, N, K, reinterpret_cast<lapack_complex_t*>(A->data()),lda,reinterpret_cast<lapack_complex_t*>(tau->data()),reinterpret_cast<lapack_complex_t*>(work->data()), lwork);
     #endif
 }
@@ -67,7 +67,7 @@ void zheev_wrapper(char jobz, char uplo, int N, std::vector<std::complex<double>
     // Now run the actual zheev computation
     zheev_(&jobz, &uplo, &N, reinterpret_cast<lapack_complex_t*>(A->data()), &lda, w->data(),
             reinterpret_cast<lapack_complex_t*>(work.data()), &lwork, rwork.data(), &info);
-    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS)
+    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS) || defined(LAPACK_AMD)
         LAPACKE_zheev(LAPACK_COL_MAJOR, jobz, uplo, N, reinterpret_cast<lapack_complex_t*>(A->data()), lda, w->data());
     #endif
 }
@@ -76,7 +76,7 @@ void dgesv_wrapper(int N, int NRHS, double* A, int lda, int* ipiv, double* B, in
     #ifdef LAPACK_ACCELERATE
         int info = 0;
         dgesv_(&N, &NRHS, A, &lda, ipiv, B, &ldb, &info);
-    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS)
+    #elif defined(LAPACK_MKL) || defined(LAPACK_OPENBLAS) || defined(LAPACK_AMD)
         LAPACKE_dgesv(LAPACK_COL_MAJOR, N, NRHS, A, lda, ipiv, B, ldb);
     #endif
 }
