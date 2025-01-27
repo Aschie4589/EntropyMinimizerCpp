@@ -103,7 +103,7 @@ else ifeq ($(LAPACK), aocllibm)# AMD Math Library
     # Add headers for AMD Math Library
     CXXFLAGS += -DLAPACK_AMD
     INCLUDES += -I$(CONDA_PREFIX)/5.0.0/aocc/include
-    LIBDIRFLAGS += -L$(CONDA_PREFIX)/5.0.0/aocc/lib -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/llvm-12/lib/
+    LIBDIRFLAGS += -L$(CONDA_PREFIX)/5.0.0/aocc/lib -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/llvm-12/lib
     LIBS +=  -lblis-mt -lflame -lm -fopenmp
 
 else
