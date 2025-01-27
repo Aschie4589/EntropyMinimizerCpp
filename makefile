@@ -17,6 +17,7 @@ PLATFORM ?= apple # Options: "apple", "linux"
 ifeq ($(origin LAPACK), undefined)
     LAPACK = openblas# Use this to specify the default linear algebra package to use. Options: "mkl", "openblas", "accelerate". NO TRAILING SPACES!
 endif 
+# 
 
 # Default architecture
 ifeq ($(PLATFORM), apple)
@@ -28,7 +29,7 @@ endif
 # Flags based on PLATFORM, to include the correct libraries etc.
 ifeq ($(PLATFORM), apple)
     CXX = g++
-    CXXFLAGS += -DTARGET_APPLE	 # This makes sure that "TARGET_APPLE" is defined in the code as a preprocessor macro
+    CXXFLAGS += -DTARGET_APPLE     # This makes sure that "TARGET_APPLE" is defined in the code as a preprocessor macro
     CXXFLAGS += -fdiagnostics-color=always # Color diagnostic messages
     CXXFLAGS += -arch $(ARCH) # Compile for arm64
     # Other stuff to add for apple
@@ -58,16 +59,47 @@ else ifeq ($(LAPACK), mkl)
     CXXFLAGS += -DLAPACK_MKL
     INCLUDES += -I/opt/intel/oneapi/mkl/latest/include   #Add Intel mkl include path
     LIBDIRFLAGS = -L/opt/intel/oneapi/mkl/latest/lib -L/opt/intel/oneapi/compiler/latest/mac/compiler/lib
-    LIBS = -lmkl_rt -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -liomp5 -lpthread -lm -ldl -Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib
+    LIBS += -lmkl_rt -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -liomp5 -lpthread -lm -ldl -Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib
 
-else ifeq ($(LAPACK),openblas)
+else ifeq ($(LAPACK), openblas)
+    # Attempt to locate OpenBLAS and LAPACK
+    OPENBLAS_LIB := $(shell find /usr /usr/local /opt/homebrew -name "libopenblas.*" 2>/dev/null | head -n 1 | xargs dirname)
+    $(info Debug: OpenBLAS library path: $(OPENBLAS_LIB))
+    LAPACK_LIB := $(shell find /usr /usr/local /opt/homebrew -name "liblapack.*" 2>/dev/null | head -n 1 | xargs dirname)
+    $(info Debug: LAPACK library path: $(LAPACK_LIB))
+    OPENBLAS_INC := $(shell find /usr /usr/local /opt/homebrew -name "cblas.h" 2>/dev/null | head -n 1 | xargs dirname)
+    $(info Debug: OpenBLAS include path: $(OPENBLAS_INC))
+    LAPACK_INC := $(shell find /usr /usr/local /opt/homebrew -name "lapacke.h" 2>/dev/null | head -n 1 | xargs dirname)
+    $(info Debug: LAPACK include path: $(LAPACK_INC))
+
+    # Add flags if both libraries are found
+    ifeq ($(OPENBLAS_LIB),)
+        $(warning Warning: OpenBLAS library not found. Compilation may fail.)
+    else
+        CXXFLAGS += -DLAPACK_OPENBLAS
+        INCLUDES += -I$(OPENBLAS_INC)
+        LIBDIRFLAGS += -L$(OPENBLAS_LIB) 
+        $(info Debug: OpenBLAS flags added: -I$(OPENBLAS_INC) -L$(OPENBLAS_LIB))
+    endif
+
+    ifeq ($(LAPACK_LIB),)
+        $(warning Warning: LAPACK library not found. Compilation may fail.)
+    else
+        INCLUDES += -I$(LAPACK_INC)
+        LIBDIRFLAGS += -L$(LAPACK_LIB)
+        $(info Debug: LAPACK flags added: -I$(LAPACK_INC) -L$(LAPACK_LIB))
+    endif
     # Add headers for OpenBLAS
     CXXFLAGS += -DLAPACK_OPENBLAS
-    INCLUDES += -I/opt/homebrew/opt/lapack/include -I/opt/homebrew/opt/openblas/include
-    LIBDIRFLAGS = -L/opt/homebrew/opt/lapack/lib -L/opt/homebrew/opt/openblas/lib
-    LIBS = -lopenblas -lblas -llapack -llapacke
+    LIBS += -lopenblas -lblas -llapack -llapacke
+    
+else ifeq ($(LAPACK), aocllibm)# AMD Math Library
+    # Add headers for AMD Math Library
+    CXXFLAGS += -DLAPACK_AMD
+    LIBS += -lopenblas -lblas -llapack -llapacke
+
 else
-    $(error "Invalid LAPACK setting: $(LAPACK). Please choose accelerate, mkl, or openblas.")
+    $(error "Invalid LAPACK setting: $(LAPACK). Please choose accelerate, mkl, aocllibm or openblas.")
 
 endif
 
