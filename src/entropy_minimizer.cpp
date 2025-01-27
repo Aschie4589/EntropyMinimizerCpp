@@ -50,6 +50,15 @@ int EntropyMinimizer::initializeRun(){
     message_handler->message("Initializing new run. No starting vector detected, generating random one...");
     int info = minimizer->initializeRandomVector();
     message_handler->message("Vector generated!");
+    // print vector
+    std::vector<std::complex<double> >* vector = minimizer->getVector();
+    std::string vector_string = "Vector: ";
+    for (int i = 0; i < vector->size(); i++){
+        vector_string += std::to_string(vector->at(i).real()) + " + " + std::to_string(vector->at(i).imag()) + "i, ";
+    }
+    message_handler->message(vector_string);
+    
+
     // get new uuid
     run_id = generate_uuid_v4();
 
