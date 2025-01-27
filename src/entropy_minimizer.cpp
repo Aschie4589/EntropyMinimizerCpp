@@ -57,13 +57,6 @@ int EntropyMinimizer::initializeRun(){
     } else if (info==2){
         message_handler->message("The vector passed was empty. I have instead generated a random one!");
     }
-    // print vector
-    std::vector<std::complex<double> >* vector = minimizer->getState();
-    std::string vector_string = "Vector: ";
-    for (int i = 0; i < vector->size(); i++){
-        vector_string += std::to_string(vector->at(i).real()) + " + " + std::to_string(vector->at(i).imag()) + "i, ";
-    }
-    message_handler->message(vector_string);
 
 
     // get new uuid
