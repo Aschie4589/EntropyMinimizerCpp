@@ -98,9 +98,9 @@ else ifeq ($(LAPACK), openblas)
 else ifeq ($(LAPACK), aocllibm)# AMD Math Library
     # Add headers for AMD Math Library
     CXXFLAGS += -DLAPACK_AMD
-    INCLUDES += -I$(CONDA_PREFIX)/libs/aocl_blas/include  -I$(CONDA_PREFIX)/libs/aocl_blas/include -I$(CONDA_PREFIX)/libs/aocl_lapack/include
-    LIBDIRFLAGS += -L$(CONDA_PREFIX)/libs/aocl_blas/lib  -L$(CONDA_PREFIX)/libs/aocl_blas/lib -L$(CONDA_PREFIX)/libs/aocl_lapack/lib
-    LIBS += -lblis-mt -lm -fopenmp
+    INCLUDES += -I$(CONDA_PREFIX)/libs/aocl_blas/include  -I$(CONDA_PREFIX)/libs/aocl_blas/include -I$(CONDA_PREFIX)/libs/aocl_lapack/include -I$(CONDA_PREFIX)/libs/aocl_utils/include
+    LIBDIRFLAGS += -L$(CONDA_PREFIX)/libs/aocl_blas/lib  -L$(CONDA_PREFIX)/libs/aocl_blas/lib -L$(CONDA_PREFIX)/libs/aocl_lapack/lib -L$(CONDA_PREFIX)/libs/aocl_utils/lib
+    LIBS += -laoclutils -lblis-mt -lflame -lm -fopenmp
 
 else
     $(error "Invalid LAPACK setting: $(LAPACK). Please choose accelerate, mkl, aocllibm or openblas.")
