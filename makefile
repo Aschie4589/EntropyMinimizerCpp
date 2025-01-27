@@ -24,6 +24,8 @@ ifeq ($(PLATFORM), apple)
     ARCH ?= arm64
 else ifeq ($(PLATFORM), linux)
     ARCH ?= x86_64
+else ifeq ($(PLATFORM), erda)
+    ARCH ?= arm64
 endif
 
 # Flags based on PLATFORM, to include the correct libraries etc.
@@ -63,13 +65,13 @@ else ifeq ($(LAPACK), mkl)
 
 else ifeq ($(LAPACK), openblas)
     # Attempt to locate OpenBLAS and LAPACK
-    OPENBLAS_LIB := $(shell find $(CONDA_PREFIX) /usr /usr/local /opt/homebrew -name "libopenblas.*" 2>/dev/null | head -n 1 | xargs dirname)
+    OPENBLAS_LIB := $(shell find $(CONDA_PREFIX) /opt/homebrew /usr /usr/local  -name "libopenblas.*" 2>/dev/null | head -n 1 | xargs dirname)
     $(info Debug: OpenBLAS library path: $(OPENBLAS_LIB))
-    LAPACK_LIB := $(shell find $(CONDA_PREFIX) /usr /usr/local /opt/homebrew -name "liblapack.*" 2>/dev/null | head -n 1 | xargs dirname)
+    LAPACK_LIB := $(shell find $(CONDA_PREFIX) /opt/homebrew /usr /usr/local -name "liblapack.*" 2>/dev/null | head -n 1 | xargs dirname)
     $(info Debug: LAPACK library path: $(LAPACK_LIB))
-    OPENBLAS_INC := $(shell find $(CONDA_PREFIX) /usr /usr/local /opt/homebrew -name "cblas.h" 2>/dev/null | head -n 1 | xargs dirname)
+    OPENBLAS_INC := $(shell find $(CONDA_PREFIX) /opt/homebrew /usr /usr/local -name "cblas.h" 2>/dev/null | head -n 1 | xargs dirname)
     $(info Debug: OpenBLAS include path: $(OPENBLAS_INC))
-    LAPACK_INC := $(shell find $(CONDA_PREFIX) /usr /usr/local /opt/homebrew -name "lapacke.h" 2>/dev/null | head -n 1 | xargs dirname)
+    LAPACK_INC := $(shell find $(CONDA_PREFIX) /opt/homebrew /usr /usr/local -name "lapacke.h" 2>/dev/null | head -n 1 | xargs dirname)
     $(info Debug: LAPACK include path: $(LAPACK_INC))
 
     # Add flags if both libraries are found
@@ -96,6 +98,8 @@ else ifeq ($(LAPACK), openblas)
 else ifeq ($(LAPACK), aocllibm)# AMD Math Library
     # Add headers for AMD Math Library
     CXXFLAGS += -DLAPACK_AMD
+    INCLUDES += -I$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_blas/include  -I$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_blas/include -I$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_lapack/include
+    LIBDIRFLAGS += -L$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_blas/lib  -L$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_blas/lib -L$(CONDA_PREFIX)/envs/cppamdml/libs/aocl_lapack/lib
     LIBS += -lopenblas -lblas -llapack -llapacke
 
 else
