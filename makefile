@@ -42,7 +42,7 @@ else ifeq ($(PLATFORM), linux)
     # Other stuff to add for linux
 
 else ifeq ($(PLATFORM), erda)
-    CXX = gcc 
+    CXX = clang++
     CXXFLAGS += -DTARGET_ERDA # This makes sure that "TARGET_ERDA" is defined in the code as a preprocessor macro
     CXXFLAGS += -fdiagnostics-color=always # Color diagnostic message
     # Other stuff to add for linux
