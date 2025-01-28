@@ -104,7 +104,7 @@ else ifeq ($(LAPACK), aocllibm)# AMD Math Library
     CXXFLAGS += -DLAPACK_AMD
     INCLUDES += -I$(CONDA_PREFIX)/5.0.0/aocc/include
     LIBDIRFLAGS += -L$(CONDA_PREFIX)/5.0.0/aocc/lib -L$(CONDA_PREFIX)/5.0.0/aocc/lib_LP64 -L/usr/lib/gcc/x86_64-linux-gnu/11 -L$(CONDA_PREFIX)/lib
-    LIBS +=  -laoclutils -lblis-mt -lflame -lm -fopenmp
+    LIBS +=  -lstdc++ -laoclutils -lblis-mt -lflame -lm -fopenmp
 
 else
     $(error "Invalid LAPACK setting: $(LAPACK). Please choose accelerate, mkl, aocllibm or openblas.")
