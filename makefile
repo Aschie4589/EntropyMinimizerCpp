@@ -97,7 +97,7 @@ else ifeq ($(LAPACK), openblas)
     endif
     # Add headers for OpenBLAS
     CXXFLAGS += -DLAPACK_OPENBLAS
-    LIBS += -lopenblas -lblas -llapack -llapacke -lpthread -lrt -ldl
+    LIBS += -lopenblas -lpthread -lrt -ldl
     
 else ifeq ($(LAPACK), aocllibm)# AMD Math Library
     # Add headers for AMD Math Library
