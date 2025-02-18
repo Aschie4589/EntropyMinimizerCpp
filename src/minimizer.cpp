@@ -54,6 +54,9 @@ int Minimizer::initializeVector(std::vector<std::complex<double> >* pointer) {
     } else {
         // If it doesn't, generate a random vector as a fallback.
         std::cout << "The vector does not match the specified dimension! Fallback: generating random vector..." << std::endl;
+        // provide more info!
+        std::cout << "Expected dimension: " << N << ", got dimension: " << pointer->size() << std::endl;
+
         initializeRandomVector();
         return 1;
     }
@@ -311,7 +314,20 @@ int Minimizer::step(){
 
 /// GETTERS
 std::vector<std::complex<double> >* Minimizer::getState(){
+    updateProjector();
     return input_matrix;
+}
+
+std::vector<std::complex<double> > Minimizer::getVector(){
+    // diagonalize the state and extract the largest eigenvector. No need to apply the channel.
+    std::vector<double> eigvals(N);
+    updateProjector();
+    zheev_wrapper('V', 'U', N, input_matrix,N,&eigvals);
+    std::vector<std::complex<double> > out(N);
+    for (int i=0; i<N; i++){
+        out.at(i) = input_matrix->at(N*(N-1)+i);
+    }    
+    return out;
 }
 
 double* Minimizer::getEntropy(){

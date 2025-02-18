@@ -16,11 +16,15 @@ public:
 
     // Algorithm functions
     int stepMinimization();                     // Do one step of minimization, then check if we need to stop. Return 1 if we need to stop, 0 othwerise.
-    int runMinimization();
+    int runMinimization();                      // Run one pass of the minimization algorithm. Requires a run to be initialized.
+    int runMinimization(double target_entropy); // Run one pass of the minimization algorithm. Requires a run to be initialized.
     int findMOE();                              // This function finds the MOE of the channel
 
     // IO functions
-    int saveState(); // Save the state of the minimizer to a file
+    int saveState();                            // Save the state of the minimizer to a file
+    int saveState(std::string filename);        // Save the state of the minimizer to a file
+    int saveVector();                           // Save the vector of the minimizer to a file
+    int saveVector(std::string filename);       // Save the vector of the minimizer to a file
 
     Minimizer* minimizer;
     EntropyConfig* config;

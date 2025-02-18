@@ -21,7 +21,7 @@ class VectorSerializer
     FILE FORMAT for serialized vector or Kraus operator
 
     +------------------+
-    | Magic identifier |  (always "VECTR") 5 characters
+    | Magic identifier |  (always "VECTR" or "KRAUS") 5 characters
     +------------------+
     | Format Version   |  (e.g., 1.0 - Variable length string)
     +------------------+

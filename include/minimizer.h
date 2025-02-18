@@ -25,6 +25,7 @@ public:
 
     // Getters
     std::vector<std::complex<double> >* getState();
+    std::vector<std::complex<double> > getVector();
     double* getEntropy();
     int getN();
     int getD();

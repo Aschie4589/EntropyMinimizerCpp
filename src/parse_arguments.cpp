@@ -45,10 +45,13 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .default_value(false)
     .implicit_value(true);
 
+    /*
+            SUBPARSER 2: Single-shot entropy minimization
+    */
 
-    // SUBPARSER 2: Single-shot entropy minimization
+    // add a new subparser called singleshot
     argparse::ArgumentParser* single_shot_parser = new argparse::ArgumentParser("singleshot", "0.1", argparse::default_arguments::help);
-    single_shot_parser->add_description("SINGLE-SHOT ENTROPY MINIMIZATION.\n\nWith a randomly initialized vector, run the algorithm until convergence.");
+    single_shot_parser->add_description("SINGLE-SHOT ENTROPY MINIMIZATION.\n\nWith a randomly initialized vector, run the algorithm until convergence. If vector is specified, perform minimization with that vector.");
     parser->add_subparser(*single_shot_parser);  
     single_shot_parser->add_group("Required arguments");
     // option to load from file
@@ -64,7 +67,29 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .default_value(false)
     .implicit_value(true);
 
+    // initial vector
+    single_shot_parser->add_argument("--vector", "-v")
+    .help("path to stored starting vector")
+    .default_value(std::string(""))
+    .metavar("FILE");
 
+    // output file
+    single_shot_parser->add_argument("--output", "-o")
+    .help("path to save the final vector")
+    .default_value(std::string(""))
+    .metavar("FILE");
+
+    // prediction flag
+    single_shot_parser->add_argument("--predict", "-p")
+    .help("predict the entropy and stop if it is not expected to beat the target")
+    .default_value(false)
+    .implicit_value(true);
+
+    // target entropy to beat
+    single_shot_parser->add_argument("--target_entropy", "-t")
+    .help("target entropy to beat. This will make the minimizer predict the entropy and stop if this run is not expected to beat the target.")
+    .scan<'g', double>()
+    .metavar("FLOAT");
 
     // how many iterations to run the minimizer for
     single_shot_parser->add_argument("-i", "--iters")
@@ -86,9 +111,11 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
 
 
 
+    /*
+            SUBPARSER 3: Multi-shot entropy minimization
+    */
 
-
-    // SUBPARSER 3: Multi-shot entropy minimization
+    // add a new subparser called multishot
     argparse::ArgumentParser* multi_shot_parser = new argparse::ArgumentParser("multishot", "0.1", argparse::default_arguments::help);
     multi_shot_parser->add_description("MULTI-SHOT ENTROPY MINIMIZATION.\n\nRun the algorithm multiple times with different starting vectors.");
     parser->add_subparser(*multi_shot_parser);
@@ -129,14 +156,46 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .default_value(false)
     .implicit_value(true);
 
+    /*
+            SUBPARSER 4: Generate vector
+    */
+
+    // add a new subparser called vector_parser
+    argparse::ArgumentParser* vector_parser = new argparse::ArgumentParser("vector", "0.1", argparse::default_arguments::help);
+    vector_parser->add_description("Generate a random vector for the minimization algorithm.");
+    parser->add_subparser(*vector_parser);
+
+    vector_parser->add_group("Required arguments");
+    // dimension of the vector
+    vector_parser->add_argument("-N")
+    .help("dimension of the Hilbert space")
+    .required()
+    .scan<'i', int>();
+
+    // output file
+    vector_parser->add_argument("--output", "-o")
+    .help("path to save the final vector")
+    .required()
+    .metavar("FILE");
+
+    vector_parser->add_group("Printing arguments");
+    // logging?
+    vector_parser->add_argument("--logging", "-l")
+    .help("enable logging")
+    .default_value(false)
+    .implicit_value(true);
+    // printing?
+    vector_parser->add_argument("--silent", "-s")
+    .help("disable printing")
+    .default_value(false)
+    .implicit_value(true);
+    
+    
 
 
-    if (false){
-    // UNUSED: add option to specify starting vector for minimizer
-    parser->add_argument("--vector")
-    .help("path to stored starting vector")
-    .default_value(std::string(""));
-    }
+
+
+
 
     try {
     parser->parse_args(argc, argv);

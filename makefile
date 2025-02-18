@@ -50,8 +50,10 @@ else ifeq ($(PLATFORM), erda)
 endif
 
 
-# Add flags for linear algebra libraries
-ifeq ($(LAPACK), accelerate)
+# Add flags for linear algebra libraries. Do so only if not cleaning
+ifeq ($(MAKECMDGOALS), clean)
+    # Do nothing
+else ifeq ($(LAPACK), accelerate)
     # Add the headers for Accelerate framework
     CXXFLAGS += -DLAPACK_ACCELERATE
     CXXFLAGS += -DACCELERATE_NEW_LAPACK
@@ -68,6 +70,7 @@ else ifeq ($(LAPACK), mkl)
     LIBS += -lmkl_rt -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -liomp5 -lpthread -lm -ldl -Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib
 
 else ifeq ($(LAPACK), openblas)
+
     # Attempt to locate OpenBLAS and LAPACK
     OPENBLAS_LIB := $(shell find $(CONDA_PREFIX) /opt/homebrew /usr /usr/local  -name "libopenblas.*" 2>/dev/null | head -n 1 | xargs dirname)
     $(info Debug: OpenBLAS library path: $(OPENBLAS_LIB))

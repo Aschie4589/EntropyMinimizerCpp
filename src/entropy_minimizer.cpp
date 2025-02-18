@@ -83,7 +83,11 @@ int EntropyMinimizer::initializeRun(){
 int EntropyMinimizer::initializeRun(std::vector<std::complex<double> >* start_vector){
     message_handler->message("Initializing new run. A vector was passed as input...");
 
-    
+    // debug vector inof
+    oss.str("");
+    oss << "Vector size: " << start_vector->size();
+    message_handler->message(oss.str());
+
 
     int info = minimizer->initializeVector(start_vector);
     if (info == 0){
@@ -151,23 +155,94 @@ int EntropyMinimizer::stepMinimization(){
 
 }
 
-int EntropyMinimizer::runMinimization() {
-    while (stepMinimization() == 0){
-        // To print this message, clear the stream first
+int EntropyMinimizer::runMinimization(){
+    // Print message
+    oss.str("");
+    oss << "Running single minimization pass with no entropy prediction.";
+    message_handler->message(oss.str());
+
+
+    // Perform the minimization
+    message_handler->message("Starting minimization...");
+
+    while (stepMinimization() == 0 && current_iteration < config->max_iterations){
+        // Print the current entropy from this run. 
         oss.str("");
-        oss << current_iteration << ": " <<std::fixed << std::setprecision(PRINT_PRECISION)<< *minimizer->getEntropy();
+        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
         message_handler->message(oss.str());
-        // check that we haven't iterated to many times!
-        if (current_iteration > config->max_iterations){
-            message_handler->message("We reached the maximum number of iterations! Aborting...");
-            return 1;
-        }
     }
-    message_handler->message("We reached the tolerance: we have converged!");
+    if (current_iteration >= config->max_iterations){
+        message_handler->message("We reached the maximum number of iterations! Aborting...");
+    } else {
+        message_handler->message("We reached the tolerance: we have converged!");
+    }
+
+    // We have finished the minimization attempts. Print the final MOE
+    oss.str("");
+    oss << "Final entropy: " << *minimizer->getEntropy();
+    message_handler->message(oss.str());
 
     return 0;
 }
 
+int EntropyMinimizer::runMinimization(double target_entropy){
+    // Print message
+    oss.str("");
+    oss << "Running single minimization pass with target entropy " << target_entropy << ".";
+    message_handler->message(oss.str());
+
+
+    // Perform the minimization
+    message_handler->message("Starting minimization...");
+    // Initialize a flag that, if MOE prediction is used, will stop the minimization
+    bool predict_stop = false;
+    while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop){
+        // Print the current entropy from this run. 
+        oss.str("");
+        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
+        message_handler->message(oss.str());
+
+        // Check if we need to stop because of final entropy prediction
+        if (config->MOE_use_prediction){
+            // First update the model
+            double Rsquared = entropy_estimator->exponentialFit();
+
+            // If fit is good, and the slope points the right way, predict the final entropy
+            if (Rsquared > RSQUARED_THRESHOLD && entropy_estimator->model_params[1] < 0){
+                // Predict the final entropy and the number of steps
+                double predicted_entropy = entropy_estimator->predictFinalEntropy();
+                int predicted_steps = entropy_estimator->predictFinalSteps();
+
+                // Entropy is positive. A negative prediction means that the model is not valid.
+                if (predicted_entropy>0){
+                    // Print log message, use many digits
+                    oss.str("");
+                    oss << "Predicted final entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << predicted_entropy << " at iteration " << predicted_steps;
+                    message_handler->message(oss.str());
+                }
+                if (predicted_entropy - target_entropy > config->MOE_prediction_tolerance){
+                    predict_stop = true;
+                }
+
+            }                
+
+        }
+    }
+    if (current_iteration >= config->max_iterations){
+        message_handler->message("We reached the maximum number of iterations! Aborting...");
+    } else if (predict_stop){
+        message_handler->message("Minimization stopped: predicted MOE is above target entropy.");
+    } else {
+        message_handler->message("We reached the tolerance: we have converged!");
+    }
+
+    // We have finished the minimization attempts. Print the final MOE
+    oss.str("");
+    oss << "Final entropy: " << *minimizer->getEntropy();
+    message_handler->message(oss.str());
+
+    return 0;
+}
 
 int EntropyMinimizer::findMOE(){
     // Print message
@@ -246,8 +321,33 @@ int EntropyMinimizer::findMOE(){
     return 0;
 }
 
+int EntropyMinimizer::saveState(std::string filename){
+    // First, get the state of the minimizer
+    std::vector<std::complex<double> >* state = minimizer->getState();
+    // Then, serialize it.    
+    serializer->serialize("vector", filename, *state, "Save state, custom path", 1, minimizer->getN());
+    // Print message
+    oss.str("");
+    oss << "State saved to " << filename;
+    message_handler->message(oss.str());
+    return 0;
+}
+
+int EntropyMinimizer::saveVector(std::string filename){
+    // First, get the vector from the minimizer
+    std::vector<std::complex<double> > vec = minimizer->getVector();
+    // Then, serialize it.    
+    serializer->serialize("vector", filename, vec, "Save state, custom path", 1, minimizer->getN());
+    // Print message
+    oss.str("");
+    oss << "Vector saved to " << filename;
+    message_handler->message(oss.str());
+    return 0;
+
+}
+
 int EntropyMinimizer::saveState(){
-    // Save the state of the minimizer to a file
+    // Save the state of the minimizer to a file.
     // First, get the state of the minimizer
     std::vector<std::complex<double> >* state = minimizer->getState();
     // Now, serialize the state
@@ -269,10 +369,41 @@ int EntropyMinimizer::saveState(){
     // create the filename
     std::string filename = save_path.string() + "/state_" + timestamp + ".dat";
     // serialize    
-    serializer->serialize("vector",filename, *state,"Save state", minimizer->getD(), minimizer->getN());
+    serializer->serialize("vector",filename, *state,"Save state", 1, minimizer->getN());
     // Print message
     oss.str("");
     oss << "State saved to " << filename;
+    message_handler->message(oss.str());
+    return 0;
+}
+
+int EntropyMinimizer::saveVector(){
+    // Save the vector from the minimizer to a file.
+    // First, get the vector from the minimizer
+    std::vector<std::complex<double> > vec = minimizer->getVector();
+    // Now, serialize the state
+    // File is is SAVE_DIRECTORY/VECTORS_DIRECTORY/minimizer_id/run_id/state_timestamp.dat
+    // use a path object then convert to string
+    std::filesystem::path save_path = std::filesystem::path(SAVE_DIRECTORY) / std::filesystem::path(VECTORS_DIRECTORY) / std::filesystem::path(minimizer_id) / std::filesystem::path(run_id);
+    // make sure the directory exists
+    std::filesystem::create_directories(save_path);
+    // Get the current time as a time_point
+    auto now = std::chrono::system_clock::now();
+    // Convert to time_t (the type used for time)
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    // Format the time as a string
+    std::tm tm = *std::localtime(&now_c);
+    // Create a stringstream to format the time in a custom format
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y%m%d%H%M%S");
+    std::string timestamp = oss.str();
+    // create the filename
+    std::string filename = save_path.string() + "/vec_" + timestamp + ".dat";
+    // serialize    
+    serializer->serialize("vector",filename, vec,"Save state", 1, minimizer->getN());
+    // Print message
+    oss.str("");
+    oss << "Vector saved to " << filename;
     message_handler->message(oss.str());
     return 0;
 }
