@@ -3,64 +3,52 @@ SRC_DIR = src
 OBJ_DIR = build
 INCLUDE_DIR = include
 
-INCLUDES = -I./$(INCLUDE_DIR)
-CXXFLAGS = -std=c++17
 
+##### COMMON COMPILER FLAGS #####
+# Always use g++ as compiler. 
+#For MacOS, this will just be a wrapper around clang, if XCode tools are installed. Otherwise, g++ is needed and can be installed via Homebrew.
+CXX = g++
+CXXFLAGS = -std=c++17 
+CXXFLAGS += -march=native# This last flag is to enable all CPU-specific optimizations on the host machine. ONLY LOCAL COMPILE!
+CXXFLAGS += -03 -ftree-vectorize
 
-##### SETUP FLAGS FOR BUILD SYSTEM #####
-
+##### SPECIFIC FLAGS #####
 # Example use: "make PLATFORM=apple LAPACK=accelerate"
 
-# Default platform. Used to determine which libraries to link against and which compiler to use (g++ or icpcx)
-PLATFORM ?= apple # Options: "apple", "linux"
+# Default platform. Used to determine which libraries to link against, and have specific flags. For now only diagnostics color is specific.
+ifeq ($(origin PLATFORM), undefined)
+    PLATFORM = apple# Use this to specify the default platform. Options: "apple", "linux". NO TRAILING SPACES!
+endif 
 # What linear algebra package to use
 ifeq ($(origin LAPACK), undefined)
     LAPACK = openblas# Use this to specify the default linear algebra package to use. Options: "mkl", "openblas", "accelerate". NO TRAILING SPACES!
 endif 
-# 
+
 
 # Flags based on PLATFORM, to include the correct libraries etc.
 ifeq ($(PLATFORM), apple)
-    CXX = g++
-    CXXFLAGS += -DTARGET_APPLE     # This makes sure that "TARGET_APPLE" is defined in the code as a preprocessor macro
     CXXFLAGS += -fdiagnostics-color=always # Color diagnostic messages
-    CXXFLAGS += -arch $(ARCH) # Compile for arm64
-    # Other stuff to add for apple
-
+    # Other stuff to add for apple d
 else ifeq ($(PLATFORM), linux)
-    CXX = icpx 
-    CXXFLAGS += -DTARGET_LINUX # This makes sure that "TARGET_LINUX" is defined in the code as a preprocessor macro
     CXXFLAGS += -qdiagnostics-color=always # Color diagnostic message
-    CXXFLAGS += -arch $(ARCH)
-    # Other stuff to add for linux
-
-else ifeq ($(PLATFORM), erda)
-    CXX = clang++
-    CXXFLAGS += -DTARGET_ERDA # This makes sure that "TARGET_ERDA" is defined in the code as a preprocessor macro
-    CXXFLAGS += -fdiagnostics-color=always # Color diagnostic message
-    # Other stuff to add for linux
-
+    # Other stuff to add for linux d
 endif
 
+
+INCLUDES = -I./$(INCLUDE_DIR)
 
 # Add flags for linear algebra libraries. Do so only if not cleaning
 ifeq ($(MAKECMDGOALS), clean)
     # Do nothing
 else ifeq ($(LAPACK), accelerate)
-    # Add the headers for Accelerate framework
+    # Find the accelerate framework location
+    ACCELERATE_PATH=$(xcrun --show-sdk-path)/System/Library/Frameworks/Accelerate.framework
+    $(info Debug: Accelerate framework path: $(ACCELERATE_PATH))
+
+    # Add the headers for Accelerate framework. No need to specify flags for the library, as it is linked by default.
     CXXFLAGS += -DLAPACK_ACCELERATE
     CXXFLAGS += -DACCELERATE_NEW_LAPACK
-    INCLUDES += -I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/Accelerate.framework/Headers
-    LIBDIRFLAGS = -L/System/Library/Frameworks/Accelerate.framework/Versions/Current/Frameworks/vecLib.framework
     LIBS = -framework Accelerate
-    LIBS += -O3 -ftree-vectorize -march=native
-
-else ifeq ($(LAPACK), mkl)
-    # Add headers for Intel MKL
-    CXXFLAGS += -DLAPACK_MKL
-    INCLUDES += -I/opt/intel/oneapi/mkl/latest/include   #Add Intel mkl include path
-    LIBDIRFLAGS = -L/opt/intel/oneapi/mkl/latest/lib -L/opt/intel/oneapi/compiler/latest/mac/compiler/lib
-    LIBS += -lmkl_rt -lmkl_intel_lp64 -lmkl_core -lmkl_intel_thread -liomp5 -lpthread -lm -ldl -Wl,-rpath,/opt/intel/oneapi/mkl/latest/lib
 
 else ifeq ($(LAPACK), openblas)
 
@@ -95,13 +83,6 @@ else ifeq ($(LAPACK), openblas)
     CXXFLAGS += -DLAPACK_OPENBLAS
     LIBS += -lopenblas -lpthread -lrt -ldl
     
-else ifeq ($(LAPACK), aocllibm)# AMD Math Library
-    # Add headers for AMD Math Library
-    CXXFLAGS += -DLAPACK_AMD
-    INCLUDES += -I$(CONDA_PREFIX)/5.0.0/aocc/include
-    LIBDIRFLAGS += -L$(CONDA_PREFIX)/5.0.0/aocc/lib -L$(CONDA_PREFIX)/5.0.0/aocc/lib_LP64 -L$(CONDA_PREFIX)/lib
-    LIBS +=  -lstdc++ -lrt -ldl -lpthread -laoclutils -lblis-mt -lomp -lflame -lm -fopenmp
-
 else
     $(error "Invalid LAPACK setting: $(LAPACK). Please choose accelerate, mkl, aocllibm or openblas.")
 
