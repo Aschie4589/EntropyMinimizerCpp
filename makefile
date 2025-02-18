@@ -19,13 +19,6 @@ ifeq ($(origin LAPACK), undefined)
 endif 
 # 
 
-# Default architecture
-ifeq ($(PLATFORM), apple)
-    ARCH ?= arm64
-else ifeq ($(PLATFORM), linux)
-    ARCH ?= x86_64
-endif
-
 # Flags based on PLATFORM, to include the correct libraries etc.
 ifeq ($(PLATFORM), apple)
     CXX = g++
@@ -35,7 +28,7 @@ ifeq ($(PLATFORM), apple)
     # Other stuff to add for apple
 
 else ifeq ($(PLATFORM), linux)
-    CXX = icpx # Ehm is this right? Use intel compiler
+    CXX = icpx 
     CXXFLAGS += -DTARGET_LINUX # This makes sure that "TARGET_LINUX" is defined in the code as a preprocessor macro
     CXXFLAGS += -qdiagnostics-color=always # Color diagnostic message
     CXXFLAGS += -arch $(ARCH)
