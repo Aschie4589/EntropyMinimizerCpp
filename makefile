@@ -10,7 +10,7 @@ INCLUDE_DIR = include
 CXX = g++
 CXXFLAGS = -std=c++17 
 CXXFLAGS += -march=native# This last flag is to enable all CPU-specific optimizations on the host machine. ONLY LOCAL COMPILE!
-CXXFLAGS += -03 -ftree-vectorize
+CXXFLAGS += -O3 -ftree-vectorize
 
 ##### SPECIFIC FLAGS #####
 # Example use: "make PLATFORM=apple LAPACK=accelerate"
