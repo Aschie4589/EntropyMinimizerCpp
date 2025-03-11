@@ -25,6 +25,12 @@ public:
     int saveState(std::string filename);        // Save the state of the minimizer to a file
     int saveVector();                           // Save the vector of the minimizer to a file
     int saveVector(std::string filename);       // Save the vector of the minimizer to a file
+    
+    // Graceful termination
+    void requestTerminate();             // This is used to request the termination of the minimization algorithm
+    bool shouldTerminate();              // This is used to check if the minimization algorithm should terminate
+    static EntropyMinimizer* self;              // This is used to store the pointer to this instance, so that signal_handler can call the correct function
+    static void signal_handler(int signal);            // This is the signal handler for the termination of the minimization algorithm
 
     Minimizer* minimizer;
     EntropyConfig* config;
@@ -43,6 +49,7 @@ private:
 
     double MOE;
 
+    std::atomic<bool> terminate_requested{false};     // This is used to stop the minimization algorithm
 
 };
 

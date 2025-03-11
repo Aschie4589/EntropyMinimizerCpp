@@ -13,9 +13,15 @@ class EntropyConfig {
         bool MOE_use_prediction;
         double MOE_prediction_tolerance;
 
+        // Checkpoint config
+        bool save_checkpoint;
+        int checkpoint_interval;
+        std::string checkpoint_file;
+        bool use_custom_checkpoint_file;
+
+
 
         // Messages config
-
         bool log, print;
         std::string log_file;
         bool use_custom_log_file;
@@ -32,6 +38,9 @@ class EntropyConfig {
         int setMOEPredictionTolerance(double mpt);
         int setMaxIterations(int mi);
         int setMinimizationAttempts(int ma);
+        int setCheckpointInterval(int ci);
+        int setCheckpointFile(const std::string& cf);
+        int setCheckpointing(bool sc);
 };
 
 #endif

@@ -21,6 +21,7 @@
 #include "argparse/argparse.hpp"
 
 
+
 int main(int argc, char** argv){
 
     // Get general purpose message handler
@@ -151,8 +152,23 @@ int main(int argc, char** argv){
         config.setPrinting(!subparser->get<bool>("-s"));
         // set prediction
         config.setMOEUsePrediction(subparser->get<bool>("--predict"));
+        // set checkpointing
+        config.setCheckpointing(subparser->get<bool>("-c"));
+        if (subparser->is_used("-cf")){
+            config.setCheckpointFile(subparser->get<std::string>("-cf"));
+            // debug
+            message_handler->message("Checkpoint file set to " + subparser->get<std::string>("-cf"));
+        }
+        if (subparser->is_used("-ci")){
+            config.setCheckpointInterval(subparser->get<int>("-ci"));
+            // debug
+            message_handler->message("Checkpoint interval set to " + std::to_string(subparser->get<int>("-ci")));
+        }
+
         // finally, create a minimizer
         EntropyMinimizer* minimizer = new EntropyMinimizer(kraus_operators, d, N, N, &config);
+
+        signal(SIGTERM, minimizer->signal_handler);
 
         // Initialize run
         // Check if we have a starting vector specified in the command line
@@ -259,6 +275,10 @@ int main(int argc, char** argv){
 
         // finally, create a minimizer
         EntropyMinimizer* minimizer = new EntropyMinimizer(kraus_operators, d, N, N, &config);
+
+
+        signal(SIGTERM, minimizer->signal_handler);
+        
         //log with message handler
         message_handler->message("Subcommand multishot was used");
 

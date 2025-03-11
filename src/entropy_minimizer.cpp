@@ -42,7 +42,9 @@ EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops
     current_iteration = 0;
     MOE = -1;
 
-
+    // Initialize the signaling stuff
+    self = this;
+    signal(SIGTERM, signal_handler);
 } 
 
 
@@ -165,13 +167,39 @@ int EntropyMinimizer::runMinimization(){
     // Perform the minimization
     message_handler->message("Starting minimization...");
 
-    while (stepMinimization() == 0 && current_iteration < config->max_iterations){
+    while (stepMinimization() == 0 && current_iteration < config->max_iterations && !shouldTerminate()){
         // Print the current entropy from this run. 
         oss.str("");
         oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
         message_handler->message(oss.str());
+
+        if (config->save_checkpoint && current_iteration % config->checkpoint_interval == 0){
+            // Save the state
+            oss.str("");
+            oss << "[Iteration " << current_iteration << "] Checkpoint reached. Saving current state..";
+            message_handler->message(oss.str());
+            if (config->use_custom_checkpoint_file){
+                saveVector(config->checkpoint_file);
+            } else {
+                saveVector();
+            }
+        }
+
     }
-    if (current_iteration >= config->max_iterations){
+    if (terminate_requested){
+        message_handler->message("Minimization stopped: termination requested.");
+        if (config->save_checkpoint){
+            oss.str("");
+            oss << "Checkpoints are enabled. Saving last checkpoint...";
+            message_handler->message(oss.str());
+            if (config->use_custom_checkpoint_file){
+                saveVector(config->checkpoint_file);
+            } else {
+                saveVector();
+            }
+        }
+    }
+    else if (current_iteration >= config->max_iterations){
         message_handler->message("We reached the maximum number of iterations! Aborting...");
     } else {
         message_handler->message("We reached the tolerance: we have converged!");
@@ -196,7 +224,7 @@ int EntropyMinimizer::runMinimization(double target_entropy){
     message_handler->message("Starting minimization...");
     // Initialize a flag that, if MOE prediction is used, will stop the minimization
     bool predict_stop = false;
-    while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop){
+    while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop && !shouldTerminate()){
         // Print the current entropy from this run. 
         oss.str("");
         oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
@@ -227,8 +255,33 @@ int EntropyMinimizer::runMinimization(double target_entropy){
             }                
 
         }
+
+        if (config->save_checkpoint && current_iteration % config->checkpoint_interval == 0){
+            // Save the state
+            oss.str("");
+            oss << "[Iteration " << current_iteration << "] Checkpoint reached. Saving current state..";
+            message_handler->message(oss.str());
+            if (config->use_custom_checkpoint_file){
+                saveVector(config->checkpoint_file);
+            } else {
+                saveVector();
+            }
+        }
     }
-    if (current_iteration >= config->max_iterations){
+    if (terminate_requested){
+        message_handler->message("Minimization stopped: termination requested.");
+        if (config->save_checkpoint){
+            oss.str("");
+            oss << "Checkpoints are enabled. Saving last checkpoint...";
+            message_handler->message(oss.str());
+            if (config->use_custom_checkpoint_file){
+                saveVector(config->checkpoint_file);
+            } else {
+                saveVector();
+            }
+        }
+    }
+    else if (current_iteration >= config->max_iterations){
         message_handler->message("We reached the maximum number of iterations! Aborting...");
     } else if (predict_stop){
         message_handler->message("Minimization stopped: predicted MOE is above target entropy.");
@@ -252,6 +305,10 @@ int EntropyMinimizer::findMOE(){
 
     // Step through the minimization attempts
     for (int i=0; i<config->minimization_attempts; i++){
+        if (shouldTerminate()){
+            message_handler->message("Termination requested. Aborting...");
+            return 1;
+        }
         // Initialize a new run
         initializeRun();
         // Print message
@@ -263,7 +320,7 @@ int EntropyMinimizer::findMOE(){
         message_handler->message("Starting minimization...");
         // Initialize a flag that, if MOE prediction is used, will stop the minimization
         bool predict_stop = false;
-        while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop){
+        while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop && !shouldTerminate()){
             // Print the current entropy from this run. 
             oss.str("");
             oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
@@ -303,7 +360,11 @@ int EntropyMinimizer::findMOE(){
 
             }
         }
-        if (current_iteration >= config->max_iterations){
+        if (shouldTerminate()){
+            message_handler->message("Termination requested. Aborting...");
+            return 1;
+        }
+        else if (current_iteration >= config->max_iterations){
             message_handler->message("We reached the maximum number of iterations! Aborting...");
         } else {
             message_handler->message("We reached the tolerance: we have converged!");
@@ -324,8 +385,12 @@ int EntropyMinimizer::findMOE(){
 int EntropyMinimizer::saveState(std::string filename){
     // First, get the state of the minimizer
     std::vector<std::complex<double> >* state = minimizer->getState();
-    // Then, serialize it.    
-    serializer->serialize("vector", filename, *state, "Save state, custom path", 1, minimizer->getN());
+    // Create temporary filename (make operation atomic)
+    std::string tmp_filename = filename + ".tmp";
+    // Then, serialize the state.  
+    serializer->serialize("vector", tmp_filename, *state, "Save state, custom path", 1, minimizer->getN());
+    // Rename the file
+    std::filesystem::rename(tmp_filename, filename);
     // Print message
     oss.str("");
     oss << "State saved to " << filename;
@@ -336,8 +401,12 @@ int EntropyMinimizer::saveState(std::string filename){
 int EntropyMinimizer::saveVector(std::string filename){
     // First, get the vector from the minimizer
     std::vector<std::complex<double> > vec = minimizer->getVector();
-    // Then, serialize it.    
-    serializer->serialize("vector", filename, vec, "Save state, custom path", 1, minimizer->getN());
+    // Create temporary filename (make operation atomic)
+    std::string tmp_filename = filename + ".tmp";
+    // Then, serialize the vector.    
+    serializer->serialize("vector", tmp_filename, vec, "Save state, custom path", 1, minimizer->getN());
+    // Rename the file
+    std::filesystem::rename(tmp_filename, filename);
     // Print message
     oss.str("");
     oss << "Vector saved to " << filename;
@@ -368,8 +437,13 @@ int EntropyMinimizer::saveState(){
     std::string timestamp = oss.str();
     // create the filename
     std::string filename = save_path.string() + "/state_" + timestamp + ".dat";
+    // create the tmp filename (make the operation atomic)
+    std::string tmp_filename = save_path.string() + "/state_" + timestamp + ".tmp";
     // serialize    
-    serializer->serialize("vector",filename, *state,"Save state", 1, minimizer->getN());
+    serializer->serialize("vector", tmp_filename, *state,"Save state", 1, minimizer->getN());
+    // rename the file
+    std::filesystem::rename(tmp_filename, filename);
+
     // Print message
     oss.str("");
     oss << "State saved to " << filename;
@@ -399,8 +473,14 @@ int EntropyMinimizer::saveVector(){
     std::string timestamp = oss.str();
     // create the filename
     std::string filename = save_path.string() + "/vec_" + timestamp + ".dat";
+
+    // create the tmp filename (make the operation atomic)
+    std::string tmp_filename = save_path.string() + "/vec_" + timestamp + ".tmp";
     // serialize    
-    serializer->serialize("vector",filename, vec,"Save state", 1, minimizer->getN());
+    serializer->serialize("vector", tmp_filename, vec,"Save state", 1, minimizer->getN());
+    // rename the file
+    std::filesystem::rename(tmp_filename, filename);
+
     // Print message
     oss.str("");
     oss << "Vector saved to " << filename;
@@ -408,6 +488,21 @@ int EntropyMinimizer::saveVector(){
     return 0;
 }
 
+void EntropyMinimizer::requestTerminate(){
+    terminate_requested.store(true);
+}
+
+bool EntropyMinimizer::shouldTerminate(){
+    return terminate_requested.load();
+}
+
+void EntropyMinimizer::signal_handler(int signal){
+    if (signal == SIGTERM){
+        self->requestTerminate();
+    }
+}
+
+EntropyMinimizer* EntropyMinimizer::self = nullptr;
 
 EntropyMinimizer::~EntropyMinimizer()
 {

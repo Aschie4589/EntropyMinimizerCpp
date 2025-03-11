@@ -76,7 +76,6 @@ int Minimizer::initializeRandomVector(){
         double imag_part = dist(gen);  // Generate the imaginary part (normal distribution)
         vector_state->at(i) = std::complex<double>(real_part, imag_part);
     }
-
     // Step 3: Renormalize the vector
     double norm = 0.0f;
     for (std::complex<double> entry : *vector_state){

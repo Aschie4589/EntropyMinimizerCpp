@@ -26,6 +26,10 @@ EntropyMinimizer parameters
 #define DEFAULT_MINIMIZER_MOE_PREDICTION_TOLERANCE 1e-5     // What is the tolerance for the MOE prediction?
 #define DEFAULT_MINIMIZER_MINIMIZATION_ATTEMPTS 100         // How many times to run the minimization algorithm before giving up
 
+#define DEFAULT_MINIMIZER_CHECKPOINT_INTERVAL 100           // How often to save the state of the minimizer
+#define DEFAULT_MINIMIZER_CHECKPOINT_FILE "checkpoint.dat"      // What is the default name of the checkpoint file
+
+
 // These other parameters that are just baked in at compile
 #define CONVERGENCE_TOLERANCE 1e-15     // When running the algorithm, if the improvement is below this threshold value for CONVERGENCE_ITERS iterations, 
 #define CONVERGENCE_ITERS 20            // How many iterations to average over to check for convergence

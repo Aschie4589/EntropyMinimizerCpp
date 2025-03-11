@@ -15,6 +15,14 @@ EntropyConfig::EntropyConfig() {
     MOE_use_prediction = DEFAULT_MINIMIZER_USE_MOE_PREDICTION;
     MOE_prediction_tolerance = DEFAULT_MINIMIZER_MOE_PREDICTION_TOLERANCE;
 
+    // Checkpointing
+    save_checkpoint = false;
+    checkpoint_interval = DEFAULT_MINIMIZER_CHECKPOINT_INTERVAL;
+    checkpoint_file = DEFAULT_MINIMIZER_CHECKPOINT_FILE;
+    use_custom_checkpoint_file = false;
+
+
+
     //Logging and messaging
     log = DEFAULT_MINIMIZER_LOG;
     log_file = "log.log";
@@ -22,6 +30,22 @@ EntropyConfig::EntropyConfig() {
     use_custom_log_file = false;
 
 
+}
+
+int EntropyConfig::setCheckpointing(bool sc){
+    save_checkpoint = sc;
+    return 0;
+}
+
+int EntropyConfig::setCheckpointFile(const std::string& cf){
+    use_custom_checkpoint_file = true;
+    checkpoint_file = cf;
+    return 0;
+}
+
+int EntropyConfig::setCheckpointInterval(int ci){
+    checkpoint_interval = ci;
+    return 0;
 }
 
 int EntropyConfig::setMinimizationAttempts(int ma){

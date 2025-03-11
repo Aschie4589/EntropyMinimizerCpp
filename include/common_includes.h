@@ -10,6 +10,8 @@
 #include <complex>
 #include <algorithm>
 #include <stdexcept>
+#include <atomic>   // For atomic variables
+#include <csignal>  // For signal handling (e.g. SIGTERM to stop the program)
 
 #include <cmath>
 #include <filesystem> // For accessing, creating folders etc.; also, path manipulation

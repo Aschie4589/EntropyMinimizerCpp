@@ -79,6 +79,26 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .default_value(std::string(""))
     .metavar("FILE");
 
+    // save checkpoint
+    single_shot_parser->add_argument("--checkpoint", "-c")
+    .help("save the current vector every checkpoint_interval iterations")
+    .default_value(false)
+    .implicit_value(true);
+
+    // checkpoint interval
+    single_shot_parser->add_argument("--checkpoint_interval", "-ci")
+    .help("set the interval for saving the checkpoint file")
+    .scan<'i', int>()
+    .metavar("INT");
+
+    // checkpoint file
+    single_shot_parser->add_argument("--checkpoint_file", "-cf")
+    .help("path to save the checkpoint file")
+    .default_value(std::string(""))
+    .metavar("FILE");
+
+
+
     // prediction flag
     single_shot_parser->add_argument("--predict", "-p")
     .help("predict the entropy and stop if it is not expected to beat the target")
@@ -92,7 +112,7 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .metavar("FLOAT");
 
     // how many iterations to run the minimizer for
-    single_shot_parser->add_argument("-i", "--iters")
+    single_shot_parser->add_argument("--iters", "-i")
     .help("max number of iterations")
     .scan<'i', int>()
     .metavar("INT");
