@@ -30,7 +30,7 @@ ifeq ($(PLATFORM), apple)
     CXXFLAGS += -fdiagnostics-color=always # Color diagnostic messages
     # Other stuff to add for apple d
 else ifeq ($(PLATFORM), linux)
-    CXXFLAGS += -qdiagnostics-color=always # Color diagnostic message
+    CXXFLAGS += -fdiagnostics-color=always # Color diagnostic message
     # Other stuff to add for linux d
 endif
 
