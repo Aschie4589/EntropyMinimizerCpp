@@ -1,7 +1,7 @@
 #include "common_includes.h"
-#include "entropy_estimator.h"
-#include "config.h"
-#include "matrix_operations.h"
+#include "core/entropy_estimator.h"
+#include "config/config.h"
+#include "core/matrix_operations.h"
 EntropyEstimator::EntropyEstimator(){
     // Define the parameters
     window_size = ENTROPY_ESTIMATOR_DEFAULT_WINDOW_SIZE;

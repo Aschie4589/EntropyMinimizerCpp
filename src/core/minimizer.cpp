@@ -1,8 +1,8 @@
 // Minimizer.cpp
 #include "common_includes.h"
-#include "minimizer.h"
-#include "config.h"
-#include "matrix_operations.h"
+#include "core/minimizer.h"
+#include "config/config.h"
+#include "core/matrix_operations.h"
 
 Minimizer::Minimizer(std::vector<std::complex<double> >* kraus_ops, 
                         int kraus_number, int kraus_in_dimension, int kraus_out_dimension,double eps) {

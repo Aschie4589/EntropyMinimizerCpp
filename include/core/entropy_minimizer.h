@@ -1,10 +1,10 @@
 #ifndef ENTROPY_MINIMIZER_H
 #define ENTROPY_MINIMIZER_H
 
-#include "config.h"
-#include "minimizer.h"
-#include "message_handler.h"
-#include "entropy_config.h"
+#include "config/config.h"
+#include "core/minimizer.h"
+#include "helpers/message_handler.h"
+#include "config/entropy_config.h"
 class EntropyMinimizer {
 public:
     EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf);

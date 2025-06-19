@@ -1,7 +1,7 @@
 #include "common_includes.h"
-#include "message_handler.h"
-#include "logger.h"
-#include "printer.h"
+#include "helpers/message_handler.h"
+#include "helpers/logger.h"
+#include "helpers/printer.h"
 MessageHandler::MessageHandler(/* args */)
 {
     // Message handler simply broadcasts a message to all its loggers and or printers, depending on its settings.

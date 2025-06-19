@@ -2,9 +2,9 @@
 #ifndef MINIMIZER_H  // Include guard to prevent multiple inclusions
 #define MINIMIZER_H
 
-#include "config.h"
-#include "vector_serializer.h"
-#include "entropy_estimator.h"
+#include "config/config.h"
+#include "helpers/vector_serializer.h"
+#include "core/entropy_estimator.h"
 
 class Minimizer {
 public:

@@ -2,7 +2,7 @@
 #define ENTROPY_ESTIMATOR_H
 
 #include "common_includes.h"
-#include "config.h"
+#include "config/config.h"
 
 class EntropyEstimator{
     public:

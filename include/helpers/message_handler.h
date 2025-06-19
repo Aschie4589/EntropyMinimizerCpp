@@ -2,8 +2,8 @@
 #define MESSAGE_HANDLER_H
 
 #include "common_includes.h"
-#include "logger.h"
-#include "printer.h"
+#include "helpers/logger.h"
+#include "helpers/printer.h"
 
 /*
 MessageHandler should do the following:

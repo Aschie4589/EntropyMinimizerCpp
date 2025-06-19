@@ -3,10 +3,10 @@
 
 #include "common_includes.h"
 
-#include "printer.h"
-#include "config.h"
+#include "helpers/printer.h"
+#include "config/config.h"
 
-#include "uuid.h"
+#include "helpers/uuid.h"
 
 namespace fs = std::filesystem;
 

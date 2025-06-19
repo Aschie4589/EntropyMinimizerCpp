@@ -3,10 +3,10 @@
 
 #include "common_includes.h"
 
-#include "logger.h"
-#include "config.h"
+#include "helpers/logger.h"
+#include "config/config.h"
 
-#include "uuid.h"
+#include "helpers/uuid.h"
 
 namespace fs = std::filesystem;
 

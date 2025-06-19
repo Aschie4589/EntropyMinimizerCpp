@@ -16,6 +16,16 @@ EntropyMinimizer parameters
 #define VERSION "0.1"
 
 
+/*
+
+    CUDA Parameters
+
+*/
+
+#define CUDA_STREAMS 32                 // How many CUDA streams to use for parallel execution of non-parallelized operations. Relevant for Haar unitary creation
+#define ZGEMM_BATCH_SIZE_CHANNEL 2      // How many matrix multiplications to perform in parallel when applying the channel. This is the batch size for the zgemm operation. Memory usage is proportional to this.
+
+
 // Default parameters that can be changed in MinimizerConfig
 #define DEFAULT_MINIMIZER_MAX_ITERATIONS 500000             // How many iterations of the algorithm to run before giving up. Has to be less than uint32_t range
 #define DEFAULT_MINIMIZER_LOG false                         // Should the minimizer write messages to a log file?

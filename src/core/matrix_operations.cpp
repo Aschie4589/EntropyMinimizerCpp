@@ -1,4 +1,4 @@
-#include "matrix_operations.h"
+#include "core/matrix_operations.h"
 #include "common_includes.h"
 
 

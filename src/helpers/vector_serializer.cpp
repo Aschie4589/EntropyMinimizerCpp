@@ -1,6 +1,6 @@
 #include "common_includes.h"
-#include "vector_serializer.h"
-#include "nlohmann/json.hpp"
+#include "helpers/vector_serializer.h"
+#include "libs/nlohmann/json.hpp"
 using json = nlohmann::json;
 
 VectorSerializer::VectorSerializer(/* args */)

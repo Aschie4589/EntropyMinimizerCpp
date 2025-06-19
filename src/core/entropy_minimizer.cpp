@@ -1,15 +1,21 @@
 #include "common_includes.h"
 
-#include "entropy_minimizer.h"
-#include "config.h"
-#include "minimizer.h"
-#include "message_handler.h"
+#include "core/entropy_minimizer.h"
+#include "config/config.h"
+#include "core/minimizer.h"
+#include "helpers/message_handler.h"
 
-#include "uuid.h"
+#include "helpers/uuid.h"
 
 
 EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf){
+/*
+    Wrapper class for the minimzation algorithm.
+    This class handles the initialization of the minimizer, the configuration, and the logging.
+    It also keeps track of entropy and iteration counts.
+    It stops the minimization algorithm gracefully on SIGTERM.
 
+*/
     // Save configuration
     config = conf;
 

@@ -2,7 +2,7 @@
 #define PRINTER_H
 
 #include "common_includes.h"
-#include "config.h"
+#include "config/config.h"
 
 namespace fs = std::filesystem;
 class Printer

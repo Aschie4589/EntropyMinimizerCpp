@@ -1,7 +1,7 @@
 #include "common_includes.h"
 
-#include "entropy_config.h"
-#include "config.h"
+#include "config/entropy_config.h"
+#include "config/config.h"
 
 EntropyConfig::EntropyConfig() {
     // Set default values

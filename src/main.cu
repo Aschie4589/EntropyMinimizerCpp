@@ -1,28 +1,129 @@
 // My headers
 #include "common_includes.h"
-#include "config.h"
+#include "config/config.h"
 
-#include "matrix_operations.h"
+#include "core/matrix_operations.h"
 
-#include "minimizer.h"
-#include "entropy_minimizer.h"
-#include "vector_serializer.h"
-#include "entropy_estimator.h"
+#include "core/minimizer.h"
+#include "core/cuda_minimizer.h"
+#include "core/entropy_minimizer.h"
+#include "helpers/vector_serializer.h"
+#include "core/entropy_estimator.h"
 
-#include "message_handler.h"
-#include "logger.h"
+#include "helpers/message_handler.h"
+#include "helpers/logger.h"
 
-#include "generate_haar_unitary.h"
-#include "generate_random_vector.h"
+#include "core/generate_haar_unitary.h"
+#include "core/generate_random_vector.h"
 
-#include "uuid.h"
+#include "helpers/uuid.h"
 
-#include "parse_arguments.h"
-#include "argparse/argparse.hpp"
+#include "helpers/parse_arguments.h"
+#include "libs/argparse/argparse.hpp"
+
+
+#include <cuda_runtime.h>
+#include <cuComplex.h>
+#include <cublas_v2.h>
 
 
 
 int main(int argc, char** argv){
+
+
+    int N = 1024;
+    int d = 32;
+
+    // Set the device to use
+    cudaSetDevice(0); // Use device 0
+
+    // Create kraus operators
+    cuDoubleComplex* kraus_operators;
+    cudaError_t errmalloc = cudaMalloc(&kraus_operators, d * N * N * sizeof(cuDoubleComplex));
+    if (errmalloc != cudaSuccess) {
+        std::cerr << "Error allocating memory for Kraus operators: " << cudaGetErrorString(errmalloc) << std::endl;
+        return 1;
+    }
+    std::cout << "Successfully allocated " << d * N * N * sizeof(cuDoubleComplex) << " bytes " << "or " << d * N * N * sizeof(cuDoubleComplex) /1024.0/1024/1024 <<" GB for Kraus operators." << std::endl;
+    
+    // Generate Haar random unitaries
+    cudaError_t err = generateHaarRandomUnitaries(kraus_operators, N, d, 32);
+    if (err != cudaSuccess) {
+        std::cerr << "Error generating Haar random unitaries: " << cudaGetErrorString(err) << std::endl;
+        return 1;
+    }
+
+
+
+    // Create a minimizer
+    CudaMinimizer* minimizer = new CudaMinimizer(kraus_operators, d, N, N, 1e-6);
+    // Initialize vector
+    cudaError_t errinit = minimizer->initializeRandomVector();
+    if (errinit != cudaSuccess) {
+        std::cerr << "Error initializing vector: " << cudaGetErrorString(errinit) << std::endl;
+        return 1;
+    }
+    // Update projector
+    cudaError_t errupdate = minimizer->updateProjector();
+    if (errupdate != cudaSuccess) {
+        std::cerr << "Error updating projector: " << cudaGetErrorString(errupdate) << std::endl;
+        return 1;
+    }
+
+    // Next apply the channel
+
+    cudaError_t errapply = minimizer->applyEpsilonChannel();
+    if (errapply != cudaSuccess) {
+        std::cerr << "Error applying channel: " << cudaGetErrorString(errapply) << std::endl;
+        return 1;
+    }
+
+    // Retrieve and print the output matrix
+    cuDoubleComplex* output_matrix = minimizer->getOutputState();
+    // Copy to host memory for printing
+    cuDoubleComplex* host_output_matrix = new cuDoubleComplex[N * N];
+    cudaError_t errcopy_output = cudaMemcpy(host_output_matrix, output_matrix, N * N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+
+    // Calculate the trace
+    cuDoubleComplex trace = make_cuDoubleComplex(0.0, 0.0);
+    for (int i = 0; i < N; i++) {
+        trace.x += host_output_matrix[i * N + i].x; // Real part
+        trace.y += host_output_matrix[i * N + i].y; // Imaginary part
+    }
+    std::cout << "Trace of the output matrix: " << trace.x << " + " << trace.y << "i" << std::endl;
+   
+    // Apply the dual channel
+    cudaError_t errapply_dual = minimizer->applyEpsilonDualChannel();
+    if (errapply_dual != cudaSuccess) {
+        std::cerr << "Error applying dual channel: " << cudaGetErrorString(errapply_dual) << std::endl;
+        return 1;
+    }
+    // Retrieve and print the output matrix
+    cuDoubleComplex* output_matrix_dual = minimizer->getState();
+    // Copy to host memory for printing
+    cuDoubleComplex* host_output_matrix_dual = new cuDoubleComplex[N * N];
+    cudaError_t errcopy_output_dual = cudaMemcpy(host_output_matrix_dual, output_matrix_dual, N * N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+    if (errcopy_output_dual != cudaSuccess) {
+        std::cerr << "Error copying output matrix to host: " << cudaGetErrorString(errcopy_output_dual) << std::endl;
+        return 1;
+    }
+    // Calculate the trace
+    cuDoubleComplex trace_dual = make_cuDoubleComplex(0.0, 0.0);
+    for (int i = 0; i < N; i++) {
+        trace_dual.x += host_output_matrix_dual[i * N + i].x; // Real part
+        trace_dual.y += host_output_matrix_dual[i * N + i].y; // Imaginary part
+    }
+    std::cout << "Trace of the output matrix (dual): " << trace_dual.x << " + " << trace_dual.y << "i" << std::endl;
+
+    return 0;
+}
+
+
+
+
+
+
+int main2(int argc, char** argv){
 
     // Get general purpose message handler
     MessageHandler* message_handler = new MessageHandler();
@@ -30,6 +131,8 @@ int main(int argc, char** argv){
     argparse::ArgumentParser* parser = parse_arguments(argc, argv);
     int N, d;
     
+    cudaSetDevice(1); // Use device 1
+
 
     // Option 1: kraus was called
     if (parser->is_subcommand_used("kraus")){
@@ -76,16 +179,38 @@ int main(int argc, char** argv){
 
             // generate the Kraus operators
             std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.
+            // Use the parallel GPU version of the Haar random unitary generator
+            message_handler->message("Generating " + std::to_string(d) + " Haar random unitaries of size " + std::to_string(N) + "x" + std::to_string(N) + "...");
+            // Generate the Haar random unitaries
+            cuDoubleComplex* gpuUnitaries = nullptr;
+            cudaMalloc(&gpuUnitaries, d * N * N * sizeof(cuDoubleComplex));
+            cudaError_t err = generateHaarRandomUnitaries(gpuUnitaries, N, d, 1);
+            if (err != cudaSuccess) {
+                message_handler->message("Error generating Haar random unitaries: " + std::string(cudaGetErrorString(err)));
+                return 1;
+            }
+            // Copy the generated unitaries to the kraus_operators vector
+            cudaMemcpy(kraus_operators->data(), gpuUnitaries, d * N * N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+            // Free the GPU memory
+            cudaFree(gpuUnitaries);
+            // Rescale the unitaries by 1/sqrt(d) to ensure they    are normalized
+            for (int i = 0; i < d * N * N; i++)
+            {
+                kraus_operators->at(i) /= std::sqrt(double(d));
+            }
+            message_handler->message("Done generating Haar random unitaries!");
+            /*
             for (int m = 0; m < d; m++){
                 message_handler->message("Generating Haar random unitary " + std::to_string(m+1) + " of " + std::to_string(d) + "...");
                 // append a new unitary at position i of the kraus operator.
-                std::vector<std::complex<double> >* new_haar_unitary = generateHaarRandomUnitary(N);
+                std::vector<std::complex<double> > new_haar_unitary = generateHaarRandomUnitary(N);
                 for (int i = 0; i < N*N ;i++){
-                    kraus_operators->at(m*N*N+i) = new_haar_unitary->at(i)/std::sqrt(double(d));
+                    kraus_operators->at(m*N*N+i) = new_haar_unitary.at(i)/std::sqrt(double(d));
                 }
                 message_handler->message("Done!");
-                delete new_haar_unitary;
             }
+                */
+            
 
             // save the kraus operators
             VectorSerializer serializer = VectorSerializer();
@@ -123,7 +248,7 @@ int main(int argc, char** argv){
         message_handler->message(full_command);
         // Now explicitly print the options
         message_handler->message("Parsed Kraus operators: " + subparser->get<std::string>("-k"));
-        // Also print logging and printing options,
+        // Also print logging and printing options
         message_handler->message("Logging is: " + std::to_string(subparser->get<bool>("-l")));
         message_handler->message("Printing is: " + std::to_string(subparser->get<bool>("-s") ));
 

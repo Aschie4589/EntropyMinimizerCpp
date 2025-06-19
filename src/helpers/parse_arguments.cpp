@@ -1,5 +1,5 @@
-#include "argparse/argparse.hpp"
-#include "parse_arguments.h"
+#include "libs/argparse/argparse.hpp"
+#include "helpers/parse_arguments.h"
 
 
 argparse::ArgumentParser* parse_arguments(int argc, char** argv){
