@@ -2,17 +2,17 @@
 #define ENTROPY_MINIMIZER_H
 
 #include "config/config.h"
-#include "core/minimizer.h"
+#include "core/cuda_minimizer.h"
 #include "helpers/message_handler.h"
 #include "config/entropy_config.h"
 class EntropyMinimizer {
 public:
-    EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf);
+    EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf);
     ~EntropyMinimizer();
 
     // Setup functions
-    int initializeRun();                        // This starts a new run with a random vector
-    int initializeRun(std::vector<std::complex<double> >* start_vector);    // This starts a new run but with a specified vector
+    cudaError_t initializeRun();                        // This starts a new run with a random vector
+    cudaError_t initializeRun(cuDoubleComplex* start_vector);    // This starts a new run but with a specified vector. Vector is assumed to be on host.
 
     // Algorithm functions
     int stepMinimization();                     // Do one step of minimization, then check if we need to stop. Return 1 if we need to stop, 0 othwerise.
@@ -32,7 +32,7 @@ public:
     static EntropyMinimizer* self;              // This is used to store the pointer to this instance, so that signal_handler can call the correct function
     static void signal_handler(int signal);            // This is the signal handler for the termination of the minimization algorithm
 
-    Minimizer* minimizer;
+    CudaMinimizer* minimizer;
     EntropyConfig* config;
 
 private:
@@ -48,7 +48,8 @@ private:
     EntropyEstimator* entropy_estimator;       // This is used to estimate the entropy of the state
 
     double MOE;
-
+    int input_dim;                              // Input dimension of the kraus operators
+    int output_dim;                             // Output dimension of the kraus operators
     std::atomic<bool> terminate_requested{false};     // This is used to stop the minimization algorithm
 
 };

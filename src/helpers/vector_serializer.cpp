@@ -16,6 +16,35 @@ VectorSerializer::~VectorSerializer()
 void VectorSerializer::serialize(const std::string& type, const std::string& fileName, const std::vector<std::complex<double>>& vec, 
                                   const std::string& description, int d, int N) {
     std::ofstream outFile(fileName, std::ios::binary);
+    /*
+    
+    Serialize a vector of std::complex<double> to a file. This is used to save the state of minimizer.
+    The file format is as follows:
+    +------------------+
+    | Magic identifier |  (always "VECTR" or "KRAUS") 5 characters
+    +------------------+
+    | Format Version   |  (e.g., 1.0 - Variable length string)
+    +------------------+
+    | Metadata Size    |  (size in bytes of metadata)
+    +------------------+
+    | Metadata         |  (JSON string with metadata)
+    +------------------+
+    | Vector Size      |  (number of elements in vector)
+    +------------------+
+    | Vector Data      |  (binary data of vector)
+    +------------------+
+    | Footer (Optional)|  (checksum) 
+    +------------------+
+
+    Arguments:
+    - type: "vector" or "kraus" to indicate the type of data being serialized.
+    - fileName: The name of the file to write the serialized data to.
+    - vec: The vector of std::complex<double> to serialize.
+    - description: A description of the data being serialized.
+    - d: An integer representing the dimension of the data. This is only used for metadata
+    - N: An integer representing the size of the vector. This is only used for metadata.
+    
+    */
     if (!outFile.is_open()) {
         throw std::runtime_error("Failed to open file for writing.");
     }

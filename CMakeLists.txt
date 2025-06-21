@@ -43,6 +43,9 @@ endif()
 # Define the executable
 add_executable(moe ${SOURCES})
 
+target_include_directories(moe PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+
+
 # Link CUDA libraries: cuSOLVER, cuRAND
 target_link_libraries(moe PRIVATE
     CUDA::cudart

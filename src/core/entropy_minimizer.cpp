@@ -2,70 +2,81 @@
 
 #include "core/entropy_minimizer.h"
 #include "config/config.h"
-#include "core/minimizer.h"
+#include "core/cuda_minimizer.h"
 #include "helpers/message_handler.h"
 
 #include "helpers/uuid.h"
 
 
-EntropyMinimizer::EntropyMinimizer(std::vector<std::complex<double> >* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf){
+EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf){
 /*
     Wrapper class for the minimzation algorithm.
     This class handles the initialization of the minimizer, the configuration, and the logging.
     It also keeps track of entropy and iteration counts.
     It stops the minimization algorithm gracefully on SIGTERM.
 
+    Arguments:
+    - kraus_ops (device): pointer to the array of kraus operators on device
+    - kraus_number: number of kraus operators
+    - kraus_in_dimension: input dimension of the kraus operators
+    - kraus_out_dimension: output dimension of the kraus operators
+    - conf: pointer to the configuration object that contains the parameters for the minimization algorithm
+
 */
-    // Save configuration
+    // Store configuration
     config = conf;
 
-    minimizer = new Minimizer(kraus_ops, kraus_number, kraus_in_dimension, kraus_out_dimension, config->epsilon); // This avoids having to use initialize list
+    // Initialize minimizer
+    minimizer = new CudaMinimizer(kraus_ops, kraus_number, kraus_in_dimension, kraus_out_dimension, config->epsilon); // This avoids having to use initialize list
+    input_dim = kraus_in_dimension;
+    output_dim = kraus_out_dimension;
+    // initialize the entropy estimator
+    entropy_estimator = new EntropyEstimator();
+    // Initialize the current iteration and current MOE
+    current_iteration = 0;
+    MOE = -1;
 
     // Setup logging and messages
     message_handler = new MessageHandler();
     message_handler->createPrinter();
-
     if (config->use_custom_log_file){
         message_handler->createLogger(config->log_file);
     } else {
         message_handler->createLogger();
     }
-
     message_handler->setLogging(config->log);
     message_handler->setPrinting(config->print);  
 
-    // get uuid for minimizer
+    // get uuid
     minimizer_id = generate_uuid_v4();
 
-    // INITIALIZATION OF SERIALIZER
+    // initialize a serializer object
     serializer = new VectorSerializer();
 
-    // INITIALIZATION OF ENTROPY ESTIMATOR 
-    entropy_estimator = new EntropyEstimator();
-
-
-    // Initialize the current iteration and current MOE
-    current_iteration = 0;
-    MOE = -1;
-
-    // Initialize the signaling stuff
+    // Initialize the signaling stuff (for graceful termination)
     self = this;
     signal(SIGTERM, signal_handler);
 } 
 
 
-int EntropyMinimizer::initializeRun(){
-    message_handler->message("Initializing new run. No starting vector detected, generating random one...");
-    int info = minimizer->initializeRandomVector();
-    // print info
-    if (info == 0){
-        message_handler->message("Successfully initialized run with random vector!");
-    } else if (info==1) {
-        message_handler->message("The vector passed did not match the right dimension. I have instead generated a random one!");
-    } else if (info==2){
-        message_handler->message("The vector passed was empty. I have instead generated a random one!");
-    }
+cudaError_t EntropyMinimizer::initializeRun(){
+    /*
+    Initializes a new "run", which is one algorithm pass starting with a random vector, on which the algorithm can be run until convergence.
+    This function is responsible for initializing the inner minimizer with ta random start_vector, and for initializing the necessary variables for the run to their correct state.
+    
+    Returns:
+    - cudaError_t: cudaSuccess on successful initalization.
 
+    Note: 
+    - The start vector is generated randomly on the device, so no input is required.
+
+    */
+    message_handler->message("Initializing new run. No starting vector detected, generating random one...");
+    cudaError_t err = minimizer->initializeRandomVector();
+    if (err != cudaSuccess){
+        message_handler->message("Failed to initialize random vector: " + std::string(cudaGetErrorString(err)));
+        return err;
+    }
 
     // get new uuid
     run_id = generate_uuid_v4();
@@ -73,37 +84,49 @@ int EntropyMinimizer::initializeRun(){
     current_iteration = 0;
 
     // Compute the entropy of the start vector and save it in the buffer
-    minimizer->calculateEntropy();
-    entropy_buffer[0] = *minimizer->getEntropy();
+    minimizer->updateProjector();
+    err = minimizer->calculateEpsilonEntropy();
+    if (err != cudaSuccess){
+        message_handler->message("Failed to calculate epsilon entropy: " + std::string(cudaGetErrorString(err)));
+        return err;
+    }
+    double curr_en = minimizer->getEntropy();
+    entropy_buffer[0] = curr_en;
 
     // Reset the entropy estimator
     entropy_estimator->reset();
-    entropy_estimator->appendEntropy(*minimizer->getEntropy());
+    entropy_estimator->appendEntropy(curr_en);
 
     // Check if we have found a new MOE
-    if (MOE < 0 || entropy_buffer[0] < MOE) {
-        MOE = entropy_buffer[0];
+    if (MOE < 0 || curr_en < MOE) {
+        MOE = curr_en;
     }
 
-    return info;
+    return err;
 }
 
-int EntropyMinimizer::initializeRun(std::vector<std::complex<double> >* start_vector){
+cudaError_t EntropyMinimizer::initializeRun(cuDoubleComplex* start_vector){
+    /*
+    Initializes a new "run", which is one algorithm pass starting with a given vector, on which the algorithm can be run until convergence.
+    This function is responsible for initializing the inner minimizer with the given start_vector, and for initializing the necessary variables for the run to their correct state.
+    
+    Input:
+    - start_vector (host): pointer to the start vector on host.
+    
+    Returns:
+    - cudaError_t: cudaSuccess on successful initalization.
+
+    Note: 
+    - The passed vector is assumed to be of the correct size. Undefined behavior to be expected if dimensions don't match.
+    - The passed vector is copied to the device memory using minimizer->initializeVectorFromHost().
+    
+    */
     message_handler->message("Initializing new run. A vector was passed as input...");
 
-    // debug vector inof
-    oss.str("");
-    oss << "Vector size: " << start_vector->size();
-    message_handler->message(oss.str());
-
-
-    int info = minimizer->initializeVector(start_vector);
-    if (info == 0){
-        message_handler->message("Successfully initialized run with given vector!");
-    } else if (info==1) {
-        message_handler->message("The vector passed did not match the right dimension. I have instead generated a random one!");
-    } else if (info==2){
-        message_handler->message("The vector passed was empty. I have instead generated a random one!");
+    cudaError_t err = minimizer->initializeVectorFromHost(start_vector);
+    if (err != cudaSuccess){
+        message_handler->message("Failed to initialize vector from host: " + std::string(cudaGetErrorString(err)));
+        return err;
     }
 
     // get new uuid
@@ -112,35 +135,49 @@ int EntropyMinimizer::initializeRun(std::vector<std::complex<double> >* start_ve
     current_iteration = 0;
 
     // Compute the entropy of the start vector and save it in the buffer
-    minimizer->calculateEntropy();
-    entropy_buffer[0] = *minimizer->getEntropy();
+    minimizer->updateProjector();
+    minimizer->calculateEpsilonEntropy();
+    double curr_en = minimizer->getEntropy();
+    entropy_buffer[0] = curr_en;
 
     // Reset the entropy estimator
     entropy_estimator->reset();
-    entropy_estimator->appendEntropy(*minimizer->getEntropy());
-
+    entropy_estimator->appendEntropy(curr_en);
 
     // Check if we have found a new MOE
-    if (MOE < 0 || entropy_buffer[0] < MOE) {
-        MOE = entropy_buffer[0];
+    if (MOE < 0 || curr_en < MOE) {
+        MOE = curr_en;
     }
 
-    return info;
+    return err;
 }
 
 int EntropyMinimizer::stepMinimization(){
+    /*
+    
+    This is a wrapper function for minimizer->step() and adds the following functionality:
+    1. It keeps track of the iterations and checks for convergence.
+    2. It keeps track of the MOE found in the current run.
+    3. (optional) It attempts to predict a final MOE upon convergence, using the entropy_estimator.
+
+    Returns:
+    - int: 
+        - ENTROPY_MINIMIZER_CONVERGED if the algorithm has converged
+        - ENTROPY_MINIMIZER_MAX_ITERS if the maximum number of iterations has been reached
+        - ENTROPY_MINIMIZER_NUMERICAL_INST if the algorithm has reached numerical instability (improvement is negative)
+
+    */
     // Step 1: step through the algorithm
     minimizer->step();
     current_iteration +=1;
 
     // Step 2: update the MOE if the newly found MOE is lower. No need to calculate the entropy, since it already is done when minimizer steps
     // 2.1: Compute the entropy of the state and save it in the buffer. Buffer is CONVERGENCE_ITERS long. Also update the entropy estimator buffer
-    entropy_buffer[current_iteration % CONVERGENCE_ITERS] = *minimizer->getEntropy();
-    entropy_estimator->appendEntropy(*minimizer->getEntropy());
+    double ent = minimizer->getEntropy();
+    entropy_buffer[current_iteration % CONVERGENCE_ITERS] = ent;
+    entropy_estimator->appendEntropy(ent);
     // 2.2: Check if we have found a new MOE
-    if (entropy_buffer[0] < MOE) {
-        MOE = entropy_buffer[current_iteration % CONVERGENCE_ITERS];
-    }
+    if (ent < MOE) MOE = ent;
 
     // Step 3: check if we need to stop.
     if (current_iteration >= CONVERGENCE_ITERS){
@@ -149,34 +186,47 @@ int EntropyMinimizer::stepMinimization(){
             // Only run through CONVERGENCE_ITERS-1 because we want the deltas.
             // Compute entropy[i-1]-entropy[i] which needs to be positive. If negative: stop
             if (entropy_buffer[(current_iteration-i-1)%CONVERGENCE_ITERS]-entropy_buffer[(current_iteration-i)%CONVERGENCE_ITERS]<0){
-                return 1; // We need to stop
+                return ENTROPY_MINIMIZER_NUMERICAL_INST; // Stop
             }
         }
         // 3.2: stop if all the improvements are small - we have converged.
         // Since all improvements are positive, just check the total improvement divided by CONVERGENGE_ITERS
         if ((entropy_buffer[(current_iteration+1)%CONVERGENCE_ITERS]-entropy_buffer[(current_iteration)%CONVERGENCE_ITERS]) / CONVERGENCE_ITERS < CONVERGENCE_TOLERANCE){
-            return 1;
+            return ENTROPY_MINIMIZER_CONVERGED;
         }
 
     }
-    return 0;
+    return ENTROPY_MINIMIZER_CONTINUE;
 
 }
 
 int EntropyMinimizer::runMinimization(){
-    // Print message
-    oss.str("");
-    oss << "Running single minimization pass with no entropy prediction.";
-    message_handler->message(oss.str());
+    /*
+    
+    Run a full minimization pass on the current minimizer state.
+
+    Returns:
+    - int: 
+        - ENTROPY_MINIMIZER_CONVERGED if the algorithm has converged
+        - ENTROPY_MINIMIZER_MAX_ITERS if the maximum number of iterations has been reached
+        - ENTROPY_MINIMIZER_NUMERICAL_INST if the algorithm has reached numerical instability (improvement is negative)
+        - ENTROPY_MINIMIZER_TERMINATED if the minimization was terminated by the user
+        - ENTROPY_MINIMIZER_MOE_PREDICTION if the MOE prediction was used to stop the minimization.
+    Note:
+    - Before running, initialize the EntropyMinimizer with initializeRun() or initializeRun(cuDoubleComplex* start_vector).
+    */
 
 
+
+    message_handler->message("Running single minimization pass with no entropy prediction.");
     // Perform the minimization
     message_handler->message("Starting minimization...");
-
-    while (stepMinimization() == 0 && current_iteration < config->max_iterations && !shouldTerminate()){
+    int status = ENTROPY_MINIMIZER_CONTINUE; // Initialize status
+    while (status == ENTROPY_MINIMIZER_CONTINUE && current_iteration < config->max_iterations && !shouldTerminate()){
+        status = stepMinimization();
         // Print the current entropy from this run. 
         oss.str("");
-        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
+        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << minimizer->getEntropy();
         message_handler->message(oss.str());
 
         if (config->save_checkpoint && current_iteration % config->checkpoint_interval == 0){
@@ -194,10 +244,9 @@ int EntropyMinimizer::runMinimization(){
     }
     if (terminate_requested){
         message_handler->message("Minimization stopped: termination requested.");
+        status = ENTROPY_MINIMIZER_TERMINATED;
         if (config->save_checkpoint){
-            oss.str("");
-            oss << "Checkpoints are enabled. Saving last checkpoint...";
-            message_handler->message(oss.str());
+            message_handler->message("Checkpoints are enabled. Saving last checkpoint...");
             if (config->use_custom_checkpoint_file){
                 saveVector(config->checkpoint_file);
             } else {
@@ -213,27 +262,43 @@ int EntropyMinimizer::runMinimization(){
 
     // We have finished the minimization attempts. Print the final MOE
     oss.str("");
-    oss << "Final entropy: " << *minimizer->getEntropy();
+    oss << "Final entropy: " << minimizer->getEntropy();
     message_handler->message(oss.str());
 
-    return 0;
+    return status;
 }
 
 int EntropyMinimizer::runMinimization(double target_entropy){
+    /*
+    
+    Run a full minimization pass on the current minimizer state.
+
+    Returns:
+    - int: 
+        - ENTROPY_MINIMIZER_CONVERGED if the algorithm has converged
+        - ENTROPY_MINIMIZER_MAX_ITERS if the maximum number of iterations has been reached
+        - ENTROPY_MINIMIZER_NUMERICAL_INST if the algorithm has reached numerical instability (improvement is negative)
+        - ENTROPY_MINIMIZER_TERMINATED if the minimization was terminated by the user
+        - ENTROPY_MINIMIZER_MOE_PREDICTION if the MOE prediction was used to stop the minimization.
+    Note:
+    - Before running, initialize the EntropyMinimizer with initializeRun() or initializeRun(cuDoubleComplex* start_vector).
+    */
+
     // Print message
     oss.str("");
     oss << "Running single minimization pass with target entropy " << target_entropy << ".";
     message_handler->message(oss.str());
 
-
     // Perform the minimization
     message_handler->message("Starting minimization...");
     // Initialize a flag that, if MOE prediction is used, will stop the minimization
+    int status = ENTROPY_MINIMIZER_CONTINUE; // Initialize status
     bool predict_stop = false;
-    while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop && !shouldTerminate()){
+    while (status == ENTROPY_MINIMIZER_CONTINUE && current_iteration < config->max_iterations && !predict_stop && !shouldTerminate()){
+        status = stepMinimization();
         // Print the current entropy from this run. 
         oss.str("");
-        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
+        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << minimizer->getEntropy();
         message_handler->message(oss.str());
 
         // Check if we need to stop because of final entropy prediction
@@ -261,6 +326,10 @@ int EntropyMinimizer::runMinimization(double target_entropy){
             }                
 
         }
+        if (predict_stop){
+            message_handler->message("Predicted final entropy is above target entropy. Stopping minimization.");
+            status = ENTROPY_MINIMIZER_MOE_PREDICTION;
+        }
 
         if (config->save_checkpoint && current_iteration % config->checkpoint_interval == 0){
             // Save the state
@@ -276,6 +345,7 @@ int EntropyMinimizer::runMinimization(double target_entropy){
     }
     if (terminate_requested){
         message_handler->message("Minimization stopped: termination requested.");
+        status = ENTROPY_MINIMIZER_TERMINATED;
         if (config->save_checkpoint){
             oss.str("");
             oss << "Checkpoints are enabled. Saving last checkpoint...";
@@ -297,13 +367,23 @@ int EntropyMinimizer::runMinimization(double target_entropy){
 
     // We have finished the minimization attempts. Print the final MOE
     oss.str("");
-    oss << "Final entropy: " << *minimizer->getEntropy();
+    oss << "Final entropy: " << minimizer->getEntropy();
     message_handler->message(oss.str());
 
-    return 0;
+    return status;
 }
 
 int EntropyMinimizer::findMOE(){
+    /*
+    This function runs the minimization algorithm multiple times, each time starting with a random vector, until it finds the MOE of the channel.
+    It uses the MOE prediction to stop the minimization if the predicted final entropy is above the current MOE.
+
+    Returns:
+    - int: 
+        0 if the process terminated normally
+        1 if the process was terminated by the user (SIGTERM)
+
+    */
     // Print message
     oss.str("");
     oss << "Will try to find MOE. Running" << config->minimization_attempts << " minimization attempts.";
@@ -329,10 +409,10 @@ int EntropyMinimizer::findMOE(){
         while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop && !shouldTerminate()){
             // Print the current entropy from this run. 
             oss.str("");
-            oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << *minimizer->getEntropy();
+            oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << minimizer->getEntropy();
             message_handler->message(oss.str());
             // If necessary, update the MOE
-            double new_entropy = *minimizer->getEntropy();
+            double new_entropy = minimizer->getEntropy();
             if (new_entropy < MOE){
                 MOE = new_entropy;
             }
@@ -376,7 +456,6 @@ int EntropyMinimizer::findMOE(){
             message_handler->message("We reached the tolerance: we have converged!");
         }
 
-
     }
 
     // We have finished the minimization attempts. Print the final MOE
@@ -389,34 +468,68 @@ int EntropyMinimizer::findMOE(){
 }
 
 int EntropyMinimizer::saveState(std::string filename){
+    /*
+    Save the matrix input state of the minimizer to a file.
+    This function saves the state of the minimizer to a file with the given filename.
+    The file is saved in the format used by the VectorSerializer class, which is a binary format that can be read by the VectorSerializer::deserialize() function.
+    The file is saved in the current working directory, or in a custom path if specified.
+
+    Input:
+    - filename: the name of the file to save the state to. If the file already exists, it will be overwritten.
+
+    Returns:
+    - int: 0 on success, -1 on failure.
+
+    Note:
+    - The file is saved in the format used by the VectorSerializer class, which is a binary format that can be read by the VectorSerializer::deserialize() function.
+    */
+
     // First, get the state of the minimizer
-    std::vector<std::complex<double> >* state = minimizer->getState();
+    std::vector<std::complex<double> >* state = new std::vector<std::complex<double> >(input_dim*input_dim);
+    // Copy from GPU
+    cudaError_t err = cudaMemcpy(state->data(), minimizer->getInputState(), input_dim*input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess){
+        message_handler->message("Failed to copy input state from device: " + std::string(cudaGetErrorString(err)));
+        return -1;
+    }
     // Create temporary filename (make operation atomic)
     std::string tmp_filename = filename + ".tmp";
     // Then, serialize the state.  
-    serializer->serialize("vector", tmp_filename, *state, "Save state, custom path", 1, minimizer->getN());
+    serializer->serialize("vector", tmp_filename, *state, "Save state, custom path", 1, input_dim);
     // Rename the file
     std::filesystem::rename(tmp_filename, filename);
     // Print message
     oss.str("");
     oss << "State saved to " << filename;
     message_handler->message(oss.str());
+    // Clean up
+    delete state;
+    // Return success
     return 0;
 }
 
 int EntropyMinimizer::saveVector(std::string filename){
     // First, get the vector from the minimizer
-    std::vector<std::complex<double> > vec = minimizer->getVector();
+    std::vector<std::complex<double> >* vec = new std::vector<std::complex<double> >(input_dim);
+    // Copy from GPU
+    cudaError_t err = cudaMemcpy(vec->data(), minimizer->getVector(), input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess){
+        message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+        return -1;
+    }    
     // Create temporary filename (make operation atomic)
     std::string tmp_filename = filename + ".tmp";
     // Then, serialize the vector.    
-    serializer->serialize("vector", tmp_filename, vec, "Save state, custom path", 1, minimizer->getN());
+    serializer->serialize("vector", tmp_filename, *vec, "Save state, custom path", 1, input_dim);
     // Rename the file
     std::filesystem::rename(tmp_filename, filename);
     // Print message
     oss.str("");
     oss << "Vector saved to " << filename;
     message_handler->message(oss.str());
+    // Clean up
+    delete vec;
+    // Return success
     return 0;
 
 }
@@ -424,7 +537,13 @@ int EntropyMinimizer::saveVector(std::string filename){
 int EntropyMinimizer::saveState(){
     // Save the state of the minimizer to a file.
     // First, get the state of the minimizer
-    std::vector<std::complex<double> >* state = minimizer->getState();
+    std::vector<std::complex<double> >* state = new std::vector<std::complex<double> >(input_dim*input_dim);
+    // Copy from GPU
+    cudaError_t err = cudaMemcpy(state->data(), minimizer->getInputState(), input_dim*input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess){
+        message_handler->message("Failed to copy input state from device: " + std::string(cudaGetErrorString(err)));
+        return -1;
+    }
     // Now, serialize the state
     // File is is SAVE_DIRECTORY/VECTORS_DIRECTORY/minimizer_id/run_id/state_timestamp.dat
     // use a path object then convert to string
@@ -446,7 +565,7 @@ int EntropyMinimizer::saveState(){
     // create the tmp filename (make the operation atomic)
     std::string tmp_filename = save_path.string() + "/state_" + timestamp + ".tmp";
     // serialize    
-    serializer->serialize("vector", tmp_filename, *state,"Save state", 1, minimizer->getN());
+    serializer->serialize("vector", tmp_filename, *state,"Save state", 1, input_dim);
     // rename the file
     std::filesystem::rename(tmp_filename, filename);
 
@@ -454,13 +573,22 @@ int EntropyMinimizer::saveState(){
     oss.str("");
     oss << "State saved to " << filename;
     message_handler->message(oss.str());
+    // Clean up
+    delete state;
+    // Return success
     return 0;
 }
 
 int EntropyMinimizer::saveVector(){
     // Save the vector from the minimizer to a file.
     // First, get the vector from the minimizer
-    std::vector<std::complex<double> > vec = minimizer->getVector();
+    std::vector<std::complex<double> >* vec = new std::vector<std::complex<double> >(input_dim);
+    // Copy from GPU
+    cudaError_t err = cudaMemcpy(vec->data(), minimizer->getVector(), input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess){
+        message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+        return -1;
+    }    
     // Now, serialize the state
     // File is is SAVE_DIRECTORY/VECTORS_DIRECTORY/minimizer_id/run_id/state_timestamp.dat
     // use a path object then convert to string
@@ -483,7 +611,7 @@ int EntropyMinimizer::saveVector(){
     // create the tmp filename (make the operation atomic)
     std::string tmp_filename = save_path.string() + "/vec_" + timestamp + ".tmp";
     // serialize    
-    serializer->serialize("vector", tmp_filename, vec,"Save state", 1, minimizer->getN());
+    serializer->serialize("vector", tmp_filename, *vec,"Save state", 1, input_dim);
     // rename the file
     std::filesystem::rename(tmp_filename, filename);
 
@@ -491,6 +619,9 @@ int EntropyMinimizer::saveVector(){
     oss.str("");
     oss << "Vector saved to " << filename;
     message_handler->message(oss.str());
+    // Clean up
+    delete vec;
+    // Return success
     return 0;
 }
 

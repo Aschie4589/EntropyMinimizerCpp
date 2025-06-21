@@ -4,7 +4,6 @@
 
 #include "core/matrix_operations.h"
 
-#include "core/minimizer.h"
 #include "core/cuda_minimizer.h"
 #include "core/entropy_minimizer.h"
 #include "helpers/vector_serializer.h"
@@ -28,101 +27,6 @@
 
 
 
-int main(int argc, char** argv){
-
-
-    int N = 1024;
-    int d = 32;
-
-    // Set the device to use
-    cudaSetDevice(0); // Use device 0
-
-    // Create kraus operators
-    cuDoubleComplex* kraus_operators;
-    cudaError_t errmalloc = cudaMalloc(&kraus_operators, d * N * N * sizeof(cuDoubleComplex));
-    if (errmalloc != cudaSuccess) {
-        std::cerr << "Error allocating memory for Kraus operators: " << cudaGetErrorString(errmalloc) << std::endl;
-        return 1;
-    }
-    std::cout << "Successfully allocated " << d * N * N * sizeof(cuDoubleComplex) << " bytes " << "or " << d * N * N * sizeof(cuDoubleComplex) /1024.0/1024/1024 <<" GB for Kraus operators." << std::endl;
-    
-    // Generate Haar random unitaries
-    cudaError_t err = generateHaarRandomUnitaries(kraus_operators, N, d, 32);
-    if (err != cudaSuccess) {
-        std::cerr << "Error generating Haar random unitaries: " << cudaGetErrorString(err) << std::endl;
-        return 1;
-    }
-
-
-
-    // Create a minimizer
-    CudaMinimizer* minimizer = new CudaMinimizer(kraus_operators, d, N, N, 1e-6);
-    // Initialize vector
-    cudaError_t errinit = minimizer->initializeRandomVector();
-    if (errinit != cudaSuccess) {
-        std::cerr << "Error initializing vector: " << cudaGetErrorString(errinit) << std::endl;
-        return 1;
-    }
-    // Update projector
-    cudaError_t errupdate = minimizer->updateProjector();
-    if (errupdate != cudaSuccess) {
-        std::cerr << "Error updating projector: " << cudaGetErrorString(errupdate) << std::endl;
-        return 1;
-    }
-
-    // Next apply the channel
-
-    cudaError_t errapply = minimizer->applyEpsilonChannel();
-    if (errapply != cudaSuccess) {
-        std::cerr << "Error applying channel: " << cudaGetErrorString(errapply) << std::endl;
-        return 1;
-    }
-
-    // Retrieve and print the output matrix
-    cuDoubleComplex* output_matrix = minimizer->getOutputState();
-    // Copy to host memory for printing
-    cuDoubleComplex* host_output_matrix = new cuDoubleComplex[N * N];
-    cudaError_t errcopy_output = cudaMemcpy(host_output_matrix, output_matrix, N * N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
-
-    // Calculate the trace
-    cuDoubleComplex trace = make_cuDoubleComplex(0.0, 0.0);
-    for (int i = 0; i < N; i++) {
-        trace.x += host_output_matrix[i * N + i].x; // Real part
-        trace.y += host_output_matrix[i * N + i].y; // Imaginary part
-    }
-    std::cout << "Trace of the output matrix: " << trace.x << " + " << trace.y << "i" << std::endl;
-   
-    // Apply the dual channel
-    cudaError_t errapply_dual = minimizer->applyEpsilonDualChannel();
-    if (errapply_dual != cudaSuccess) {
-        std::cerr << "Error applying dual channel: " << cudaGetErrorString(errapply_dual) << std::endl;
-        return 1;
-    }
-    // Retrieve and print the output matrix
-    cuDoubleComplex* output_matrix_dual = minimizer->getState();
-    // Copy to host memory for printing
-    cuDoubleComplex* host_output_matrix_dual = new cuDoubleComplex[N * N];
-    cudaError_t errcopy_output_dual = cudaMemcpy(host_output_matrix_dual, output_matrix_dual, N * N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
-    if (errcopy_output_dual != cudaSuccess) {
-        std::cerr << "Error copying output matrix to host: " << cudaGetErrorString(errcopy_output_dual) << std::endl;
-        return 1;
-    }
-    // Calculate the trace
-    cuDoubleComplex trace_dual = make_cuDoubleComplex(0.0, 0.0);
-    for (int i = 0; i < N; i++) {
-        trace_dual.x += host_output_matrix_dual[i * N + i].x; // Real part
-        trace_dual.y += host_output_matrix_dual[i * N + i].y; // Imaginary part
-    }
-    std::cout << "Trace of the output matrix (dual): " << trace_dual.x << " + " << trace_dual.y << "i" << std::endl;
-
-    return 0;
-}
-
-
-
-
-
-
 int main2(int argc, char** argv){
 
     // Get general purpose message handler
@@ -131,7 +35,7 @@ int main2(int argc, char** argv){
     argparse::ArgumentParser* parser = parse_arguments(argc, argv);
     int N, d;
     
-    cudaSetDevice(1); // Use device 1
+    cudaSetDevice(0); // Use device 1
 
 
     // Option 1: kraus was called
@@ -177,47 +81,53 @@ int main2(int argc, char** argv){
             }
 
 
-            // generate the Kraus operators
-            std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >(d*N*N); // kraus_operators is the pointer.
-            // Use the parallel GPU version of the Haar random unitary generator
-            message_handler->message("Generating " + std::to_string(d) + " Haar random unitaries of size " + std::to_string(N) + "x" + std::to_string(N) + "...");
-            // Generate the Haar random unitaries
-            cuDoubleComplex* gpuUnitaries = nullptr;
-            cudaMalloc(&gpuUnitaries, d * N * N * sizeof(cuDoubleComplex));
-            cudaError_t err = generateHaarRandomUnitaries(gpuUnitaries, N, d, 1);
+            // generate the Kraus operators, DIRECTLY ON DEVICE
+            // Allocate kraus operators
+            cuDoubleComplex* kraus_operators;
+            cudaError_t errmalloc = cudaMalloc(&kraus_operators, d * N * N * sizeof(cuDoubleComplex));
+            if (errmalloc != cudaSuccess) {
+                message_handler->message("Error allocating memory for Kraus operators: " + std::string(cudaGetErrorString(errmalloc)));
+                return 1;
+            }
+            message_handler->message("Successfully allocated " + std::to_string(d * N * N * sizeof(cuDoubleComplex)) + " bytes or " + std::to_string(d * N * N * sizeof(cuDoubleComplex)/1024.0/1024/1024) + " GiB for Kraus operators on device.");
+            // Generate Haar random unitaries
+            cudaError_t err = generateHaarRandomUnitaries(kraus_operators, N, d, 32);
             if (err != cudaSuccess) {
                 message_handler->message("Error generating Haar random unitaries: " + std::string(cudaGetErrorString(err)));
                 return 1;
             }
-            // Copy the generated unitaries to the kraus_operators vector
-            cudaMemcpy(kraus_operators->data(), gpuUnitaries, d * N * N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
-            // Free the GPU memory
-            cudaFree(gpuUnitaries);
-            // Rescale the unitaries by 1/sqrt(d) to ensure they    are normalized
-            for (int i = 0; i < d * N * N; i++)
-            {
-                kraus_operators->at(i) /= std::sqrt(double(d));
-            }
-            message_handler->message("Done generating Haar random unitaries!");
-            /*
-            for (int m = 0; m < d; m++){
-                message_handler->message("Generating Haar random unitary " + std::to_string(m+1) + " of " + std::to_string(d) + "...");
-                // append a new unitary at position i of the kraus operator.
-                std::vector<std::complex<double> > new_haar_unitary = generateHaarRandomUnitary(N);
-                for (int i = 0; i < N*N ;i++){
-                    kraus_operators->at(m*N*N+i) = new_haar_unitary.at(i)/std::sqrt(double(d));
-                }
-                message_handler->message("Done!");
-            }
-                */
-            
 
+            // Rescale the unitaries using cublas
+            cublasHandle_t handle;
+            cublasCreate(&handle);
+            double alpha = 1/sqrt(d);
+            cublasZdscal(handle, d * N * N, &alpha, kraus_operators, 1);
+
+            // Destroy the handle
+            cublasDestroy(handle);
+
+            // Copy the kraus ops over to device for saving
+            std::vector<std::complex<double> >* kraus_operators_host = new std::vector<std::complex<double> >(d * N * N);
+            cudaError_t errcopy = cudaMemcpy(kraus_operators_host->data(), kraus_operators, d * N * N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+            if (errcopy != cudaSuccess) {
+                message_handler->message("Error copying Kraus operators from device to host: " + std::string(cudaGetErrorString(errcopy)));
+                return 1;
+            }
+            message_handler->message("Successfully copied " + std::to_string(d * N * N * sizeof(cuDoubleComplex)) + " bytes or " + std::to_string(d * N * N * sizeof(cuDoubleComplex)/1024.0/1024/1024) + " GiB of Kraus operators from device to host.");
+            // Free the device memory
+            cudaError_t errfree = cudaFree(kraus_operators);
+            if (errfree != cudaSuccess) {
+                message_handler->message("Error freeing memory for Kraus operators: " + std::string(cudaGetErrorString(errfree)));
+                return 1;
+            }
             // save the kraus operators
             VectorSerializer serializer = VectorSerializer();
-            serializer.serialize("kraus", output, *kraus_operators, "Kraus operators for a random unitary channel", d, N);
+            serializer.serialize("kraus", output, *kraus_operators_host, "Kraus operators for a random unitary channel", d, N);
+            // Clean up
+            delete kraus_operators_host;
+
             // print exit message
             message_handler->message("Kraus operators saved to " + output + ".");
-            delete kraus_operators;
             return 0;
         }
 
@@ -252,19 +162,36 @@ int main2(int argc, char** argv){
         message_handler->message("Logging is: " + std::to_string(subparser->get<bool>("-l")));
         message_handler->message("Printing is: " + std::to_string(subparser->get<bool>("-s") ));
 
-        // Get the kraus operators from file
-        std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >();
+        cuDoubleComplex *d_kraus_operators;
         VectorSerializer serializer = VectorSerializer();
+
+
+        { // Scoped so that memory is deallocated once we leave this section - deserialized data is heavy!
+        // Get the kraus operators from file
         DeserializedData deserialized_data = serializer.deserialize(subparser->get<std::string>("-k"));
-        kraus_operators = &deserialized_data.vectorData;
-        // Print exit message
+        // Copy the kraus operators to GPU
         message_handler->message("Kraus operators loaded from " + subparser->get<std::string>("-k") + ".");
+        
+        cudaError_t errmalloc = cudaMalloc(&d_kraus_operators, deserialized_data.d*deserialized_data.N*deserialized_data.N * sizeof(std::complex<double>));
+        if (errmalloc != cudaSuccess) {
+            message_handler->message("Error allocating memory for Kraus operators: " + std::string(cudaGetErrorString(errmalloc)));
+            return 1;
+        }
+        message_handler->message("Successfully allocated " + std::to_string(deserialized_data.vectorData.size() * sizeof(std::complex<double>)) + " bytes or " + std::to_string(deserialized_data.vectorData.size() * sizeof(std::complex<double>)/1024.0/1024/1024) + " GiB for Kraus operators on device.");
+        // Copy the kraus operators to GPU
+        cudaError_t errcopy = cudaMemcpy(d_kraus_operators, deserialized_data.vectorData.data(), deserialized_data.vectorData.size() * sizeof(std::complex<double>), cudaMemcpyHostToDevice);
+        if (errcopy != cudaSuccess) {
+            message_handler->message("Error copying Kraus operators to device: " + std::string(cudaGetErrorString(errcopy)));
+            return 1;
+        }
+        message_handler->message("Successfully copied " + std::to_string(deserialized_data.vectorData.size() * sizeof(std::complex<double>)) + " bytes or " + std::to_string(deserialized_data.vectorData.size() * sizeof(std::complex<double>)/1024.0/1024/1024) + " GiB of Kraus operators to device.");
         // Get N and d from metadata
         N = deserialized_data.N;
         d = deserialized_data.d;
         // Log the N and d
         message_handler->message("N: " + std::to_string(N));
         message_handler->message("d: " + std::to_string(d));
+        }
 
         // Initialize configuration
         EntropyConfig config = EntropyConfig();
@@ -291,17 +218,32 @@ int main2(int argc, char** argv){
         }
 
         // finally, create a minimizer
-        EntropyMinimizer* minimizer = new EntropyMinimizer(kraus_operators, d, N, N, &config);
+        EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, N, &config);
 
         signal(SIGTERM, minimizer->signal_handler);
 
         // Initialize run
         // Check if we have a starting vector specified in the command line
-        std::vector<std::complex<double> >* start_vector = new std::vector<std::complex<double> >();
         if (subparser->is_used("--vector")){
+            cuDoubleComplex* d_start_vector;
+            cudaError_t err_vec_all = cudaMalloc(&d_start_vector, N * sizeof(cuDoubleComplex));
+            if (err_vec_all != cudaSuccess) {
+                message_handler->message("Error allocating memory for starting vector: " + std::string(cudaGetErrorString(err_vec_all)));
+                return 1;
+            }
+            message_handler->message("Successfully allocated " + std::to_string(N * sizeof(cuDoubleComplex)) + " bytes or " + std::to_string(N * sizeof(cuDoubleComplex)/1024.0/1024/1024) + " GiB for copying starting vector on device.");
+            
             // load the vector
             DeserializedData deserialized_vector = serializer.deserialize(subparser->get<std::string>("--vector"));
-            start_vector = &deserialized_vector.vectorData;
+            // Copy the vector to GPU
+            cudaError_t err_vec_copy = cudaMemcpy(d_start_vector, deserialized_vector.vectorData.data(), deserialized_vector.vectorData.size() * sizeof(std::complex<double>), cudaMemcpyHostToDevice);
+            if (err_vec_copy != cudaSuccess) {
+                message_handler->message("Error copying starting vector to device: " + std::string(cudaGetErrorString(err_vec_copy)));
+                return 1;
+            }
+            message_handler->message("Successfully copied " + std::to_string(deserialized_vector.vectorData.size() * sizeof(std::complex<double>)) + " bytes or " + std::to_string(deserialized_vector.vectorData.size() * sizeof(std::complex<double>)/1024.0/1024/1024) + " GiB of starting vector to device.");
+
+
             // log the vector loaded message
             message_handler->message("Starting vector loaded from " + subparser->get<std::string>("--vector") + ".");
             // check dimension
@@ -310,7 +252,15 @@ int main2(int argc, char** argv){
                 return 1;
             }
             // initialize run
-            minimizer->initializeRun(start_vector);
+            minimizer->initializeRun(d_start_vector);
+            // clean up
+            cudaError_t err_vec_free = cudaFree(d_start_vector);
+            if (err_vec_free != cudaSuccess) {
+                message_handler->message("Error freeing memory for starting vector: " + std::string(cudaGetErrorString(err_vec_free)));
+                return 1;
+            }
+            message_handler->message("Successfully freed memory for starting vector.");
+
         } else {
             // if no vector is specified, initialize with a random vector
             message_handler->message("No starting vector detected, generating random one...");
@@ -369,20 +319,38 @@ int main2(int argc, char** argv){
         message_handler->message("Logging is: " + std::to_string(subparser->get<bool>("-l")));
         message_handler->message("Printing is: " + std::to_string(subparser->get<bool>("-s") ));
 
-        // Try to load kraus
-        std::vector<std::complex<double> >* kraus_operators = new std::vector<std::complex<double> >();
+        // Allocate memory for kraus operators on device
+        cuDoubleComplex *d_kraus_operators;
+
         VectorSerializer serializer = VectorSerializer();
-        // get the kraus operators
+        { // Scoped so that memory is deallocated once we leave this section - deserialized data is heavy!
+        // Get the kraus operators from file
         DeserializedData deserialized_data = serializer.deserialize(subparser->get<std::string>("-k"));
-        kraus_operators = &deserialized_data.vectorData;
-        // print exit message
-        message_handler->message("Kraus operators loaded from " + subparser->get<std::string>("-k") + ".");
-        // get N and d from metadata
+        // Get N and d from metadata
         N = deserialized_data.N;
         d = deserialized_data.d;
-        // log the N and d
+
+        // Allocate memory
+        cudaError_t errmalloc = cudaMalloc(&d_kraus_operators, N*N*d * sizeof(std::complex<double>));
+        if (errmalloc != cudaSuccess) {
+            message_handler->message("Error allocating memory for Kraus operators: " + std::string(cudaGetErrorString(errmalloc)));
+            return 1;
+        }
+        message_handler->message("Successfully allocated " + std::to_string(d*N*N * sizeof(std::complex<double>)) + " bytes or " + std::to_string(d*N*N * sizeof(std::complex<double>)/1024.0/1024/1024) + " GiB for Kraus operators on device.");
+
+        // Copy the kraus operators to GPU
+        cudaError_t errcopy = cudaMemcpy(d_kraus_operators, deserialized_data.vectorData.data(), deserialized_data.vectorData.size() * sizeof(std::complex<double>), cudaMemcpyHostToDevice);
+        if (errcopy != cudaSuccess) {
+            message_handler->message("Error copying Kraus operators to device: " + std::string(cudaGetErrorString(errcopy)));
+            return 1;
+        }
+        message_handler->message("Successfully copied " + std::to_string(deserialized_data.vectorData.size() * sizeof(std::complex<double>)) + " bytes or " + std::to_string(deserialized_data.vectorData.size() * sizeof(std::complex<double>)/1024.0/1024/1024) + " GiB of Kraus operators to device.");
+        // Print exit message
+        message_handler->message("Kraus operators loaded from " + subparser->get<std::string>("-k") + ".");
+        // Log the N and d
         message_handler->message("N: " + std::to_string(N));
         message_handler->message("d: " + std::to_string(d));
+        }
 
         // initialize configuration
         EntropyConfig config = EntropyConfig();
@@ -399,7 +367,7 @@ int main2(int argc, char** argv){
         config.setPrinting(!subparser->get<bool>("-s"));
 
         // finally, create a minimizer
-        EntropyMinimizer* minimizer = new EntropyMinimizer(kraus_operators, d, N, N, &config);
+        EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, N, &config);
 
 
         signal(SIGTERM, minimizer->signal_handler);
@@ -415,6 +383,13 @@ int main2(int argc, char** argv){
         }
 
         delete minimizer;
+        // Free the device memory
+        cudaError_t errfree = cudaFree(d_kraus_operators);
+        if (errfree != cudaSuccess) {
+            message_handler->message("Error freeing memory for Kraus operators: " + std::string(cudaGetErrorString(errfree)));
+            return 1;
+        }
+        message_handler->message("Successfully freed memory for Kraus operators.");
     }
 
     // Option 4: vector was called

@@ -23,10 +23,13 @@ EntropyMinimizer parameters
 */
 
 #define CUDA_STREAMS 32                 // How many CUDA streams to use for parallel execution of non-parallelized operations. Relevant for Haar unitary creation
-#define ZGEMM_BATCH_SIZE_CHANNEL 2      // How many matrix multiplications to perform in parallel when applying the channel. This is the batch size for the zgemm operation. Memory usage is proportional to this.
+#define ZGEMM_BATCH_SIZE_CHANNEL 32      // How many matrix multiplications to perform in parallel when applying the channel. This is the batch size for the zgemm operation. Memory usage is proportional to this.
 
 
-// Default parameters that can be changed in MinimizerConfig
+/*
+EntropyConfig default parameters
+*/
+
 #define DEFAULT_MINIMIZER_MAX_ITERATIONS 500000             // How many iterations of the algorithm to run before giving up. Has to be less than uint32_t range
 #define DEFAULT_MINIMIZER_LOG false                         // Should the minimizer write messages to a log file?
 #define DEFAULT_MINIMIZER_LOG_PREFIX "log"
@@ -39,17 +42,18 @@ EntropyMinimizer parameters
 #define DEFAULT_MINIMIZER_CHECKPOINT_INTERVAL 100           // How often to save the state of the minimizer
 #define DEFAULT_MINIMIZER_CHECKPOINT_FILE "checkpoint.dat"      // What is the default name of the checkpoint file
 
-
-// These other parameters that are just baked in at compile
+/*
+EntropyMinimizer parameters
+*/
 #define CONVERGENCE_TOLERANCE 1e-15     // When running the algorithm, if the improvement is below this threshold value for CONVERGENCE_ITERS iterations, 
 #define CONVERGENCE_ITERS 20            // How many iterations to average over to check for convergence
-#define RSQUARED_THRESHOLD 0.999        // What is the threshold for the R^2 value of the linear fit to be considered good enough
 
 /*
 Entropy estimator parameters
 */
 #define ENTROPY_ESTIMATOR_MAX_WINDOW_SIZE 500
 #define ENTROPY_ESTIMATOR_DEFAULT_WINDOW_SIZE 200
+#define RSQUARED_THRESHOLD 0.999        // What is the threshold for the R^2 value of the linear fit to be considered good enough
 
 
 /*
@@ -80,5 +84,19 @@ LOGGING configuration. These are baked in.
 Misc
 */
 #define PRINT_PRECISION 15  // How many digits to print in print statements
+
+
+/*
+Return codes
+*/
+#define ENTROPY_MINIMIZER_CONTINUE 0
+#define ENTROPY_MINIMIZER_CONVERGED 1
+#define ENTROPY_MINIMIZER_MAX_ITERS 2
+#define ENTROPY_MINIMIZER_NUMERICAL_INST 3
+#define ENTROPY_MINIMIZER_TERMINATED 4
+#define ENTROPY_MINIMIZER_MOE_PREDICTION 5
+
+
+
 
 #endif
