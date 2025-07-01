@@ -27,7 +27,7 @@
 
 
 
-int main2(int argc, char** argv){
+int main(int argc, char** argv){
 
     // Get general purpose message handler
     MessageHandler* message_handler = new MessageHandler();
@@ -35,7 +35,7 @@ int main2(int argc, char** argv){
     argparse::ArgumentParser* parser = parse_arguments(argc, argv);
     int N, d;
     
-    cudaSetDevice(0); // Use device 1
+//    cudaSetDevice(3); // Use device 1
 
 
     // Option 1: kraus was called
@@ -379,7 +379,7 @@ int main2(int argc, char** argv){
         minimizer->findMOE();
         // save the state if selected
         if (subparser->is_used("-S")){
-            minimizer->saveState();
+            minimizer->saveVector();
         }
 
         delete minimizer;

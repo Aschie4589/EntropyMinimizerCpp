@@ -84,7 +84,7 @@ cudaError_t EntropyMinimizer::initializeRun(){
     current_iteration = 0;
 
     // Compute the entropy of the start vector and save it in the buffer
-    minimizer->updateProjector();
+    //minimizer->updateProjector();
     err = minimizer->calculateEpsilonEntropy();
     if (err != cudaSuccess){
         message_handler->message("Failed to calculate epsilon entropy: " + std::string(cudaGetErrorString(err)));
@@ -135,7 +135,7 @@ cudaError_t EntropyMinimizer::initializeRun(cuDoubleComplex* start_vector){
     current_iteration = 0;
 
     // Compute the entropy of the start vector and save it in the buffer
-    minimizer->updateProjector();
+    //minimizer->updateProjector();
     minimizer->calculateEpsilonEntropy();
     double curr_en = minimizer->getEntropy();
     entropy_buffer[0] = curr_en;
@@ -467,46 +467,46 @@ int EntropyMinimizer::findMOE(){
     return 0;
 }
 
-int EntropyMinimizer::saveState(std::string filename){
-    /*
-    Save the matrix input state of the minimizer to a file.
-    This function saves the state of the minimizer to a file with the given filename.
-    The file is saved in the format used by the VectorSerializer class, which is a binary format that can be read by the VectorSerializer::deserialize() function.
-    The file is saved in the current working directory, or in a custom path if specified.
+// int EntropyMinimizer::saveState(std::string filename){
+//     /*
+//     Save the matrix input state of the minimizer to a file.
+//     This function saves the state of the minimizer to a file with the given filename.
+//     The file is saved in the format used by the VectorSerializer class, which is a binary format that can be read by the VectorSerializer::deserialize() function.
+//     The file is saved in the current working directory, or in a custom path if specified.
 
-    Input:
-    - filename: the name of the file to save the state to. If the file already exists, it will be overwritten.
+//     Input:
+//     - filename: the name of the file to save the state to. If the file already exists, it will be overwritten.
 
-    Returns:
-    - int: 0 on success, -1 on failure.
+//     Returns:
+//     - int: 0 on success, -1 on failure.
 
-    Note:
-    - The file is saved in the format used by the VectorSerializer class, which is a binary format that can be read by the VectorSerializer::deserialize() function.
-    */
+//     Note:
+//     - The file is saved in the format used by the VectorSerializer class, which is a binary format that can be read by the VectorSerializer::deserialize() function.
+//     */
 
-    // First, get the state of the minimizer
-    std::vector<std::complex<double> >* state = new std::vector<std::complex<double> >(input_dim*input_dim);
-    // Copy from GPU
-    cudaError_t err = cudaMemcpy(state->data(), minimizer->getInputState(), input_dim*input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess){
-        message_handler->message("Failed to copy input state from device: " + std::string(cudaGetErrorString(err)));
-        return -1;
-    }
-    // Create temporary filename (make operation atomic)
-    std::string tmp_filename = filename + ".tmp";
-    // Then, serialize the state.  
-    serializer->serialize("vector", tmp_filename, *state, "Save state, custom path", 1, input_dim);
-    // Rename the file
-    std::filesystem::rename(tmp_filename, filename);
-    // Print message
-    oss.str("");
-    oss << "State saved to " << filename;
-    message_handler->message(oss.str());
-    // Clean up
-    delete state;
-    // Return success
-    return 0;
-}
+//     // First, get the state of the minimizer
+//     std::vector<std::complex<double> >* state = new std::vector<std::complex<double> >(input_dim*input_dim);
+//     // Copy from GPU
+//     cudaError_t err = cudaMemcpy(state->data(), minimizer->getInputState(), input_dim*input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+//     if (err != cudaSuccess){
+//         message_handler->message("Failed to copy input state from device: " + std::string(cudaGetErrorString(err)));
+//         return -1;
+//     }
+//     // Create temporary filename (make operation atomic)
+//     std::string tmp_filename = filename + ".tmp";
+//     // Then, serialize the state.  
+//     serializer->serialize("vector", tmp_filename, *state, "Save state, custom path", 1, input_dim);
+//     // Rename the file
+//     std::filesystem::rename(tmp_filename, filename);
+//     // Print message
+//     oss.str("");
+//     oss << "State saved to " << filename;
+//     message_handler->message(oss.str());
+//     // Clean up
+//     delete state;
+//     // Return success
+//     return 0;
+// }
 
 int EntropyMinimizer::saveVector(std::string filename){
     // First, get the vector from the minimizer
@@ -534,50 +534,50 @@ int EntropyMinimizer::saveVector(std::string filename){
 
 }
 
-int EntropyMinimizer::saveState(){
-    // Save the state of the minimizer to a file.
-    // First, get the state of the minimizer
-    std::vector<std::complex<double> >* state = new std::vector<std::complex<double> >(input_dim*input_dim);
-    // Copy from GPU
-    cudaError_t err = cudaMemcpy(state->data(), minimizer->getInputState(), input_dim*input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess){
-        message_handler->message("Failed to copy input state from device: " + std::string(cudaGetErrorString(err)));
-        return -1;
-    }
-    // Now, serialize the state
-    // File is is SAVE_DIRECTORY/VECTORS_DIRECTORY/minimizer_id/run_id/state_timestamp.dat
-    // use a path object then convert to string
-    std::filesystem::path save_path = std::filesystem::path(SAVE_DIRECTORY) / std::filesystem::path(VECTORS_DIRECTORY) / std::filesystem::path(minimizer_id) / std::filesystem::path(run_id);
-    // make sure the directory exists
-    std::filesystem::create_directories(save_path);
-    // Get the current time as a time_point
-    auto now = std::chrono::system_clock::now();
-    // Convert to time_t (the type used for time)
-    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-    // Format the time as a string
-    std::tm tm = *std::localtime(&now_c);
-    // Create a stringstream to format the time in a custom format
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%Y%m%d%H%M%S");
-    std::string timestamp = oss.str();
-    // create the filename
-    std::string filename = save_path.string() + "/state_" + timestamp + ".dat";
-    // create the tmp filename (make the operation atomic)
-    std::string tmp_filename = save_path.string() + "/state_" + timestamp + ".tmp";
-    // serialize    
-    serializer->serialize("vector", tmp_filename, *state,"Save state", 1, input_dim);
-    // rename the file
-    std::filesystem::rename(tmp_filename, filename);
+// int EntropyMinimizer::saveState(){
+//     // Save the state of the minimizer to a file.
+//     // First, get the state of the minimizer
+//     std::vector<std::complex<double> >* state = new std::vector<std::complex<double> >(input_dim*input_dim);
+//     // Copy from GPU
+//     cudaError_t err = cudaMemcpy(state->data(), minimizer->getInputState(), input_dim*input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+//     if (err != cudaSuccess){
+//         message_handler->message("Failed to copy input state from device: " + std::string(cudaGetErrorString(err)));
+//         return -1;
+//     }
+//     // Now, serialize the state
+//     // File is is SAVE_DIRECTORY/VECTORS_DIRECTORY/minimizer_id/run_id/state_timestamp.dat
+//     // use a path object then convert to string
+//     std::filesystem::path save_path = std::filesystem::path(SAVE_DIRECTORY) / std::filesystem::path(VECTORS_DIRECTORY) / std::filesystem::path(minimizer_id) / std::filesystem::path(run_id);
+//     // make sure the directory exists
+//     std::filesystem::create_directories(save_path);
+//     // Get the current time as a time_point
+//     auto now = std::chrono::system_clock::now();
+//     // Convert to time_t (the type used for time)
+//     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+//     // Format the time as a string
+//     std::tm tm = *std::localtime(&now_c);
+//     // Create a stringstream to format the time in a custom format
+//     std::ostringstream oss;
+//     oss << std::put_time(&tm, "%Y%m%d%H%M%S");
+//     std::string timestamp = oss.str();
+//     // create the filename
+//     std::string filename = save_path.string() + "/state_" + timestamp + ".dat";
+//     // create the tmp filename (make the operation atomic)
+//     std::string tmp_filename = save_path.string() + "/state_" + timestamp + ".tmp";
+//     // serialize    
+//     serializer->serialize("vector", tmp_filename, *state,"Save state", 1, input_dim);
+//     // rename the file
+//     std::filesystem::rename(tmp_filename, filename);
 
-    // Print message
-    oss.str("");
-    oss << "State saved to " << filename;
-    message_handler->message(oss.str());
-    // Clean up
-    delete state;
-    // Return success
-    return 0;
-}
+//     // Print message
+//     oss.str("");
+//     oss << "State saved to " << filename;
+//     message_handler->message(oss.str());
+//     // Clean up
+//     delete state;
+//     // Return success
+//     return 0;
+// }
 
 int EntropyMinimizer::saveVector(){
     // Save the vector from the minimizer to a file.

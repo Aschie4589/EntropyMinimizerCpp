@@ -21,8 +21,8 @@ public:
     int findMOE();                              // This function finds the MOE of the channel
 
     // IO functions
-    int saveState();                            // Save the state of the minimizer to a file
-    int saveState(std::string filename);        // Save the state of the minimizer to a file
+    //int saveState();                            // Save the state of the minimizer to a file
+    //int saveState(std::string filename);        // Save the state of the minimizer to a file
     int saveVector();                           // Save the vector of the minimizer to a file
     int saveVector(std::string filename);       // Save the vector of the minimizer to a file
     
