@@ -40,6 +40,9 @@ else()
     message(FATAL_ERROR "Unsupported platform.")
 endif()
 
+# Find NVTX (NVIDIA Tools Extension)
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../NVTX" "ImportNVTX")
+
 # Define the executable
 add_executable(moe ${SOURCES})
 
@@ -52,6 +55,10 @@ target_link_libraries(moe PRIVATE
     CUDA::cusolver
     CUDA::curand
 )
+
+
+# Link against NVTX (nvToolsExt)
+target_link_libraries(moe PRIVATE nvtx3-cpp)
 
 # Set properties for CUDA compilation (optional)
 set_target_properties(moe PROPERTIES
