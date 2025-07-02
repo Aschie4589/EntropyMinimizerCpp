@@ -360,8 +360,127 @@ cudaError_t CudaMinimizer::step_2(){
     }
     // Step 2: extract the largest left singular vector of d_vecs_2. This is the new state.
     // For now, compute full SVD of the N * (dxd) matrix d_vecs_2. Only store the left singular vectors. In reality only care about the first!
+    cuDoubleComplex* Srand = nullptr; 
+    cuDoubleComplex* Urand = nullptr; 
+    cuDoubleComplex* Vrand = nullptr;
+
     {
     nvtx3::scoped_range r{"Step 2: SVD of K_j^H |psi_i>_ij"};
+
+    // Use first the randomized method. If that fails, proceed with full svd (but use the one based on polar decomposition!)
+
+    cusolverDnParams_t params;
+    cusolverDnCreateParams(&params);
+    // For now just allocate a temporary Srand and Urand
+    // allocate memory on device for Srand and Urand
+    cudaMalloc((void**)&Srand, sizeof(double)); // Srand is a vector of 1 doubles
+    cudaMalloc((void**)&Urand, N * sizeof(cuDoubleComplex)); // Urand is a matrix of N rows and 1 column (so Nx1)
+    cudaMalloc((void**)&Vrand, d * d * sizeof(cuDoubleComplex)); // Vrand is a matrix of dxd by 1
+
+    size_t workspace_device_bytes = 0;
+    size_t workspace_host_bytes = 0;
+
+    // Query buffer size
+    cusolverStatus_t svd_status = cusolverDnXgesvdr_bufferSize (
+        cusolver_handle, // cusolver handle
+        params, // cusolver parameters
+        'S', // Compute the first k left singular vectors 
+        'N', // Don't bother with the right singular vectors
+        static_cast<int64_t>(N), // Number of rows
+        static_cast<int64_t>(d*d), // Number of columns (dxd)
+        static_cast<int64_t>(1),  // k=1
+        static_cast<int64_t>(6),  // oversampling (= larger subspace). Suggested: 2k, so let's say 3 = 3k.
+        static_cast<int64_t>(8),  // number of iterations, n_iter. Suggested:2
+        CUDA_C_64F, // data type of A
+        static_cast<void*>(d_vecs_2), // pointer to the input matrix A
+        static_cast<int64_t>(N), // leading dimension of A
+        CUDA_R_64F, // data type of Srand
+        static_cast<void*>(Srand), // pointer to the output vector Srand
+        CUDA_C_64F, // data type of Urand
+        static_cast<void*>(Urand), // pointer to the output matrix Urand
+        static_cast<int64_t>(N),
+        CUDA_C_64F, // Type of V
+        static_cast<void*>(Vrand), 
+        static_cast<int64_t>(d * d), // Leading dimension of V (1 since nullptr)
+        CUDA_C_64F, // Type of work
+        &workspace_device_bytes, // Pointer to the workspace on device
+        &workspace_host_bytes // Pointer to workspace on host 
+    );
+    if (svd_status != CUSOLVER_STATUS_SUCCESS) {
+        std::cerr << "Error querying buffer size for SVD computation: " << svd_status << std::endl;
+        return cudaErrorUnknown; // Return an error if the query failed
+    }
+    // Check for errors in the buffer size query
+    if (workspace_device_bytes == 0 || workspace_host_bytes == 0) {
+        std::cerr << "Error querying buffer size for SVD computation: workspace_device_bytes = " 
+                  << workspace_device_bytes << ", workspace_host_bytes = " 
+                  << workspace_host_bytes << std::endl;
+        return cudaErrorUnknown; // Return an error if the buffer size is zero
+    }
+
+    // Allocate workspace on device
+    if (workspace_device_bytes > std::max(work_size_1, work_size_2)*sizeof(cuDoubleComplex)){
+        cudaFree(d_scratch); // Free the old scratch space
+        d_scratch = nullptr; // Set to null to avoid dangling pointer
+        cudaError_t err = cudaMalloc((void**)&d_scratch, workspace_device_bytes);
+        if (err != cudaSuccess) {
+            std::cerr << "Error allocating memory for d_scratch: " << cudaGetErrorString(err) << std::endl;
+            return err; // Return the error if the allocation failed
+        }
+    }
+
+    // Allocate host workspace
+    void* h_scratch = nullptr;
+    if (workspace_host_bytes > 0) {
+        h_scratch = malloc(workspace_host_bytes);
+        if (h_scratch == nullptr) {
+            std::cerr << "Error allocating memory for host scratch space." << std::endl;
+            return cudaErrorMemoryAllocation; // Return memory allocation error
+        }
+    }
+
+    int* devinfo = nullptr;
+    cudaMalloc((void**)&devinfo, sizeof(int)); // Allocate memory for device info
+    // Perform the SVD using the randomized method
+    cusolverDnXgesvdr(
+        cusolver_handle, // cusolver handle
+        params, // cusolver parameters
+        'S', // Compute the first k left singular vectors 
+        'N', // Don't bother with the right singular vectors
+        static_cast<int64_t>(N), // Number of rows
+        static_cast<int64_t>(d*d), // Number of columns (dxd)
+        static_cast<int64_t>(1),  // k=1
+        static_cast<int64_t>(6), // oversampling (= larger subspace). Suggested: 2k, so let's say 3 = 3k.
+        static_cast<int64_t>(8),  // number of iterations, n_iter. Suggested:2
+        CUDA_C_64F, // data type of A
+        static_cast<void*>(d_vecs_2), // pointer to the input matrix A
+        static_cast<int64_t>(N), // leading dimension of A
+        CUDA_R_64F, // data type of Srand
+        static_cast<void*>(Srand), // pointer to the output vector Srand
+        CUDA_C_64F, // data type of Urand
+        static_cast<void*>(Urand), // pointer to the output matrix Urand
+        static_cast<int64_t>(N),
+        CUDA_C_64F, // Type of V
+        static_cast<void*>(Vrand),   // V (nullptr)
+        static_cast<int64_t>(d * d), // Leading dimension of V (1 since nullptr)
+        CUDA_C_64F, // Type of work
+        static_cast<void*>(d_scratch),
+        workspace_device_bytes,
+        h_scratch,
+        workspace_host_bytes,
+        devinfo // Pointer to device info
+    );
+
+
+    cudaDeviceSynchronize();
+
+    // Free h_scratch after computation
+    if (h_scratch != nullptr) {
+        free(h_scratch);
+    }
+
+
+    /* OLD
     cusolverDnZgesvd(cusolver_handle, 
                      'O', // Overwrite input matrix with left singular vectors (U in USV^H)
                      'N', // Don't compute right singular vectors (V^H in USV^H)
@@ -372,13 +491,21 @@ cudaError_t CudaMinimizer::step_2(){
                      nullptr, 1, // VT matrix, not needed. ldvt = 1 since we don't compute it.
                      d_scratch, work_size_2, // Scratch space
                      nullptr, 0); // 'rwork can be a null pointer if the user does not want info about superdiagonal'
+    */
 
-    cudaDeviceSynchronize();
+
     }
     // Step 3: Update the d_vec state. (TODO: actually, I could avoid this copy...)
     {
     nvtx3::scoped_range r{"Step 2: Copy largest left singular vector to d_vec"};
-    cudaMemcpy(d_vec, d_vecs_2, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToDevice);
+
+    // Now copy the vector over
+    cudaMemcpy(d_vec, Urand, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToDevice);
+    // Free memory of Urand, Srand
+    cudaFree(Urand);
+    cudaFree(Srand);
+    // OLD
+    //cudaMemcpy(d_vec, d_vecs_2, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToDevice);
     // No further need to sync since memCpy waits for transfer to be done
     minimizer_state = CUDA_MINIMIZER_STAGE_2; // Reset the state to stage 2 (same as stage 0, but algorithm has started running!)
     }
