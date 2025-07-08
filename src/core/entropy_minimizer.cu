@@ -7,6 +7,28 @@
 
 #include "helpers/uuid.h"
 
+#include "cuComplex.h"
+#include <cuda_runtime.h>
+
+
+
+
+__global__ void complex_doubles_to_complex_floats(const cuDoubleComplex* in, cuComplex* out, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) {
+        out[idx] = make_cuComplex(static_cast<float>(in[idx].x), 
+                                  static_cast<float>(in[idx].y));
+    }
+}
+
+__global__ void complex_floats_to_complex_doubles(const cuComplex* in, cuDoubleComplex* out, int N) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < N) {
+        out[idx] = make_cuDoubleComplex(static_cast<double>(in[idx].x), 
+                                  static_cast<double>(in[idx].y));
+    }
+}
+
 
 EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf){
 /*
@@ -26,8 +48,22 @@ EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number,
     // Store configuration
     config = conf;
 
-    // Initialize minimizer
-    minimizer = new CudaMinimizer(kraus_ops, kraus_number, kraus_in_dimension, kraus_out_dimension, config->epsilon); // This avoids having to use initialize list
+    // Initialize minimizers
+    minimizer_d = new CudaMinimizer<double>(kraus_ops, kraus_number, kraus_in_dimension, kraus_out_dimension, config->epsilon); // This avoids having to use initialize list
+    // Allocate more space on device for single precision kraus_ops
+    kraus_ops_f = nullptr;
+    cudaError_t err = cudaMalloc((void**)&kraus_ops_f, kraus_number * kraus_in_dimension * kraus_out_dimension * sizeof(cuComplex));
+    if (err != cudaSuccess) {
+        std::cout << "Failed to allocate memory for single precision kraus operators: " << cudaGetErrorString(err) << std::endl;
+        throw std::runtime_error("Failed to allocate memory for single precision kraus operators");
+    }
+    int threads_per_block = 256; // Number of threads per block
+    int blocks = (kraus_number * kraus_in_dimension * kraus_out_dimension + threads_per_block - 1) / threads_per_block; // Calculate number of blocks needed
+    complex_doubles_to_complex_floats<<<blocks, threads_per_block>>>(kraus_ops, kraus_ops_f, kraus_number * kraus_in_dimension * kraus_out_dimension);
+    cudaDeviceSynchronize();
+    minimizer_f = new CudaMinimizer<float>(kraus_ops_f, kraus_number, kraus_in_dimension, kraus_out_dimension, 1.5e-07f); // This avoids having to use initialize list
+
+
     input_dim = kraus_in_dimension;
     output_dim = kraus_out_dimension;
     // initialize the entropy estimator
@@ -47,6 +83,17 @@ EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number,
     message_handler->setLogging(config->log);
     message_handler->setPrinting(config->print);  
 
+    if (config->MOE_variable_precision){
+        message_handler->message("Using adaptive precision for MOE calculations. Starting with float precision.");
+        current_precision_float = true;
+        setMinimizer(minimizer_f);
+    } else {
+        message_handler->message("Using double precision for MOE calculations.");
+        current_precision_float = false; // Use full precision already now.
+        setMinimizer(minimizer_d);
+    }
+
+
     // get uuid
     minimizer_id = generate_uuid_v4();
 
@@ -57,6 +104,64 @@ EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number,
     self = this;
     signal(SIGTERM, signal_handler);
 } 
+
+double EntropyMinimizer::requestEntropy(){
+    /*
+    This function returns the current entropy of the selected minimizer.
+    It is a wrapper for minimizer->getEntropy() and also handles the entropy calculation.
+    
+    Returns:
+    - double: current entropy of the minimizer.
+    
+    Note: 
+    - Minimizer should be selected correctly before requesting entropy.    
+    */
+    minimizer -> calculateEpsilonEntropy();
+    return minimizer -> getEntropy();
+}
+
+cudaError_t EntropyMinimizer::requestStep(){
+    /*
+    This function performs one step of the minimization algorithm
+    It is a wrapper for minimizer->step()
+    
+    Returns:
+    - double: current entropy of the minimizer after the step.
+    
+    Note: 
+    - Minimizer should be correctly set elsewhere!
+    
+    */
+    cudaError_t err = minimizer->step();
+    if (err != cudaSuccess) {
+        message_handler->message("Failed to requestStep: " + std::string(cudaGetErrorString(err)));
+    }
+    return err;
+}
+
+cudaError_t EntropyMinimizer::setMinimizer(CudaMinimizerBase* min){
+    /*
+    This function selects the minimizer to use for the algorithm.
+    It is used to switch between double and float precision minimizers.
+    
+    Input:
+    - min: pointer to the new minimizer to use. Should be either a CudaMinimizer<double> or CudaMinimizer<float>.
+    
+    Returns:
+    - cudaError_t: cudaSuccess on successful selection of the minimizer.
+    
+    Note: 
+    - The minimizer should be initialized before calling this function.
+    
+    */
+    if (min == nullptr) {
+        std::cerr<<"Cannot select a null minimizer."<<std::endl;
+        return cudaErrorInvalidValue;
+    }
+    
+    minimizer = min;    
+    return cudaSuccess;
+}
 
 
 cudaError_t EntropyMinimizer::initializeRun(){
@@ -71,8 +176,20 @@ cudaError_t EntropyMinimizer::initializeRun(){
     - The start vector is generated randomly on the device, so no input is required.
 
     */
-    message_handler->message("Initializing new run. No starting vector detected, generating random one...");
-    cudaError_t err = minimizer->initializeRandomVector();
+
+    message_handler -> message("Initializing new run. Selecting the appropriate precision for the minimizer...");
+    if (config->MOE_variable_precision) {
+        message_handler->message("Using float precision for minimizer initialization.");
+        current_precision_float = true; // Start with float precision
+        setMinimizer(minimizer_f); // Use float precision minimizer
+    } else {
+        message_handler->message("Using double precision for minimizer initialization.");
+        current_precision_float = false; // Use double precision
+        setMinimizer(minimizer_d); // Use double precision minimizer
+    }
+
+    message_handler->message("Generating a random vector...");
+    cudaError_t err = minimizer -> initializeRandomVector();
     if (err != cudaSuccess){
         message_handler->message("Failed to initialize random vector: " + std::string(cudaGetErrorString(err)));
         return err;
@@ -84,13 +201,7 @@ cudaError_t EntropyMinimizer::initializeRun(){
     current_iteration = 0;
 
     // Compute the entropy of the start vector and save it in the buffer
-    //minimizer->updateProjector();
-    err = minimizer->calculateEpsilonEntropy();
-    if (err != cudaSuccess){
-        message_handler->message("Failed to calculate epsilon entropy: " + std::string(cudaGetErrorString(err)));
-        return err;
-    }
-    double curr_en = minimizer->getEntropy();
+    double curr_en = requestEntropy();
     entropy_buffer[0] = curr_en;
 
     // Reset the entropy estimator
@@ -105,6 +216,7 @@ cudaError_t EntropyMinimizer::initializeRun(){
     return err;
 }
 
+
 cudaError_t EntropyMinimizer::initializeRun(cuDoubleComplex* start_vector){
     /*
     Initializes a new "run", which is one algorithm pass starting with a given vector, on which the algorithm can be run until convergence.
@@ -118,26 +230,61 @@ cudaError_t EntropyMinimizer::initializeRun(cuDoubleComplex* start_vector){
 
     Note: 
     - The passed vector is assumed to be of the correct size. Undefined behavior to be expected if dimensions don't match.
-    - The passed vector is copied to the device memory using minimizer->initializeVectorFromHost().
+    - The passed vector is copied to the device memory.
     
     */
-    message_handler->message("Initializing new run. A vector was passed as input...");
-
-    cudaError_t err = minimizer->initializeVectorFromHost(start_vector);
-    if (err != cudaSuccess){
-        message_handler->message("Failed to initialize vector from host: " + std::string(cudaGetErrorString(err)));
-        return err;
+    message_handler -> message("Initializing new run. Selecting the appropriate precision for the minimizer...");
+    if (config->MOE_variable_precision) {
+        message_handler->message("Using float precision for minimizer initialization.");
+        current_precision_float = true; // Start with float precision
+        setMinimizer(minimizer_f); // Use float precision minimizer
+    } else {
+        message_handler->message("Using double precision for minimizer initialization.");
+        current_precision_float = false; // Use double precision
+        setMinimizer(minimizer_d); // Use double precision minimizer
     }
+
+    // Depending on the type it might be necessary to cast this...
+    if (current_precision_float) {
+        cuComplex* tmp_vector = new cuComplex[input_dim];
+        for (int i = 0; i < input_dim; i++) {
+            tmp_vector[i] = make_cuComplex(static_cast<float>(start_vector[i].x), 
+                                            static_cast<float>(start_vector[i].y));
+        }
+        // Initialize device...
+        message_handler->message("Copying start vector to device in float precision.");
+        cudaError_t err = minimizer_f->initializeVectorFromHost(static_cast<void*>(tmp_vector));
+        delete[] tmp_vector; // Free the temporary vector
+        if (err != cudaSuccess) {
+            message_handler->message("Failed to initialize vector from host: " + std::string(cudaGetErrorString(err)));
+            return err;
+        }
+
+    } else {
+        message_handler->message("Copying start vector to device in double precision.");
+        // Initialize device with the given start vector
+        cudaError_t err = minimizer_d->initializeVectorFromHost(static_cast<void*>(start_vector));
+        if (err != cudaSuccess) {
+            message_handler->message("Failed to initialize vector from host: " + std::string(cudaGetErrorString(err)));
+            return err;
+        }
+    }
+
 
     // get new uuid
     run_id = generate_uuid_v4();
     
     current_iteration = 0;
+    if (config->MOE_prediction_tolerance){
+        message_handler->message("MOE prediction tolerance is set to " + std::to_string(config->MOE_prediction_tolerance) + ". Using adaptive precision for MOE calculations.");
+        current_precision_float = true; // Start with float precision
+    } else {
+        current_precision_float = false; // Use double precision
+    }
 
     // Compute the entropy of the start vector and save it in the buffer
-    //minimizer->updateProjector();
-    minimizer->calculateEpsilonEntropy();
-    double curr_en = minimizer->getEntropy();
+
+    double curr_en = requestEntropy();
     entropy_buffer[0] = curr_en;
 
     // Reset the entropy estimator
@@ -149,7 +296,7 @@ cudaError_t EntropyMinimizer::initializeRun(cuDoubleComplex* start_vector){
         MOE = curr_en;
     }
 
-    return err;
+    return cudaSuccess;
 }
 
 int EntropyMinimizer::stepMinimization(){
@@ -168,12 +315,12 @@ int EntropyMinimizer::stepMinimization(){
 
     */
     // Step 1: step through the algorithm
-    minimizer->step();
+    requestStep();
     current_iteration +=1;
 
     // Step 2: update the MOE if the newly found MOE is lower. No need to calculate the entropy, since it already is done when minimizer steps
     // 2.1: Compute the entropy of the state and save it in the buffer. Buffer is CONVERGENCE_ITERS long. Also update the entropy estimator buffer
-    double ent = minimizer->getEntropy();
+    double ent = requestEntropy();
     entropy_buffer[current_iteration % CONVERGENCE_ITERS] = ent;
     entropy_estimator->appendEntropy(ent);
     // 2.2: Check if we have found a new MOE
@@ -226,7 +373,7 @@ int EntropyMinimizer::runMinimization(){
         status = stepMinimization();
         // Print the current entropy from this run. 
         oss.str("");
-        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << minimizer->getEntropy();
+        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << requestEntropy();
         message_handler->message(oss.str());
 
         if (config->save_checkpoint && current_iteration % config->checkpoint_interval == 0){
@@ -255,14 +402,51 @@ int EntropyMinimizer::runMinimization(){
         }
     }
     else if (current_iteration >= config->max_iterations){
-        message_handler->message("We reached the maximum number of iterations! Aborting...");
+            message_handler->message("We reached the maximum number of iterations! Aborting...");
     } else {
-        message_handler->message("We reached the tolerance: we have converged!");
+        if (config->MOE_variable_precision && current_precision_float){
+            // If we are using variable precision, we can switch to double precision minimizer
+            message_handler->message("Switching to double precision minimizer for the final iterations.");
+            setMinimizer(minimizer_d);
+            current_precision_float = false; // Switch to double precision
+
+            // Initialize minimizer_d with the current state of minimizer_f
+            cuDoubleComplex* tmp_vec = nullptr;
+            cudaMalloc((void**)&tmp_vec, input_dim * sizeof(cuDoubleComplex)); // Allocate temporary vector on device
+            // Convert to double precision
+            int threads_per_block = 256; // Number of threads per block
+            int blocks = (input_dim + threads_per_block - 1) / threads_per_block; // Calculate number of blocks needed
+            complex_floats_to_complex_doubles<<<blocks, threads_per_block>>>(minimizer_f->getVector(), tmp_vec, input_dim);
+            cudaDeviceSynchronize();
+            // Check for errors in the conversion
+            cudaError_t err = cudaGetLastError();
+            if (err != cudaSuccess) {
+                message_handler->message("Failed to convert float vector to double precision: " + std::string(cudaGetErrorString(err)));
+                cudaFree(tmp_vec); // Free the temporary vector
+                return err;
+            }
+            // Initialize the double precision minimizer with the converted vector
+            err = minimizer_d->initializeVectorFromDevice(static_cast<void*>(tmp_vec));
+            if (err != cudaSuccess) {
+                message_handler->message("Failed to initialize double precision vector from host: " + std::string(cudaGetErrorString(err)));
+                return err;
+            }
+            // Free the temporary vector
+            cudaFree(tmp_vec);
+
+            // Run minimization again!
+            current_iteration = 0;
+            runMinimization();
+
+        } else {
+            // If we are not using variable precision, we just stop
+            message_handler->message("We reached the tolerance: we have converged!");
+        }
     }
 
     // We have finished the minimization attempts. Print the final MOE
     oss.str("");
-    oss << "Final entropy: " << minimizer->getEntropy();
+    oss << "Final entropy: " << requestEntropy();
     message_handler->message(oss.str());
 
     return status;
@@ -297,10 +481,11 @@ int EntropyMinimizer::runMinimization(double target_entropy){
     while (status == ENTROPY_MINIMIZER_CONTINUE && current_iteration < config->max_iterations && !predict_stop && !shouldTerminate()){
         status = stepMinimization();
         // Print the current entropy from this run. 
-        oss.str("");
-        oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << minimizer->getEntropy();
-        message_handler->message(oss.str());
-
+        if (current_iteration % 20 == 0){
+            oss.str("");
+            oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << requestEntropy();
+            message_handler->message(oss.str());
+        }
         // Check if we need to stop because of final entropy prediction
         if (config->MOE_use_prediction){
             // First update the model
@@ -367,7 +552,7 @@ int EntropyMinimizer::runMinimization(double target_entropy){
 
     // We have finished the minimization attempts. Print the final MOE
     oss.str("");
-    oss << "Final entropy: " << minimizer->getEntropy();
+    oss << "Final entropy: " << requestEntropy();
     message_handler->message(oss.str());
 
     return status;
@@ -408,18 +593,23 @@ int EntropyMinimizer::findMOE(){
         bool predict_stop = false;
         while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop && !shouldTerminate()){
             // Print the current entropy from this run. 
-            oss.str("");
-            oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << minimizer->getEntropy();
-            message_handler->message(oss.str());
+            if (current_iteration % 20 == 0){
+                // Print every 20 iterations
+                oss.str("");
+                oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << requestEntropy();
+                message_handler->message(oss.str());
+            }
             // If necessary, update the MOE
-            double new_entropy = minimizer->getEntropy();
+            double new_entropy = requestEntropy();
             if (new_entropy < MOE){
                 MOE = new_entropy;
             }
             // Also print the current MOE
+            if (current_iteration % 20 == 0){
             oss.str("");
             oss << "Current MOE: " << MOE;
             message_handler->message(oss.str());
+            }
             // Check if we need to stop because of MOE prediction
             if (config->MOE_use_prediction){
                 // First update the model
@@ -471,12 +661,30 @@ int EntropyMinimizer::findMOE(){
 int EntropyMinimizer::saveVector(std::string filename){
     // First, get the vector from the minimizer
     std::vector<std::complex<double> >* vec = new std::vector<std::complex<double> >(input_dim);
-    // Copy from GPU
-    cudaError_t err = cudaMemcpy(vec->data(), minimizer->getVector(), input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess){
-        message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
-        return -1;
-    }    
+    // Copy from GPU. If necessary, cast to complex<double>
+    if (current_precision_float) {
+        // If we are using float precision, we need to copy from the float vector
+        cuComplex* tmp_vec = new cuComplex[input_dim];
+        cudaError_t err = cudaMemcpy(tmp_vec, minimizer_f->getVector(), input_dim*sizeof(cuComplex), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess){
+            message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+            delete[] tmp_vec; // Clean up
+            return -1;
+        }
+        // Now, convert to complex<double>
+        for (int i = 0; i < input_dim; i++) {
+            (*vec)[i] = std::complex<double>(static_cast<double>(tmp_vec[i].x), 
+                                              static_cast<double>(tmp_vec[i].y));
+        }
+        delete[] tmp_vec; // Clean up
+    } else {
+        // If we are using double precision, we can copy directly
+        cudaError_t err = cudaMemcpy(vec->data(), minimizer_d->getVector(), input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess){
+            message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+            return -1;
+        }    
+    }
     // Create temporary filename (make operation atomic)
     std::string tmp_filename = filename + ".tmp";
     // Then, serialize the vector.    
@@ -498,11 +706,29 @@ int EntropyMinimizer::saveVector(){
     // Save the vector from the minimizer to a file.
     // First, get the vector from the minimizer
     std::vector<std::complex<double> >* vec = new std::vector<std::complex<double> >(input_dim);
-    // Copy from GPU
-    cudaError_t err = cudaMemcpy(vec->data(), minimizer->getVector(), input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess){
-        message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
-        return -1;
+    // Copy from GPU. If necessary, cast to complex<double>
+    if (current_precision_float) {
+        // If we are using float precision, we need to copy from the float vector
+        cuComplex* tmp_vec = new cuComplex[input_dim];
+        cudaError_t err = cudaMemcpy(tmp_vec, minimizer_f->getVector(), input_dim*sizeof(cuComplex), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess){
+            message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+            delete[] tmp_vec; // Clean up
+            return -1;
+        }
+        // Now, convert to complex<double>
+        for (int i = 0; i < input_dim; i++) {
+            (*vec)[i] = std::complex<double>(static_cast<double>(tmp_vec[i].x), 
+                                              static_cast<double>(tmp_vec[i].y));
+        }
+        delete[] tmp_vec; // Clean up
+    } else {
+        // If we are using double precision, we can copy directly
+        cudaError_t err = cudaMemcpy(vec->data(), minimizer_d->getVector(), input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess){
+            message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+            return -1;
+        }    
     }    
     // Now, serialize the state
     // File is is SAVE_DIRECTORY/VECTORS_DIRECTORY/minimizer_id/run_id/state_timestamp.dat
@@ -558,9 +784,16 @@ EntropyMinimizer* EntropyMinimizer::self = nullptr;
 
 EntropyMinimizer::~EntropyMinimizer()
 {
-    delete minimizer;
+    delete minimizer_f;
+    delete minimizer_d;
+
+    delete message_handler;
+
+
     delete serializer;
     delete entropy_estimator;
 
+    cudaFree(kraus_ops_f); // Free the single precision kraus operators
+    kraus_ops_f = nullptr;
 }
 

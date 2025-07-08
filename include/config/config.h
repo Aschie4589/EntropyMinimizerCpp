@@ -31,6 +31,7 @@ Cuda Minimizer
 #define CUDA_MINIMIZER_STAGE_0 1    // At stage 0, the input vector is initialized and correct. Also kraus is initialized and correct. d_vecs_1 and d_vecs_2 are initialized but empty. d_sv_1 and d_sv_2 are initialized but empty. The entropy is initialized to -1.
 #define CUDA_MINIMIZER_STAGE_1 2    // At stage 1, same as stage zero. On top of that, d_vecs_1 and d_sv_1 are filled with the results of the first SVD. It is possible to compute entropy.
 #define CUDA_MINIMIZER_STAGE_2 3    // At stage 2, also d_vecs_2 and d_sv_2 are filled with the results of the second SVD. d_vec is updated to the new vector, so the entropy can't be computed for this new vector yet. Computing the entropy will give the old one.
+
 /*
 EntropyConfig default parameters
 */
@@ -43,6 +44,9 @@ EntropyConfig default parameters
 #define DEFAULT_MINIMIZER_USE_MOE_PREDICTION true           // Should the minimizer use the prediction of the final MOE to stop the algorithm?
 #define DEFAULT_MINIMIZER_MOE_PREDICTION_TOLERANCE 1e-5     // What is the tolerance for the MOE prediction?
 #define DEFAULT_MINIMIZER_MINIMIZATION_ATTEMPTS 100         // How many times to run the minimization algorithm before giving up
+
+#define DEFAULT_MINIMIZER_MOE_DOUBLE_PRECISION true         // Should the MOE be calculated in double precision?
+#define DEFAULT_MINIMIZER_MOE_VARIABLE_PRECISION false       // Should the MOE be calculated
 
 #define DEFAULT_MINIMIZER_CHECKPOINT_INTERVAL 100           // How often to save the state of the minimizer
 #define DEFAULT_MINIMIZER_CHECKPOINT_FILE "checkpoint.dat"      // What is the default name of the checkpoint file

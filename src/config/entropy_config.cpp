@@ -11,6 +11,9 @@ EntropyConfig::EntropyConfig() {
     epsilon = DEFAULT_MINIMIZER_EPSILON;
     minimization_attempts = DEFAULT_MINIMIZER_MINIMIZATION_ATTEMPTS;
 
+    MOE_double_precision = DEFAULT_MINIMIZER_MOE_DOUBLE_PRECISION;
+    MOE_variable_precision = DEFAULT_MINIMIZER_MOE_VARIABLE_PRECISION;
+
     // MOE prediction
     MOE_use_prediction = DEFAULT_MINIMIZER_USE_MOE_PREDICTION;
     MOE_prediction_tolerance = DEFAULT_MINIMIZER_MOE_PREDICTION_TOLERANCE;

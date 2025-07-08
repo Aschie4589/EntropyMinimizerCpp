@@ -35,7 +35,7 @@ int main(int argc, char** argv){
     argparse::ArgumentParser* parser = parse_arguments(argc, argv);
     int N, d;
     
-//    cudaSetDevice(3); // Use device 1
+    cudaSetDevice(2); // Use device 3
 
 
     // Option 1: kraus was called

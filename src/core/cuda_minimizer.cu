@@ -12,7 +12,9 @@
 // Profiling
 #include <nvtx3/nvtx3.hpp>
 
-CudaMinimizer::CudaMinimizer(cuDoubleComplex* d_kraus_p, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, double eps) {
+
+template<typename T>
+CudaMinimizer<T>::CudaMinimizer(typename CudaTraits<T>::Complex* d_kraus_p, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, typename CudaTraits<T>::Real eps) {
     /*
     CudaMinimizer constructor.
     
@@ -88,47 +90,47 @@ CudaMinimizer::CudaMinimizer(cuDoubleComplex* d_kraus_p, int kraus_number, int k
     // Step 3: allocate memory on device
     // State vector
     d_vec = nullptr;
-    err = cudaMalloc((void**)&d_vec, N * sizeof(cuDoubleComplex));   
+    err = cudaMalloc((void**)&d_vec, N * sizeof(typename CudaTraits<T>::Complex));   
     if (err != cudaSuccess) {
         std::cerr << "Error allocating memory for d_vec: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("Failed to allocate memory for d_vec");
     }
     // Vectors after first SVD, there are d of them and they have size M
     d_vecs_1 = nullptr;
-    err = cudaMalloc((void**)&d_vecs_1, M * d * sizeof(cuDoubleComplex));
+    err = cudaMalloc((void**)&d_vecs_1, M * d * sizeof(typename CudaTraits<T>::Complex));
     if (err != cudaSuccess) {
         std::cerr << "Error allocating memory for d_vecs_1: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("Failed to allocate memory for d_vecs_1");
     }
     // Vectors after second SVD, there are d * d of them and they have size N
     d_vecs_2 = nullptr;
-    err = cudaMalloc((void**)&d_vecs_2, N * d * d * sizeof(cuDoubleComplex));
+    err = cudaMalloc((void**)&d_vecs_2, N * d * d * sizeof(typename CudaTraits<T>::Complex));
     if (err != cudaSuccess) {
         std::cerr << "Error allocating memory for d_vecs_2: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("Failed to allocate memory for d_vecs_2");
     }
     // Singular values of d_vecs_1
     d_sv_1 = nullptr;
-    err = cudaMalloc((void**)&d_sv_1, d * sizeof(double));
+    err = cudaMalloc((void**)&d_sv_1, d * sizeof(typename CudaTraits<T>::Real));
     if (err != cudaSuccess) {
         std::cerr << "Error allocating memory for d_sv_1: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("Failed to allocate memory for d_sv_1");
     }
     // Singular values of d_vecs_2
     d_sv_2 = nullptr;
-    err = cudaMalloc((void**)&d_sv_2, d * d * sizeof(double));
+    err = cudaMalloc((void**)&d_sv_2, d * d * sizeof(typename CudaTraits<T>::Real));
     if (err != cudaSuccess) {
         std::cerr << "Error allocating memory for d_sv_2: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("Failed to allocate memory for d_sv_2");
     }
     // Query the work size for the SVD operations, and allocate d_scratch accordinglt
     work_size_1 = 0;
-    cusolverDnZgesvd_bufferSize(cusolver_handle, M, d, &work_size_1);
+    CudaTraits<T>::gesvd_buffer(cusolver_handle, M, d, &work_size_1);
     work_size_2 = 0;
-    cusolverDnZgesvd_bufferSize(cusolver_handle, N, d*d, &work_size_2);
+    CudaTraits<T>::gesvd_buffer(cusolver_handle, N, d*d, &work_size_2);
     // Scratch space. 
     d_scratch = nullptr;
-    err = cudaMalloc((void**)&d_scratch, std::max(work_size_1, work_size_2) *sizeof(cuDoubleComplex));
+    err = cudaMalloc((void**)&d_scratch, std::max(work_size_1, work_size_2) *sizeof(typename CudaTraits<T>::Complex));
     if (err != cudaSuccess) {
         std::cerr << "Error allocating memory for d_scratch: " << cudaGetErrorString(err) << std::endl;
         throw std::runtime_error("Failed to allocate memory for d_scratch");
@@ -144,20 +146,22 @@ CudaMinimizer::CudaMinimizer(cuDoubleComplex* d_kraus_p, int kraus_number, int k
 //    std::cout << "Current stage is: " << minimizer_state << std::endl;
 }
 
-cudaError_t CudaMinimizer::initializeVectorFromDevice(cuDoubleComplex* v) {
+template<typename T>
+cudaError_t CudaMinimizer<T>::initializeVectorFromDevice(void* v) {
     /*
     Initializes the vector state to a given vector v.
 
     Arguments:
-        - v (device): pointer to a vector of double precision complex numbers (cuComplexDouble), which is the vector to initialize the state to.
+        - v (device): pointer to a vector of complex numbers (single or double precision), which is the vector to initialize the state to.
     Returns:
         - cudaSuccess if the vector was initialized successfully.
     Note:
         - The dimension is not checked! If the dimension does not match, undefined behavior.
         - The data in v is copied to d_vec.
         - No memory management is performed - in particular, memory for v is not freed.
+        - pointer has to be to void type and is cast internally
     */
-    cudaError_t err = cudaMemcpy(d_vec, v, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToDevice);
+    cudaError_t err = cudaMemcpy(d_vec, v, N * sizeof(typename CudaTraits<T>::Complex), cudaMemcpyDeviceToDevice);
     if (err != cudaSuccess) {
         std::cerr << "Error copying vector from device to device: " << cudaGetErrorString(err) << std::endl;
     }
@@ -165,19 +169,21 @@ cudaError_t CudaMinimizer::initializeVectorFromDevice(cuDoubleComplex* v) {
     return err;
 }
 
-cudaError_t CudaMinimizer::initializeVectorFromHost(cuDoubleComplex* v){
+template<typename T>
+cudaError_t CudaMinimizer<T>::initializeVectorFromHost(void* v){
     /*
     Initializes the vector state to a given vector v, which is stored on the host.
     Arguments:
-        - v (host): pointer to a vector of double precision complex numbers (cuComplexDouble), which is the vector to initialize the state to.
+        - v (host): pointer to a vector of complex numbers (single or double precision), which is the vector to initialize the state to.
     Returns:
         - cudaSuccess if the vector was initialized successfully.
     Note:
         - The dimension is not checked! If the dimension does not match, undefined behavior.
         - The data in v is simply copied to the d_vec.
         - No memory management is performed - in particular, memory for v is not freed.
+        - pointer has to be to void type and is cast internally
     */
-    cudaError_t err = cudaMemcpy(d_vec, v, N * sizeof(cuDoubleComplex), cudaMemcpyHostToDevice);
+    cudaError_t err = cudaMemcpy(d_vec, v, N * sizeof(typename CudaTraits<T>::Complex), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) {
         std::cerr << "Error copying vector from host to device: " << cudaGetErrorString(err) << std::endl;
     }
@@ -187,7 +193,8 @@ cudaError_t CudaMinimizer::initializeVectorFromHost(cuDoubleComplex* v){
 
 }
 
-cudaError_t CudaMinimizer::initializeRandomVector(){
+template<typename T>
+cudaError_t CudaMinimizer<T>::initializeRandomVector(){
     /*
     Use the generate_random_vector function to initialize the vector state to a random vector.
 
@@ -199,7 +206,7 @@ cudaError_t CudaMinimizer::initializeRandomVector(){
     */
 
     // Generate a random vector on the device
-    cudaError_t err = generateUniformRandomVectorsCuda(d_vec, N, 1);
+    cudaError_t err = generateUniformRandomVectorsCuda<T>(d_vec, N, 1);
     minimizer_state = CUDA_MINIMIZER_STAGE_0; // Reset the state to stage 0
 //    std::cout << "I just created a vector. The new stage of the minimizer is " << minimizer_state << std::endl;
 
@@ -220,7 +227,8 @@ At the end of step 1, we are able to compute the entropy of Phi_e(rho) as follow
 S(Phi_e(rho)) = [- sum_{i<=d} ((1-eps) lambda_i^2 + eps) log((1-eps) lambda_i^2 + eps)] - (M - d) * eps * log(eps)
 */
 
-__global__ void rescale_vecs_1(cuDoubleComplex* vecs, double* lambdas, double epsilon, int num_vecs, int vec_size){
+template<typename T>
+__global__ void rescale_vecs_1(typename CudaTraits<T>::Complex* vecs, typename CudaTraits<T>::Real* lambdas, typename CudaTraits<T>::Real epsilon, int num_vecs, int vec_size){
     /*
     Rescale the vectors in d_vecs_1 by the right amounts (so we have log(Phi_eps(rho))-log(eps)*1 = YY^H).
     This is done by multiplying each vector by (log((1-eps)lambda_i^2 + eps) - log(eps)).
@@ -232,18 +240,19 @@ __global__ void rescale_vecs_1(cuDoubleComplex* vecs, double* lambdas, double ep
         return;
     }
     // Get the entry
-    cuDoubleComplex entry = vecs[idx];
+    typename CudaTraits<T>::Complex entry = vecs[idx];
     // Get the lambda_i
-    double lambda_i = lambdas[idx / vec_size];
+    typename CudaTraits<T>::Real lambda_i = lambdas[idx / vec_size];
     // Compute the rescaling factor
-    cuDoubleComplex rescale_factor = make_cuDoubleComplex(sqrt(log((1 - epsilon) * lambda_i * lambda_i + epsilon/ vec_size) - log(epsilon / vec_size)),0.0);
+    typename CudaTraits<T>::Complex rescale_factor = CudaTraits<T>::make_complex(sqrt(log((1 - epsilon) * lambda_i * lambda_i + epsilon/ vec_size) - log(epsilon / vec_size)),0.0);
     // Rescale
-    entry = cuCmul(entry, rescale_factor);
+    entry = CudaTraits<T>::complex_mult(entry, rescale_factor);
     // Write back the result
     vecs[idx] = entry;    
 }
 
-cudaError_t CudaMinimizer::step_1(){
+template <typename T>
+cudaError_t CudaMinimizer<T>::step_1(){
     /*
     Perform the first step in the algorithm. That is, do the following:
     - Compute {K_i |d_vec>}_i, where {K_i}_i are the kraus operators. Save the result in d_vecs_1.
@@ -259,8 +268,8 @@ cudaError_t CudaMinimizer::step_1(){
     */
 
     // Step 1: Compute {K_i |d_vec>}_i and save the result in d_vecs_1
-    cuDoubleComplex one = make_cuDoubleComplex(1.0, 0.0);
-    cuDoubleComplex zero = make_cuDoubleComplex(0.0, 0.0);
+    typename CudaTraits<T>::Complex one = CudaTraits<T>::make_complex_h(1.0, 0.0);
+    typename CudaTraits<T>::Complex zero = CudaTraits<T>::make_complex_h(0.0, 0.0);
     {
     nvtx3::scoped_range r1{"Step 1: K_i |d_vec> multiplication"};
     // One operation per stream
@@ -270,19 +279,23 @@ cudaError_t CudaMinimizer::step_1(){
         for (int j = i; j < d; j += num_streams) {
             // Operation: T[i] = Kraus[i] * d_vec
             // Kraus[i] is MxN, d_vec is Nx1, and T[i] is Mx1.
-            cublasZgemv(blas_handles[i], CUBLAS_OP_N, M, N, &one, d_kraus + j * N * M, M, d_vec, 1, &zero, d_vecs_1 + j * M, 1);
+            CudaTraits<T>::gemv(blas_handles[i], CUBLAS_OP_N, M, N, &one, d_kraus + j * N * M, M, d_vec, 1, &zero, d_vecs_1 + j * M, 1);
         }
     }
     // Synchronize streams to ensure all operations are complete
     cudaDeviceSynchronize();
     }
+
     {
     nvtx3::scoped_range r2{"Step 1: SVD of K_i |v>_i"};
     // Step 2: find the SVD of X = {K_i |d_vec>}_i. X is Mxd
     // So X = U S V^H means that V^H has d columns, and U has M rows.
     //Don't need to have more streams as its only one decomposition.
     // Scratch space is already allocated
-    cusolverDnZgesvd(cusolver_handle, 
+    int* devinfo = nullptr;
+    cudaMalloc((void**)&devinfo, sizeof(int)); // Device info for SVD
+
+    cusolverStatus_t st = CudaTraits<T>::gesvd(cusolver_handle, 
                      'O', // Overwrite input matrix with left singular vectors (U in USV^H)
                      'N', // Don't compute right singular vectors (V^H in USV^H)
                      M, d, 
@@ -291,9 +304,16 @@ cudaError_t CudaMinimizer::step_1(){
                      nullptr, M, // U matrix not needed. Still, ldu >= min(M, d).
                      nullptr, 1, // VT matrix, not needed. ldvt = 1 since we don't compute it.
                      d_scratch, work_size_1, // Scratch space
-                     nullptr, 0); // 'rwork can be a null pointer if the user does not want info about superdiagonal'
+                     nullptr, devinfo); // 'rwork can be a null pointer if the user does not want info about superdiagonal'
 
     cudaDeviceSynchronize();
+    
+    cudaFree(devinfo); // Free device info  
+
+    if (st != CUSOLVER_STATUS_SUCCESS) {
+        std::cerr << "Error in SVD computation: " << st << std::endl;
+        return cudaErrorUnknown; // Return error
+    }
     }
 
     // At this point we can rescale the vectors in Y=d_sv_1 by the right amounts (so we have log(Phi_eps(rho))-log(eps)*1 = YY^H)
@@ -302,7 +322,7 @@ cudaError_t CudaMinimizer::step_1(){
     int blocks = (total_elems + threads - 1) / threads;
     {
     nvtx3::scoped_range r3{"Step 1: Rescale vectors in d_vecs_1"};
-    rescale_vecs_1<<<blocks, threads>>>(d_vecs_1, d_sv_1, epsilon, d, M);
+    rescale_vecs_1<T><<<blocks, threads>>>(d_vecs_1, d_sv_1, epsilon, d, M);
     cudaDeviceSynchronize();
     }
     minimizer_state = CUDA_MINIMIZER_STAGE_1; // Reset the state to stage 0
@@ -310,7 +330,8 @@ cudaError_t CudaMinimizer::step_1(){
     return cudaGetLastError(); // Returns success if the kernel launched successfully
 }
 
-cudaError_t CudaMinimizer::step_2(){
+template<typename T>
+cudaError_t CudaMinimizer<T>::step_2(){
     /*
     Perform the second step in the algorithm. That is, do the following:
     - Compute {K_j^H |psi_i>}_ij, where {K_j}_j are the kraus operators and {psi_i}_i are the vectors obtained in step 1. Save the result in d_vecs_2.
@@ -326,8 +347,8 @@ cudaError_t CudaMinimizer::step_2(){
     */
  
     // Step 1: Compute {K_i |d_vecs_j>}_ij and save the result in d_vecs_2
-    cuDoubleComplex one = make_cuDoubleComplex(1.0, 0.0);
-    cuDoubleComplex zero = make_cuDoubleComplex(0.0, 0.0);
+    typename CudaTraits<T>::Complex one = CudaTraits<T>::make_complex_h(1.0, 0.0);
+    typename CudaTraits<T>::Complex zero = CudaTraits<T>::make_complex_h(0.0, 0.0);
 
     // One operation per stream
     {
@@ -339,7 +360,7 @@ cudaError_t CudaMinimizer::step_2(){
             // Operation: T[i] = Kraus[i]^H * d_vecs_1
             // Kraus[i] is MxN (so op(K_i) is NxM), d_vecs_1 is Mxd, and T[i] is Nxd.
             // Save in d_vecs_2 with right offset
-            cublasZgemm(blas_handles[i], 
+            CudaTraits<T>::gemm(blas_handles[i], 
                 CUBLAS_OP_C, 
                 CUBLAS_OP_N, 
                 N, 
@@ -360,9 +381,9 @@ cudaError_t CudaMinimizer::step_2(){
     }
     // Step 2: extract the largest left singular vector of d_vecs_2. This is the new state.
     // For now, compute full SVD of the N * (dxd) matrix d_vecs_2. Only store the left singular vectors. In reality only care about the first!
-    cuDoubleComplex* Srand = nullptr; 
-    cuDoubleComplex* Urand = nullptr; 
-    cuDoubleComplex* Vrand = nullptr;
+    typename CudaTraits<T>::Complex* Srand = nullptr; 
+    typename CudaTraits<T>::Complex* Urand = nullptr; 
+    typename CudaTraits<T>::Complex* Vrand = nullptr;
 
     {
     nvtx3::scoped_range r{"Step 2: SVD of K_j^H |psi_i>_ij"};
@@ -373,9 +394,9 @@ cudaError_t CudaMinimizer::step_2(){
     cusolverDnCreateParams(&params);
     // For now just allocate a temporary Srand and Urand
     // allocate memory on device for Srand and Urand
-    cudaMalloc((void**)&Srand, sizeof(double)); // Srand is a vector of 1 doubles
-    cudaMalloc((void**)&Urand, N * sizeof(cuDoubleComplex)); // Urand is a matrix of N rows and 1 column (so Nx1)
-    cudaMalloc((void**)&Vrand, d * d * sizeof(cuDoubleComplex)); // Vrand is a matrix of dxd by 1
+    cudaMalloc((void**)&Srand, sizeof(typename CudaTraits<T>::Real)); // Srand is a vector of 1 doubles
+    cudaMalloc((void**)&Urand, N * sizeof(typename CudaTraits<T>::Complex)); // Urand is a matrix of N rows and 1 column (so Nx1)
+    cudaMalloc((void**)&Vrand, d * d * sizeof(typename CudaTraits<T>::Complex)); // Vrand is a matrix of dxd by 1
 
     size_t workspace_device_bytes = 0;
     size_t workspace_host_bytes = 0;
@@ -391,18 +412,18 @@ cudaError_t CudaMinimizer::step_2(){
         static_cast<int64_t>(1),  // k=1
         static_cast<int64_t>(6),  // oversampling (= larger subspace). Suggested: 2k, so let's say 3 = 3k.
         static_cast<int64_t>(8),  // number of iterations, n_iter. Suggested:2
-        CUDA_C_64F, // data type of A
+        CudaTraits<T>::CUDA_C, // data type of A
         static_cast<void*>(d_vecs_2), // pointer to the input matrix A
         static_cast<int64_t>(N), // leading dimension of A
-        CUDA_R_64F, // data type of Srand
+        CudaTraits<T>::CUDA_R, // data type of Srand
         static_cast<void*>(Srand), // pointer to the output vector Srand
-        CUDA_C_64F, // data type of Urand
+        CudaTraits<T>::CUDA_C, // data type of Urand
         static_cast<void*>(Urand), // pointer to the output matrix Urand
         static_cast<int64_t>(N),
-        CUDA_C_64F, // Type of V
+        CudaTraits<T>::CUDA_C, // Type of V
         static_cast<void*>(Vrand), 
         static_cast<int64_t>(d * d), // Leading dimension of V (1 since nullptr)
-        CUDA_C_64F, // Type of work
+        CudaTraits<T>::CUDA_C, // Type of work
         &workspace_device_bytes, // Pointer to the workspace on device
         &workspace_host_bytes // Pointer to workspace on host 
     );
@@ -419,7 +440,7 @@ cudaError_t CudaMinimizer::step_2(){
     }
 
     // Allocate workspace on device
-    if (workspace_device_bytes > std::max(work_size_1, work_size_2)*sizeof(cuDoubleComplex)){
+    if (workspace_device_bytes > std::max(work_size_1, work_size_2)*sizeof(typename CudaTraits<T>::Complex)){
         cudaFree(d_scratch); // Free the old scratch space
         d_scratch = nullptr; // Set to null to avoid dangling pointer
         cudaError_t err = cudaMalloc((void**)&d_scratch, workspace_device_bytes);
@@ -439,8 +460,19 @@ cudaError_t CudaMinimizer::step_2(){
         }
     }
 
-    int* devinfo = nullptr;
-    cudaMalloc((void**)&devinfo, sizeof(int)); // Allocate memory for device info
+    // get dev info 2
+    // allocate
+    // memory on device for devinfo
+    int* devinfo_2 = nullptr;
+    cudaMalloc((void**)&devinfo_2, sizeof(int)); // Device info for SVD
+    if (devinfo_2 == nullptr) {
+        std::cerr << "Error allocating memory for device info." << std::endl;
+        if (h_scratch != nullptr) {
+            free(h_scratch); // Free host scratch space if allocated
+        }
+        return cudaErrorMemoryAllocation; // Return memory allocation error
+    }
+
     // Perform the SVD using the randomized method
     cusolverDnXgesvdr(
         cusolver_handle, // cusolver handle
@@ -452,27 +484,36 @@ cudaError_t CudaMinimizer::step_2(){
         static_cast<int64_t>(1),  // k=1
         static_cast<int64_t>(6), // oversampling (= larger subspace). Suggested: 2k, so let's say 3 = 3k.
         static_cast<int64_t>(8),  // number of iterations, n_iter. Suggested:2
-        CUDA_C_64F, // data type of A
+        CudaTraits<T>::CUDA_C, // data type of A
         static_cast<void*>(d_vecs_2), // pointer to the input matrix A
         static_cast<int64_t>(N), // leading dimension of A
-        CUDA_R_64F, // data type of Srand
+        CudaTraits<T>::CUDA_R, // data type of Srand
         static_cast<void*>(Srand), // pointer to the output vector Srand
-        CUDA_C_64F, // data type of Urand
+        CudaTraits<T>::CUDA_C, // data type of Urand
         static_cast<void*>(Urand), // pointer to the output matrix Urand
         static_cast<int64_t>(N),
-        CUDA_C_64F, // Type of V
+        CudaTraits<T>::CUDA_C, // Type of V
         static_cast<void*>(Vrand),   // V (nullptr)
         static_cast<int64_t>(d * d), // Leading dimension of V (1 since nullptr)
-        CUDA_C_64F, // Type of work
+        CudaTraits<T>::CUDA_C, // Type of work
         static_cast<void*>(d_scratch),
         workspace_device_bytes,
         h_scratch,
         workspace_host_bytes,
-        devinfo // Pointer to device info
+        devinfo_2 // Pointer to device info
     );
 
 
     cudaDeviceSynchronize();
+    cudaFree(devinfo_2); // Free device info
+
+    if (svd_status != CUSOLVER_STATUS_SUCCESS) {
+        std::cerr << "Error in SVD computation: " << svd_status << std::endl;
+        if (h_scratch != nullptr) {
+            free(h_scratch); // Free host scratch space if allocated
+        }
+        return cudaErrorUnknown; // Return error
+    }
 
     // Free h_scratch after computation
     if (h_scratch != nullptr) {
@@ -500,7 +541,9 @@ cudaError_t CudaMinimizer::step_2(){
     nvtx3::scoped_range r{"Step 2: Copy largest left singular vector to d_vec"};
 
     // Now copy the vector over
-    cudaMemcpy(d_vec, Urand, N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToDevice);
+    cudaMemcpy(d_vec, Urand, N * sizeof(typename CudaTraits<T>::Complex), cudaMemcpyDeviceToDevice);
+
+
     // Free memory of Urand, Srand
     cudaFree(Urand);
     cudaFree(Srand);
@@ -514,8 +557,8 @@ cudaError_t CudaMinimizer::step_2(){
 
 
 
-
-cudaError_t CudaMinimizer::stepAlgorithm(){
+template<typename T>
+cudaError_t CudaMinimizer<T>::stepAlgorithm(){
     /*
         Run through one minimization pass of the algorithm. Updatre d_vec with a new one which provides better entropy.
 
@@ -536,7 +579,8 @@ cudaError_t CudaMinimizer::stepAlgorithm(){
     return cudaSuccess;
 }
 
-cudaError_t CudaMinimizer::step(){
+template<typename T>
+cudaError_t CudaMinimizer<T>::step(){
     /*
         Will compute one step of the minimization algorithm.
 
@@ -597,8 +641,8 @@ cudaError_t CudaMinimizer::step(){
 
 
 
-
-cudaError_t CudaMinimizer::calculateEpsilonEntropy(){
+template<typename T>
+cudaError_t CudaMinimizer<T>::calculateEpsilonEntropy(){
 /*
     Calculates the von Neumann entropy of the output matrix after applying the epsilon channel.
     When in stage 1, the square roots of eigenvalues lamvda_i of Phi(rho) are saved in d_sv_1.
@@ -631,21 +675,22 @@ cudaError_t CudaMinimizer::calculateEpsilonEntropy(){
     }
 
     // Now perform the computation of entropy. Since d is assumed small, it is best to just copy values to host and work on CPU.
-    double* h_sv_1 = new double[d];
-    cudaError_t err_cpy = cudaMemcpy(h_sv_1, d_sv_1, d * sizeof(double), cudaMemcpyDeviceToHost);
+    typename CudaTraits<T>::Real* h_sv_1 = new typename CudaTraits<T>::Real[d];
+    cudaError_t err_cpy = cudaMemcpy(h_sv_1, d_sv_1, d * sizeof(typename CudaTraits<T>::Real), cudaMemcpyDeviceToHost);
     if (err_cpy != cudaSuccess) {
         std::cerr << "Error copying eigenvalues from device to host: " << cudaGetErrorString(err_cpy) << std::endl;
         delete[] h_sv_1; // Free the host memory before returning
         return err_cpy; // Return the error if the copy failed
     }
-    entropy = 0.0;
+    entropy = static_cast<typename CudaTraits<T>::Real>(0.0);
     for (int i = 0; i < d; ++i) {
-        double lambda_i = h_sv_1[i];
-        double val = (1.0 - epsilon) * lambda_i * lambda_i + epsilon/M; // epsilon is assumed small but positive
+        typename CudaTraits<T>::Real lambda_i = h_sv_1[i];
+        typename CudaTraits<T>::Real val = (1.0 - epsilon) * lambda_i * lambda_i + epsilon/M; // epsilon is assumed small but positive
+
         entropy -= val * log(val);
     }
-
-    entropy -= (M - d)/M * epsilon * (log(epsilon) - log(M)); // Add the contribution from the zero eigenvalues
+    // Print entropy so far
+    entropy -= static_cast<typename CudaTraits<T>::Real>(M - d)/M * epsilon * (log(epsilon) - log(M)); // Add the contribution from the zero eigenvalues
 
     delete[] h_sv_1; // Free the host memory
     return cudaSuccess; // Return success if the entropy was calculated successfully    
@@ -657,7 +702,8 @@ cudaError_t CudaMinimizer::calculateEpsilonEntropy(){
                 GETTERS
 
 */
-cuDoubleComplex* CudaMinimizer::getVector() {
+template<typename T>
+typename CudaTraits<T>::Complex* CudaMinimizer<T>::getVector() {
     /*
     Returns a pointer to the vector state on the device.
 
@@ -667,7 +713,8 @@ cuDoubleComplex* CudaMinimizer::getVector() {
     return d_vec;
 }
 
-double CudaMinimizer::getEntropy() {
+template<typename T>
+double CudaMinimizer<T>::getEntropy() {
     /*
     Returns the current von Neumann entropy.
 
@@ -677,10 +724,11 @@ double CudaMinimizer::getEntropy() {
         - The entropy is computed as the von Neumann entropy of the output matrix.
         - This method does not update the entropy.
     */
-    return entropy;
+    return static_cast<double>(entropy);
 }
 
-CudaMinimizer::~CudaMinimizer() {
+template<typename T>
+CudaMinimizer<T>::~CudaMinimizer() {
     /*
     CudaMinimizer destructor.
     
@@ -705,3 +753,6 @@ CudaMinimizer::~CudaMinimizer() {
     delete[] streams;
 }
 
+// Instantiate the types I need
+template class CudaMinimizer<double>;
+template class CudaMinimizer<float>;

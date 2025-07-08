@@ -9,6 +9,10 @@ class EntropyConfig {
         // Algorithm config
         int max_iterations, minimization_attempts;
         double epsilon;
+
+        bool MOE_double_precision; // Use double precision for MOE calculations
+        bool MOE_variable_precision; // Use adaptive precision for MOE calculations. I.e. first use float then double.
+
         // Specific to prediction of final entropy of a run
         bool MOE_use_prediction;
         double MOE_prediction_tolerance;

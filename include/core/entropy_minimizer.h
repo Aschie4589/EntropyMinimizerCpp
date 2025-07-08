@@ -20,6 +20,10 @@ public:
     int runMinimization(double target_entropy); // Run one pass of the minimization algorithm. Requires a run to be initialized.
     int findMOE();                              // This function finds the MOE of the channel
 
+    // Minimizer interface
+    double requestEntropy();
+    cudaError_t requestStep();
+
     // IO functions
     //int saveState();                            // Save the state of the minimizer to a file
     //int saveState(std::string filename);        // Save the state of the minimizer to a file
@@ -32,10 +36,16 @@ public:
     static EntropyMinimizer* self;              // This is used to store the pointer to this instance, so that signal_handler can call the correct function
     static void signal_handler(int signal);            // This is the signal handler for the termination of the minimization algorithm
 
-    CudaMinimizer* minimizer;
+    // minimizer selection
+    CudaMinimizerBase* minimizer;
+    CudaMinimizer<double>* minimizer_d; // Double precision minimizer
+    CudaMinimizer<float>* minimizer_f; // Float precision minimizer
+    cudaError_t setMinimizer(CudaMinimizerBase* min); // Select the new minimizer to use
+
     EntropyConfig* config;
 
 private:
+
     std::string run_id;                         // This is the id of the run
     std::string minimizer_id;                   // This is the id of the minimizer
     double entropy_buffer[CONVERGENCE_ITERS];   // This array keeps track of past iterations of entropy
@@ -50,6 +60,11 @@ private:
     double MOE;
     int input_dim;                              // Input dimension of the kraus operators
     int output_dim;                             // Output dimension of the kraus operators
+
+    // Adaptive section
+    cuComplex* kraus_ops_f;                     // Pointer to the kraus operators on device (only needed because this class is responsible for lifetime of object!)
+    bool current_precision_float;               // Are we currently working with float precision?
+
     std::atomic<bool> terminate_requested{false};     // This is used to stop the minimization algorithm
 
 };
