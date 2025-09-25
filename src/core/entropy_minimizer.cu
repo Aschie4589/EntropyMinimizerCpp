@@ -103,6 +103,7 @@ EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number,
     // Initialize the signaling stuff (for graceful termination)
     self = this;
     signal(SIGTERM, signal_handler);
+    signal(SIGINT, signal_handler);
 } 
 
 double EntropyMinimizer::requestEntropy(){

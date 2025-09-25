@@ -22,7 +22,7 @@ CUDA Parameters
 
 #define CUDA_STREAMS 32                 // How many CUDA streams to use for parallel execution of non-parallelized operations. Relevant for Haar unitary creation
 #define ZGEMM_BATCH_SIZE_CHANNEL 32     // How many matrix multiplications to perform in parallel when applying the channel. This is the batch size for the zgemm operation. Memory usage is proportional to this.
-#define MINIMIZER_CUDA_STREAMS 32       // How many CUDA streams to use for parallel execution of minimizer matrix-vector operations.
+#define MINIMIZER_CUDA_STREAMS 1        // How many CUDA streams to use for parallel execution of minimizer matrix-vector operations.
 
 /*
 Cuda Minimizer

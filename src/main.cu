@@ -35,8 +35,7 @@ int main(int argc, char** argv){
     argparse::ArgumentParser* parser = parse_arguments(argc, argv);
     int N, d;
     
-    cudaSetDevice(2); // Use device 3
-
+    
 
     // Option 1: kraus was called
     if (parser->is_subcommand_used("kraus")){
@@ -70,6 +69,12 @@ int main(int argc, char** argv){
             d = parser->at<argparse::ArgumentParser>("kraus").at<argparse::ArgumentParser>("haar").get<int>("-d");
             std::string output = parser->at<argparse::ArgumentParser>("kraus").at<argparse::ArgumentParser>("haar").get<std::string>("-o");
 
+            // Get GPU number to use
+            int gpu_number = parser->at<argparse::ArgumentParser>("kraus").at<argparse::ArgumentParser>("haar").get<int>("--gpu");
+            // Set the device to use
+            cudaSetDevice(gpu_number);
+            // log the GPU number
+            message_handler->message("Using GPU number: " + std::to_string(gpu_number));
             // check that the output directory exists
             //first get the directory
             std::string output_directory = output.substr(0, output.find_last_of("/"));
@@ -161,6 +166,12 @@ int main(int argc, char** argv){
         // Also print logging and printing options
         message_handler->message("Logging is: " + std::to_string(subparser->get<bool>("-l")));
         message_handler->message("Printing is: " + std::to_string(subparser->get<bool>("-s") ));
+        // Get GPU number to use
+        int gpu_number = subparser->get<int>("--gpu");
+        // Set the device to use
+        cudaSetDevice(gpu_number);
+        // log the GPU number
+        message_handler->message("Using GPU number: " + std::to_string(gpu_number));
 
         cuDoubleComplex *d_kraus_operators;
         VectorSerializer serializer = VectorSerializer();
@@ -221,6 +232,7 @@ int main(int argc, char** argv){
         EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, N, &config);
 
         signal(SIGTERM, minimizer->signal_handler);
+        signal(SIGINT, minimizer->signal_handler);
 
         // Initialize run
         // Check if we have a starting vector specified in the command line
@@ -318,6 +330,13 @@ int main(int argc, char** argv){
         // print logging and printing options,
         message_handler->message("Logging is: " + std::to_string(subparser->get<bool>("-l")));
         message_handler->message("Printing is: " + std::to_string(subparser->get<bool>("-s") ));
+
+        // Get GPU number to use
+        int gpu_number = subparser->get<int>("--gpu");
+        // Set the device to use
+        cudaSetDevice(gpu_number);
+        // log the GPU number
+        message_handler->message("Using GPU number: " + std::to_string(gpu_number));
 
         // Allocate memory for kraus operators on device
         cuDoubleComplex *d_kraus_operators;
@@ -420,6 +439,13 @@ int main(int argc, char** argv){
         // print logging and printing options,
         message_handler->message("Logging is: " + std::to_string(subparser->get<bool>("-l")));
         message_handler->message("Printing is: " + std::to_string(subparser->get<bool>("-s") ));
+
+        // Get GPU number to use
+        int gpu_number = subparser->get<int>("--gpu");
+        // Set the device to use
+        cudaSetDevice(gpu_number);
+        // log the GPU number
+        message_handler->message("Using GPU number: " + std::to_string(gpu_number));
 
         // save into N, d and output
         N = subparser->get<int>("-N");

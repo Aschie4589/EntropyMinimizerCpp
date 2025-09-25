@@ -44,6 +44,11 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .help("disable printing")
     .default_value(false)
     .implicit_value(true);
+    // GPU number to use
+    haar_parser->add_argument("--gpu", "-g")
+    .help("If multiple GPUs present, GPU number to use for the computation")
+    .default_value(0)
+    .scan<'i', int>();
 
     /*
             SUBPARSER 2: Single-shot entropy minimization
@@ -129,6 +134,12 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .default_value(false)
     .implicit_value(true);
 
+    // GPU number to use
+    single_shot_parser->add_argument("--gpu", "-g")
+    .help("If multiple GPUs present, GPU number to use for the computation")
+    .default_value(0)
+    .scan<'i', int>();
+
 
 
     /*
@@ -175,6 +186,11 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .help("disable printing")
     .default_value(false)
     .implicit_value(true);
+    // GPU number to use
+    multi_shot_parser->add_argument("--gpu", "-g")
+    .help("If multiple GPUs present, GPU number to use for the computation")
+    .default_value(0)
+    .scan<'i', int>();
 
     /*
             SUBPARSER 4: Generate vector
@@ -211,6 +227,11 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .implicit_value(true);
     
     
+    // GPU number to use
+    vector_parser->add_argument("--gpu", "-g")
+    .help("If multiple GPUs present, GPU number to use for the computation")
+    .default_value(0)
+    .scan<'i', int>();
 
 
 

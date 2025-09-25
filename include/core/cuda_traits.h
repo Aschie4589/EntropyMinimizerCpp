@@ -21,7 +21,7 @@ struct CudaTraits<double> {
     static constexpr auto gesvd = cusolverDnZgesvd;
     static constexpr auto gesvd_buffer = cusolverDnZgesvd_bufferSize;
     static constexpr auto CUDA_C = CUDA_C_64F; // Define CUDA_C_64F for double precision
-    static constexpr auto CUDA_R = CUDA_R_64F; // Define CUDA_C_64F for double precision
+    static constexpr auto CUDA_R = CUDA_R_64F; // Define CUDA_R_64F for double precision
     // Complex number stuff
     static __device__ cuDoubleComplex make_complex(double real, double imag) {
         return make_cuDoubleComplex(real, imag);
@@ -49,7 +49,7 @@ struct CudaTraits<float> {
     static constexpr auto gesvd = cusolverDnCgesvd;
     static constexpr auto gesvd_buffer = cusolverDnCgesvd_bufferSize;
     static constexpr auto CUDA_C = CUDA_C_32F; // Define CUDA_C_32F for single precision
-    static constexpr auto CUDA_R = CUDA_R_32F; // Define CUDA_C_32F for single precision
+    static constexpr auto CUDA_R = CUDA_R_32F; // Define CUDA_R_32F for single precision
     // Complex number stuff
     static __device__ cuComplex make_complex(float real, float imag) {
         return make_cuComplex(real, imag);
