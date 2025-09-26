@@ -6,10 +6,23 @@
 #include "core/entropy_estimator.h"
 
 #include "core/cuda_traits.h"
+#include "core/cuda_minimizer_strategy.h"
 
 #include "cuComplex.h"
 #include <cublas_v2.h>
 #include <cusolverDn.h>
+
+// Struct to let the user select the minimization strategy they want
+enum class CudaMinimizerStrategy {
+    AUTO_DETECT,     // Default: automatically choose based on available memory
+    LOW_MEMORY,      // Force low memory strategy (current implementation)
+    HIGH_MEMORY,     // Force high memory strategy (precompute transposes)
+    BALANCED         // Future: medium memory strategy
+};
+
+// Forward declarations for friend classes
+template<typename T> class HighMemoryStrategy;
+template<typename T> class LowMemoryStrategy;
 
 class CudaMinimizerBase {
 public:
@@ -27,15 +40,16 @@ public:
     virtual double getEntropy() = 0;
 
     //Updaters
-    virtual cudaError_t calculateEpsilonEntropy() = 0;
+    virtual cudaError_t calculateEpsilonEntropy(bool force) = 0;
 };
 
 
 template<typename T>
 class CudaMinimizer : public CudaMinimizerBase  {
 public:
-    CudaMinimizer(typename CudaTraits<T>::Complex* d_kraus, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, typename CudaTraits<T>::Real eps);             // Constructor declaration
+    CudaMinimizer(typename CudaTraits<T>::Complex* d_kraus, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, typename CudaTraits<T>::Real eps, CudaMinimizerStrategy strategy_preference=CudaMinimizerStrategy::AUTO_DETECT);             // Constructor declaration
     ~CudaMinimizer() override;            // Destructor declaration
+
 
     // Initialization
     cudaError_t initializeVectorFromDevice(void* v) override; // This initializes the vector to a given one on device.
@@ -56,11 +70,18 @@ public:
     double getEntropy() override;
 
     // Updaters
-    cudaError_t calculateEpsilonEntropy() override; // Calculates the entropy of Phi_e(d_inmatrix)
+    cudaError_t calculateEpsilonEntropy(bool force= false) override; // Calculates the entropy of Phi_e(d_inmatrix)
 
 
 
 private:
+    friend class HighMemoryStrategy<T>;
+    friend class LowMemoryStrategy<T>;
+    // Strategy selection
+    std::unique_ptr<MinimizationStrategy<T>> createStrategy(CudaMinimizerStrategy preference, 
+                                                            int d, int N, int M);
+    std::unique_ptr<MinimizationStrategy<T>> strategy;
+
     // Members
     int d, M, N;
     typename CudaTraits<T>::Real epsilon, entropy;
@@ -72,44 +93,12 @@ private:
     cusolverDnHandle_t cusolver_handle; // CUSOLVER handle, used for SVD. Only one needed.
 
     // Internal tracker for current stage of the algorithm
-    int minimizer_state;
-
-    // Updaters
-    cudaError_t step_1();
-    cudaError_t step_2();
-    /*OLD
-    cudaError_t applyChannel();
-    cudaError_t applyDualChannel();
-    cudaError_t applyEpsilonChannel();
-    cudaError_t applyEpsilonDualChannel();
-    */
+    int minimizer_state; // Deprecated I think
 
 
     // Device memory pointers
     // Matrices and vectors 
     typename CudaTraits<T>::Complex* d_kraus;         // Pointer to kraus operators
     typename CudaTraits<T>::Complex* d_vec;           // Pointer to the vector state on device
-    typename CudaTraits<T>::Complex* d_vecs_1;        // Pointer to memory for storing {K_i |d_vec>}_i
-    typename CudaTraits<T>::Complex* d_vecs_2;        // Pointer to memory for storing {K_i |phi_j>}_ij where |phi_j> comes from SVD of d_vecs_1
-    typename CudaTraits<T>::Complex* d_scratch;       // Pointer to scratch space for doing computations
-    typename CudaTraits<T>::Real* d_sv_1;                   // Pointer to memory for storing singular values of {K_i |d_vec>}_i
-    typename CudaTraits<T>::Real* d_sv_2;                   // Pointer to memory for storing singular values of {K_i |phi_j>}_ij
-    // Other relevant internal quantities
-    int work_size_1;                  // For SVD
-    int work_size_2;                  // For SVD
-    // OLD
-    /*
-    bool input_matrix_scrambled; // Flag to indicate if the input matrix has been scrambled
-    double *d_entropy_scratch; // Pointer to device memory for entropy calculation
-    double bin_entropy, entropy_error, estimated_entropy, estimated_entropy_ub, estimated_entropy_lb;
-
-    cuDoubleComplex* d_kraus;
-    cuDoubleComplex* d_vecstate;
-    cuDoubleComplex* d_inmatrix;
-    cuDoubleComplex* d_outmatrix; 
-    cuDoubleComplex* d_tmpmat;
-    double* d_eigs;
-    */
-    
 
 };

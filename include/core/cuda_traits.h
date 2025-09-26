@@ -17,11 +17,13 @@ struct CudaTraits<double> {
     // cuBLAS
     static constexpr auto gemv = cublasZgemv;
     static constexpr auto gemm = cublasZgemm;
+    static constexpr auto geam = cublasZgeam;
     // cuSOLVER
     static constexpr auto gesvd = cusolverDnZgesvd;
     static constexpr auto gesvd_buffer = cusolverDnZgesvd_bufferSize;
     static constexpr auto CUDA_C = CUDA_C_64F; // Define CUDA_C_64F for double precision
     static constexpr auto CUDA_R = CUDA_R_64F; // Define CUDA_R_64F for double precision
+    
     // Complex number stuff
     static __device__ cuDoubleComplex make_complex(double real, double imag) {
         return make_cuDoubleComplex(real, imag);
@@ -35,6 +37,8 @@ struct CudaTraits<double> {
     static __device__ double rand_nor(curandState* state) {
         return curand_normal_double(state);
     }
+    static constexpr auto real_part_h = cuCreal;
+    static constexpr auto imag_part_h = cuCimag;
         // ... etc
 };
 
@@ -45,6 +49,7 @@ struct CudaTraits<float> {
     // cuBLAS
     static constexpr auto gemv = cublasCgemv;
     static constexpr auto gemm = cublasCgemm;
+    static constexpr auto geam = cublasCgeam;
     // cuSOLVER
     static constexpr auto gesvd = cusolverDnCgesvd;
     static constexpr auto gesvd_buffer = cusolverDnCgesvd_bufferSize;
@@ -63,7 +68,8 @@ struct CudaTraits<float> {
     static __device__ float rand_nor(curandState* state) {
         return curand_normal(state);
     }
-    // ... etc
+    static constexpr auto real_part_h = cuCrealf;
+    static constexpr auto imag_part_h = cuCimagf;
 };
 
 

@@ -2,6 +2,7 @@
 
 #include "core/entropy_minimizer.h"
 #include "config/config.h"
+#include "config/defs.h"
 #include "core/cuda_minimizer.h"
 #include "helpers/message_handler.h"
 
@@ -117,7 +118,7 @@ double EntropyMinimizer::requestEntropy(){
     Note: 
     - Minimizer should be selected correctly before requesting entropy.    
     */
-    minimizer -> calculateEpsilonEntropy();
+    minimizer -> calculateEpsilonEntropy(true);
     return minimizer -> getEntropy();
 }
 
