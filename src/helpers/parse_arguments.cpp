@@ -1,5 +1,26 @@
 #include "libs/argparse/argparse.hpp"
 #include "helpers/parse_arguments.h"
+#include <stdexcept>
+#include <algorithm>
+
+
+CudaMinimizerStrategy parseStrategyString(const std::string& strategy_str) {
+    std::string str = strategy_str;
+    // Convert to lowercase for case-insensitive comparison
+    std::transform(str.begin(), str.end(), str.begin(), ::tolower);
+    
+    if (str == "auto" || str == "auto_detect") {
+        return CudaMinimizerStrategy::AUTO_DETECT;
+    } else if (str == "high" || str == "high_memory") {
+        return CudaMinimizerStrategy::HIGH_MEMORY;
+    } else if (str == "low" || str == "low_memory") {
+        return CudaMinimizerStrategy::LOW_MEMORY;
+    } else if (str == "low_prob" || str == "low_memory_prob" || str == "low_memory_probabilistic") {
+        return CudaMinimizerStrategy::LOW_MEMORY_PROBABILISTIC;
+    } else {
+        throw std::invalid_argument("Invalid strategy: " + strategy_str + ". Valid options are: auto, high, low, low_prob");
+    }
+}
 
 
 argparse::ArgumentParser* parse_arguments(int argc, char** argv){
@@ -140,6 +161,12 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .default_value(0)
     .scan<'i', int>();
 
+    // Memory strategy to use
+    single_shot_parser->add_argument("--strategy")
+    .help("Memory management strategy: auto (default), high, low, low_prob")
+    .default_value(std::string("auto"))
+    .metavar("STRATEGY");
+
 
 
     /*
@@ -191,6 +218,12 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .help("If multiple GPUs present, GPU number to use for the computation")
     .default_value(0)
     .scan<'i', int>();
+
+    // Memory strategy to use
+    multi_shot_parser->add_argument("--strategy")
+    .help("Memory management strategy: auto (default), high, low, low_prob")
+    .default_value(std::string("auto"))
+    .metavar("STRATEGY");
 
     /*
             SUBPARSER 4: Generate vector

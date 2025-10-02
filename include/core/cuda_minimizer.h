@@ -16,6 +16,7 @@
 enum class CudaMinimizerStrategy {
     AUTO_DETECT,     // Default: automatically choose based on available memory
     LOW_MEMORY,      // Force low memory strategy (current implementation)
+    LOW_MEMORY_PROBABILISTIC,      // Force low memory probabilistic strategy
     HIGH_MEMORY,     // Force high memory strategy (precompute transposes)
     BALANCED         // Future: medium memory strategy
 };
@@ -23,6 +24,7 @@ enum class CudaMinimizerStrategy {
 // Forward declarations for friend classes
 template<typename T> class HighMemoryStrategy;
 template<typename T> class LowMemoryStrategy;
+template<typename T> class LowMemoryStrategyProb;
 
 class CudaMinimizerBase {
 public:
@@ -77,6 +79,7 @@ public:
 private:
     friend class HighMemoryStrategy<T>;
     friend class LowMemoryStrategy<T>;
+    friend class LowMemoryStrategyProb<T>;
     // Strategy selection
     std::unique_ptr<MinimizationStrategy<T>> createStrategy(CudaMinimizerStrategy preference, 
                                                             int d, int N, int M);

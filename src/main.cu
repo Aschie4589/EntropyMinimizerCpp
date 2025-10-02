@@ -12,7 +12,7 @@
 #include "helpers/message_handler.h"
 #include "helpers/logger.h"
 
-#include "core/generate_haar_unitary.h"
+#include "core/kraus/random_generator.h"
 #include "core/generate_random_vector.h"
 
 #include "helpers/uuid.h"
@@ -24,6 +24,11 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 #include <cublas_v2.h>
+
+// Forward declarations for strategy classes
+template<typename T> class HighMemoryStrategy;
+template<typename T> class LowMemoryStrategy;
+template<typename T> class LowMemoryStrategyProb;
 
 
 
@@ -86,45 +91,22 @@ int main(int argc, char** argv){
             }
 
 
-            // generate the Kraus operators, DIRECTLY ON DEVICE
-            // Allocate kraus operators
-            cuDoubleComplex* kraus_operators;
-            cudaError_t errmalloc = cudaMalloc(&kraus_operators, d * N * N * sizeof(cuDoubleComplex));
-            if (errmalloc != cudaSuccess) {
-                message_handler->message("Error allocating memory for Kraus operators: " + std::string(cudaGetErrorString(errmalloc)));
-                return 1;
-            }
-            message_handler->message("Successfully allocated " + std::to_string(d * N * N * sizeof(cuDoubleComplex)) + " bytes or " + std::to_string(d * N * N * sizeof(cuDoubleComplex)/1024.0/1024/1024) + " GiB for Kraus operators on device.");
-            // Generate Haar random unitaries
-            cudaError_t err = generateHaarRandomUnitaries(kraus_operators, N, d, 32);
-            if (err != cudaSuccess) {
-                message_handler->message("Error generating Haar random unitaries: " + std::string(cudaGetErrorString(err)));
-                return 1;
-            }
-
-            // Rescale the unitaries using cublas
-            cublasHandle_t handle;
-            cublasCreate(&handle);
-            double alpha = 1/sqrt(d);
-            cublasZdscal(handle, d * N * N, &alpha, kraus_operators, 1);
-
-            // Destroy the handle
-            cublasDestroy(handle);
-
-            // Copy the kraus ops over to device for saving
             std::vector<std::complex<double> >* kraus_operators_host = new std::vector<std::complex<double> >(d * N * N);
-            cudaError_t errcopy = cudaMemcpy(kraus_operators_host->data(), kraus_operators, d * N * N * sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
-            if (errcopy != cudaSuccess) {
-                message_handler->message("Error copying Kraus operators from device to host: " + std::string(cudaGetErrorString(errcopy)));
+            // Create a generator, first config 
+            RandomGeneratorConfig config = RandomGeneratorConfig();
+            config.kraus_number = d;
+            config.kraus_in_dimension = N;
+            config.kraus_out_dimension = N;
+            config.message_handler = message_handler;
+
+            RandomGenerator* generator = new RandomGenerator(config);
+            // generate the kraus operators
+            if ( generator->generate(kraus_operators_host) != 0 ){
+                message_handler->message("Error generating Kraus operators.");
                 return 1;
             }
-            message_handler->message("Successfully copied " + std::to_string(d * N * N * sizeof(cuDoubleComplex)) + " bytes or " + std::to_string(d * N * N * sizeof(cuDoubleComplex)/1024.0/1024/1024) + " GiB of Kraus operators from device to host.");
-            // Free the device memory
-            cudaError_t errfree = cudaFree(kraus_operators);
-            if (errfree != cudaSuccess) {
-                message_handler->message("Error freeing memory for Kraus operators: " + std::string(cudaGetErrorString(errfree)));
-                return 1;
-            }
+            delete generator;
+
             // save the kraus operators
             VectorSerializer serializer = VectorSerializer();
             serializer.serialize("kraus", output, *kraus_operators_host, "Kraus operators for a random unitary channel", d, N);
@@ -228,8 +210,12 @@ int main(int argc, char** argv){
             message_handler->message("Checkpoint interval set to " + std::to_string(subparser->get<int>("-ci")));
         }
 
+        // Parse strategy preference
+        CudaMinimizerStrategy strategy = parseStrategyString(subparser->get<std::string>("--strategy"));
+        message_handler->message("Using strategy: " + subparser->get<std::string>("--strategy"));
+
         // finally, create a minimizer
-        EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, N, &config);
+        EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, N, &config, strategy);
 
         signal(SIGTERM, minimizer->signal_handler);
         signal(SIGINT, minimizer->signal_handler);
@@ -385,8 +371,12 @@ int main(int argc, char** argv){
         config.setLogging(subparser->get<bool>("-l"));
         config.setPrinting(!subparser->get<bool>("-s"));
 
+        // Parse strategy preference
+        CudaMinimizerStrategy strategy = parseStrategyString(subparser->get<std::string>("--strategy"));
+        message_handler->message("Using strategy: " + subparser->get<std::string>("--strategy"));
+
         // finally, create a minimizer
-        EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, N, &config);
+        EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, N, &config, strategy);
 
 
         signal(SIGTERM, minimizer->signal_handler);

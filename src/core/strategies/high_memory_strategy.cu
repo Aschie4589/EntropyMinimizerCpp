@@ -136,7 +136,7 @@ size_t HighMemoryStrategy<T>::getMemoryRequired(CudaMinimizer<T>* minimizer) con
     total_memory += minimizer->N * sizeof(typename CudaTraits<T>::Complex); // Urand
     total_memory += minimizer->d * minimizer->d * sizeof(typename CudaTraits<T>::Complex); // Vrand
     total_memory += 2 * minimizer->N * minimizer->N * minimizer->d * sizeof(typename CudaTraits<T>::Complex); // d_kraus_1 and 2
-    return 1000*total_memory;
+    return total_memory;
 }
 
 template<typename T>

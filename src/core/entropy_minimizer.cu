@@ -31,7 +31,7 @@ __global__ void complex_floats_to_complex_doubles(const cuComplex* in, cuDoubleC
 }
 
 
-EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf){
+EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf, CudaMinimizerStrategy strategy_preference){
 /*
     Wrapper class for the minimization algorithm.
     This class handles the initialization of the minimizer, the configuration, and the logging.
@@ -50,7 +50,7 @@ EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number,
     config = conf;
 
     // Initialize minimizers
-    minimizer_d = new CudaMinimizer<double>(kraus_ops, kraus_number, kraus_in_dimension, kraus_out_dimension, config->epsilon); // This avoids having to use initialize list
+    minimizer_d = new CudaMinimizer<double>(kraus_ops, kraus_number, kraus_in_dimension, kraus_out_dimension, config->epsilon, strategy_preference); // This avoids having to use initialize list
     // Allocate more space on device for single precision kraus_ops
     kraus_ops_f = nullptr;
     cudaError_t err = cudaMalloc((void**)&kraus_ops_f, kraus_number * kraus_in_dimension * kraus_out_dimension * sizeof(cuComplex));
@@ -62,7 +62,7 @@ EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number,
     int blocks = (kraus_number * kraus_in_dimension * kraus_out_dimension + threads_per_block - 1) / threads_per_block; // Calculate number of blocks needed
     complex_doubles_to_complex_floats<<<blocks, threads_per_block>>>(kraus_ops, kraus_ops_f, kraus_number * kraus_in_dimension * kraus_out_dimension);
     cudaDeviceSynchronize();
-    minimizer_f = new CudaMinimizer<float>(kraus_ops_f, kraus_number, kraus_in_dimension, kraus_out_dimension, 1.5e-07f); // This avoids having to use initialize list
+    minimizer_f = new CudaMinimizer<float>(kraus_ops_f, kraus_number, kraus_in_dimension, kraus_out_dimension, 1.5e-07f, strategy_preference); // This avoids having to use initialize list
 
 
     input_dim = kraus_in_dimension;

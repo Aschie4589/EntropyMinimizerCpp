@@ -7,7 +7,7 @@
 #include "config/entropy_config.h"
 class EntropyMinimizer {
 public:
-    EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf);
+    EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf, CudaMinimizerStrategy strategy_preference = CudaMinimizerStrategy::AUTO_DETECT);
     ~EntropyMinimizer();
 
     // Setup functions
