@@ -11,11 +11,19 @@ struct CGGeneratorConfig{
     clebsch::weight out_rep; // Channel output irrep
 
     clebsch::weight anc_rep; // Ancilla irrep
-    int anc_alpha; // If outer multiplicity of anc_rep within (in_rep)^*(x)out_rep is greater than one, which one to use (0, 1, ...)
+    int alpha; // If outer multiplicity of in_rep within (anc_rep)^*(x)out_rep is greater than one, which one to use (0, 1, ...)
 
     double tol = 1e-12; // Tolerance for discarding small clebsch gordan coefficients
 
     MessageHandler* message_handler;
+
+    // Parameterized constructor
+    CGGeneratorConfig(int n, const clebsch::weight& in, const clebsch::weight& out, 
+                      const clebsch::weight& anc, MessageHandler* msg_handler, 
+                      int alpha = 0, double tolerance = 1e-12)
+        : N(n), in_rep(in), out_rep(out), anc_rep(anc), alpha(alpha), 
+          tol(tolerance), message_handler(msg_handler) {}
+    
 };
 
 

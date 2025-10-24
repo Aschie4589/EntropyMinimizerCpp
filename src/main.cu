@@ -14,6 +14,8 @@
 
 #include "core/kraus/random_generator.h"
 #include "core/generate_random_vector.h"
+#include "core/kraus/cg_generator.h"
+#include "helpers/sud_cg.h"
 
 #include "helpers/uuid.h"
 
@@ -38,7 +40,7 @@ int main(int argc, char** argv){
     MessageHandler* message_handler = new MessageHandler();
     // Step 0: Parse command line arguments. Parser is created with new, so it must be deleted.
     argparse::ArgumentParser* parser = parse_arguments(argc, argv);
-    int N, d;
+    int M, N, d;
     
     
 
@@ -109,7 +111,7 @@ int main(int argc, char** argv){
 
             // save the kraus operators
             VectorSerializer serializer = VectorSerializer();
-            serializer.serialize("kraus", output, *kraus_operators_host, "Kraus operators for a random unitary channel", d, N);
+            serializer.serialize("kraus", output, *kraus_operators_host, "Kraus operators for a random unitary channel", d, N, N);
             // Clean up
             delete kraus_operators_host;
 
@@ -117,7 +119,85 @@ int main(int argc, char** argv){
             message_handler->message("Kraus operators saved to " + output + ".");
             return 0;
         }
+        // Case 2: CG was called
+        if (parser->at<argparse::ArgumentParser>("kraus").is_subcommand_used("irrep")){
+            // check printing and logging options and create logger or printer accordingly. Don't give file names or anything.
+            if (parser->at<argparse::ArgumentParser>("kraus").at<argparse::ArgumentParser>("irrep").get<bool>("-l")){
+                message_handler->createLogger();
+            } 
+            if (!parser->at<argparse::ArgumentParser>("kraus").at<argparse::ArgumentParser>("irrep").get<bool>("-s")){
+                message_handler->createPrinter();
+            }
+            // now also print to message handler
+            message_handler->message("CG Kraus creation started.");
+            // first print the full command line
+            std::string full_command = "Command called: ";
+            for (int i = 0; i < argc; i++){
+                full_command += argv[i];
+                full_command += " ";
+            }
+            message_handler->message(full_command);
+            auto* subparser = &parser->at<argparse::ArgumentParser>("kraus").at<argparse::ArgumentParser>("irrep");
+    
+            // Get d
+            int d = subparser->get<int>("-d");
+            
+            // Parse the representation strings
+            std::string in_rep_str = subparser->get<std::string>("-S1");
+            std::string out_rep_str = subparser->get<std::string>("-S2");
+            std::string anc_rep_str = subparser->get<std::string>("-S3");
+            
+            // Simple comma-separated parsing (one-liner each)
+            auto parseRep = [](const std::string& s, int N) {
+                clebsch::weight w(N);
+                std::stringstream ss(s);
+                std::string token;
+                int i = 1;
+                while (std::getline(ss, token, ',') && i <= N) {
+                    w(i++) = std::stoi(token);
+                }
+                return w;
+            };
+            
+            // Create config
+            CGGeneratorConfig config(
+                d, 
+                parseRep(in_rep_str, d), 
+                parseRep(out_rep_str, d), 
+                parseRep(anc_rep_str, d), 
+                message_handler, 
+                subparser->get<int>("--alpha")
+            );
 
+            // Use generator
+            CGGenerator generator(config);
+            // Print out in and out rep dimensions
+            message_handler->message("Input representation dimension: " + std::to_string(config.in_rep.dimension()));
+            message_handler->message("Output representation dimension: " + std::to_string(config.out_rep.dimension()));
+            // Allocate space for Kraus
+            std::vector<std::complex<double>>* kraus = new std::vector<std::complex<double>>(config.out_rep.dimension() * config.in_rep.dimension() * config.anc_rep.dimension());
+            generator.generate(kraus);
+            // Save the kraus operators, use the path chosen by user
+            VectorSerializer serializer = VectorSerializer();
+            serializer.serialize("kraus", subparser->get<std::string>("-o"), *kraus, "Kraus operators generated from CG coefficients", config.anc_rep.dimension(), config.in_rep.dimension(), config.out_rep.dimension());
+            message_handler->message("Kraus operators saved to " + subparser->get<std::string>("-o") + ".");
+            // Now for fun display the full kraus. Pretty print (separate different matrices, and print rows one at the time)
+            for (int i = 0; i < config.anc_rep.dimension(); i++){
+                message_handler->message("Kraus operator " + std::to_string(i) + ":");
+                // Kraus is saved in column major
+                for (int col = 0; col < config.in_rep.dimension(); col++){
+                    std::string row_str = "";
+                    for (int row = 0; row < config.out_rep.dimension(); row++){
+                        row_str += std::to_string((*kraus)[i * config.out_rep.dimension() * config.in_rep.dimension() + col * config.out_rep.dimension() + row].real()) + " ";
+                    }
+                    //message_handler->message(row_str);
+                }
+                
+            }
+            delete kraus;
+            
+        }
+    
     } 
 
     // If condition to decide if any of "singleshot" or "multishot" was called
@@ -162,10 +242,17 @@ int main(int argc, char** argv){
         { // Scoped so that memory is deallocated once we leave this section - deserialized data is heavy!
         // Get the kraus operators from file
         DeserializedData deserialized_data = serializer.deserialize(subparser->get<std::string>("-k"));
+
+        // Get N and d from metadata
+        N = deserialized_data.N;
+        M = deserialized_data.M;
+        d = deserialized_data.d;
+
+
         // Copy the kraus operators to GPU
         message_handler->message("Kraus operators loaded from " + subparser->get<std::string>("-k") + ".");
         
-        cudaError_t errmalloc = cudaMalloc(&d_kraus_operators, deserialized_data.d*deserialized_data.N*deserialized_data.N * sizeof(std::complex<double>));
+        cudaError_t errmalloc = cudaMalloc(&d_kraus_operators, d*N*M * sizeof(std::complex<double>));
         if (errmalloc != cudaSuccess) {
             message_handler->message("Error allocating memory for Kraus operators: " + std::string(cudaGetErrorString(errmalloc)));
             return 1;
@@ -178,11 +265,9 @@ int main(int argc, char** argv){
             return 1;
         }
         message_handler->message("Successfully copied " + std::to_string(deserialized_data.vectorData.size() * sizeof(std::complex<double>)) + " bytes or " + std::to_string(deserialized_data.vectorData.size() * sizeof(std::complex<double>)/1024.0/1024/1024) + " GiB of Kraus operators to device.");
-        // Get N and d from metadata
-        N = deserialized_data.N;
-        d = deserialized_data.d;
         // Log the N and d
         message_handler->message("N: " + std::to_string(N));
+        message_handler->message("M: " + std::to_string(M));
         message_handler->message("d: " + std::to_string(d));
         }
 
@@ -333,15 +418,16 @@ int main(int argc, char** argv){
         DeserializedData deserialized_data = serializer.deserialize(subparser->get<std::string>("-k"));
         // Get N and d from metadata
         N = deserialized_data.N;
+        M = deserialized_data.M;
         d = deserialized_data.d;
 
         // Allocate memory
-        cudaError_t errmalloc = cudaMalloc(&d_kraus_operators, N*N*d * sizeof(std::complex<double>));
+        cudaError_t errmalloc = cudaMalloc(&d_kraus_operators, N*M*d * sizeof(std::complex<double>));
         if (errmalloc != cudaSuccess) {
             message_handler->message("Error allocating memory for Kraus operators: " + std::string(cudaGetErrorString(errmalloc)));
             return 1;
         }
-        message_handler->message("Successfully allocated " + std::to_string(d*N*N * sizeof(std::complex<double>)) + " bytes or " + std::to_string(d*N*N * sizeof(std::complex<double>)/1024.0/1024/1024) + " GiB for Kraus operators on device.");
+        message_handler->message("Successfully allocated " + std::to_string(d*N*M * sizeof(std::complex<double>)) + " bytes or " + std::to_string(d*N*M * sizeof(std::complex<double>)/1024.0/1024/1024) + " GiB for Kraus operators on device.");
 
         // Copy the kraus operators to GPU
         cudaError_t errcopy = cudaMemcpy(d_kraus_operators, deserialized_data.vectorData.data(), deserialized_data.vectorData.size() * sizeof(std::complex<double>), cudaMemcpyHostToDevice);
@@ -354,6 +440,7 @@ int main(int argc, char** argv){
         message_handler->message("Kraus operators loaded from " + subparser->get<std::string>("-k") + ".");
         // Log the N and d
         message_handler->message("N: " + std::to_string(N));
+        message_handler->message("M: " + std::to_string(M));
         message_handler->message("d: " + std::to_string(d));
         }
 
@@ -376,7 +463,7 @@ int main(int argc, char** argv){
         message_handler->message("Using strategy: " + subparser->get<std::string>("--strategy"));
 
         // finally, create a minimizer
-        EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, N, &config, strategy);
+        EntropyMinimizer* minimizer = new EntropyMinimizer(d_kraus_operators, d, N, M, &config, strategy);
 
 
         signal(SIGTERM, minimizer->signal_handler);

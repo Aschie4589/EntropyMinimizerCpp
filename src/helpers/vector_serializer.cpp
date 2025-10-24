@@ -14,7 +14,7 @@ VectorSerializer::~VectorSerializer()
 
 
 void VectorSerializer::serialize(const std::string& type, const std::string& fileName, const std::vector<std::complex<double>>& vec, 
-                                  const std::string& description, int d, int N) {
+                                  const std::string& description, int d, int N, int M) {
     std::ofstream outFile(fileName, std::ios::binary);
     /*
     
@@ -42,8 +42,8 @@ void VectorSerializer::serialize(const std::string& type, const std::string& fil
     - vec: The vector of std::complex<double> to serialize.
     - description: A description of the data being serialized.
     - d: An integer representing the dimension of the data. This is only used for metadata
-    - N: An integer representing the size of the vector. This is only used for metadata.
-    
+    - N: An integer representing the size of the vector, or the input dimension of the channel (K_i is MxN). This is only used for metadata.
+    - M: An integer representing the output dimension of the channel. This is only used for metadata.
     */
     if (!outFile.is_open()) {
         throw std::runtime_error("Failed to open file for writing.");
@@ -71,7 +71,8 @@ void VectorSerializer::serialize(const std::string& type, const std::string& fil
         {"metadata_version", "1.0"},
         {"description", description},
         {"d", d},
-        {"N", N}
+        {"N", N},
+        {"M", M}
     };
     std::string metadataStr = metadata.dump();
     uint32_t metadataSize = metadataStr.size();
@@ -132,9 +133,9 @@ DeserializedData VectorSerializer::deserialize(const std::string& fileName) {
     inFile.read(&metadataStr[0], metadataSize);
     json metadata = json::parse(metadataStr);
 
-    // Extract metadata to DeserualizedData struct
+    // Extract metadata to DeserializedData struct
     std::string description;
-    int d, N;
+    int d, N, M;
 
 
     try {
@@ -157,6 +158,12 @@ DeserializedData VectorSerializer::deserialize(const std::string& fileName) {
             N = metadata["N"].get<int>();
         } else {
             throw std::runtime_error("Missing or invalid 'N' in metadata.");
+        }
+        // Check and extract "M"
+        if (metadata.contains("M") && metadata["M"].is_number_integer()) {
+            M = metadata["M"].get<int>();
+        } else {
+            throw std::runtime_error("Missing or invalid 'M' in metadata.");
         }
     } catch (const std::exception& e) {
         throw std::runtime_error(std::string("Error extracting metadata: ") + e.what());
@@ -209,6 +216,7 @@ DeserializedData VectorSerializer::deserialize(const std::string& fileName) {
     deserializedData.vectorData = vec;
     deserializedData.d = d;
     deserializedData.N = N;
+    deserializedData.M = M;
     deserializedData.description = description;
     deserializedData.metadata = metadata;
 

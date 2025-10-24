@@ -33,9 +33,9 @@ cudaError_t LowMemoryStrategy<T>::initialize(CudaMinimizer<T>* minimizer) {
     Srand = nullptr; 
     Urand = nullptr; 
     Vrand = nullptr;
-    CUDA_MALLOC_CHECK(Srand, sizeof(typename CudaTraits<T>::Real), "Srand for SVD");
-    CUDA_MALLOC_CHECK(Urand, minimizer->N * sizeof(typename CudaTraits<T>::Complex), "Urand for SVD");
-    CUDA_MALLOC_CHECK(Vrand, minimizer->d * minimizer->d * sizeof(typename CudaTraits<T>::Complex), "Vrand for SVD");
+    CUDA_MALLOC_CHECK(Srand, min(minimizer->N, minimizer->M) * sizeof(typename CudaTraits<T>::Real), "Srand for SVD");
+    CUDA_MALLOC_CHECK(Urand, minimizer->N *  minimizer->N * sizeof(typename CudaTraits<T>::Complex), "Urand for SVD");
+    CUDA_MALLOC_CHECK(Vrand, minimizer->d * minimizer->d * minimizer->d * minimizer->d * sizeof(typename CudaTraits<T>::Complex), "Vrand for SVD");
 
     return cudaSuccess;
 }
@@ -244,29 +244,53 @@ cudaError_t LowMemoryStrategy<T>::step_2(CudaMinimizer<T>* minimizer) {
     size_t workspace_device_bytes = 0;
     size_t workspace_host_bytes = 0;
 
-    // Query buffer size
-    cusolverStatus_t svd_status = cusolverDnXgesvdr_bufferSize (
+    // Query buffer size for polar method
+
+    /*
+    cusolverStatus_t
+cusolverDnXgesvdp_bufferSize(
+    cusolverDnHandle_t handle,
+    cusolverDnParams_t params,
+    cusolverEigMode_t jobz,
+    int econ,
+    int64_t m,
+    int64_t n,
+    cudaDataType dataTypeA,
+    const void *A,
+    int64_t lda,
+    cudaDataType dataTypeS,
+    const void *S,
+    cudaDataType dataTypeU,
+    const void *U,
+    int64_t ldu,
+    cudaDataType dataTypeV,
+    const void *V,
+    int64_t ldv,
+    cudaDataType computeType,
+    size_t *workspaceInBytesOnDevice,
+    size_t *workspaceInBytesOnHost)
+    
+    
+    */
+    cusolverStatus_t svd_status = cusolverDnXgesvdp_bufferSize (
         minimizer->cusolver_handle, // cusolver handle
         params, // cusolver parameters
-        'S', // Compute the first k left singular vectors 
-        'N', // Don't bother with the right singular vectors
-        static_cast<int64_t>(minimizer->N), // Number of rows
-        static_cast<int64_t>(minimizer->d * minimizer->d), // Number of columns (dxd)
-        static_cast<int64_t>(1),  // k=1
-        static_cast<int64_t>(6),  // oversampling (= larger subspace). Suggested: 2k, so let's say 3 = 3k.
-        static_cast<int64_t>(8),  // number of iterations, n_iter. Suggested:2
+        CUSOLVER_EIG_MODE_VECTOR, // compute the vectors and not just the values!
+        1, // Economy size for matrices
+        static_cast<int64_t>(minimizer->N), // Number of rows of input matrix
+        static_cast<int64_t>(minimizer->d * minimizer->d), // Number of columns of input matrix (dxd)
         CudaTraits<T>::CUDA_C, // data type of A
         static_cast<void*>(d_vecs_2), // pointer to the input matrix A
         static_cast<int64_t>(minimizer->N), // leading dimension of A
-        CudaTraits<T>::CUDA_R, // data type of Srand
-        static_cast<void*>(Srand), // pointer to the output vector Srand
+        CudaTraits<T>::CUDA_R, // data type of Srand, which has to be Real
+        static_cast<void*>(Srand), // pointer to the output vector Srand, a min(n,m) long vector of reals.
         CudaTraits<T>::CUDA_C, // data type of Urand
-        static_cast<void*>(Urand), // pointer to the output matrix Urand
+        static_cast<void*>(Urand), // pointer to the output matrix Urand, of dimension ldu x m. In this case: NxN
         static_cast<int64_t>(minimizer->N),
         CudaTraits<T>::CUDA_C, // Type of V
-        static_cast<void*>(Vrand), 
-        static_cast<int64_t>(minimizer->d * minimizer->d), // Leading dimension of V (1 since nullptr)
-        CudaTraits<T>::CUDA_C, // Type of work
+        static_cast<void*>(Vrand), // V has to be ldv * n. In this case: (dxd) x (dxd)
+        static_cast<int64_t>(minimizer->d * minimizer->d), // Leading dimension of V
+        CudaTraits<T>::CUDA_C, // compute type
         &workspace_device_bytes, // Pointer to the workspace on device
         &workspace_host_bytes // Pointer to workspace on host 
     );
@@ -275,12 +299,12 @@ cudaError_t LowMemoryStrategy<T>::step_2(CudaMinimizer<T>* minimizer) {
         return cudaErrorUnknown; // Return an error if the query failed
     }
     // Check for errors in the buffer size query
-    if (workspace_device_bytes == 0 || workspace_host_bytes == 0) {
-        std::cerr << "Error querying buffer size for SVD computation: workspace_device_bytes = " 
-                  << workspace_device_bytes << ", workspace_host_bytes = " 
-                  << workspace_host_bytes << std::endl;
-        return cudaErrorUnknown; // Return an error if the buffer size is zero
-    }
+    //if (workspace_device_bytes == 0 || workspace_host_bytes == 0) {
+    //    std::cerr << "Error querying buffer size for SVD computation: workspace_device_bytes = " 
+    //              << workspace_device_bytes << ", workspace_host_bytes = " 
+    //              << workspace_host_bytes << std::endl;
+    //    return cudaErrorUnknown; // Return an error if the buffer size is zero
+    //}
 
     // Allocate workspace on device
     if (workspace_device_bytes > std::max(work_size_1, work_size_2)*sizeof(typename CudaTraits<T>::Complex)){
@@ -312,36 +336,34 @@ cudaError_t LowMemoryStrategy<T>::step_2(CudaMinimizer<T>* minimizer) {
         return cudaErrorMemoryAllocation; // Return memory allocation error
     }
 
-    // Perform the SVD using the randomized method
-    cusolverDnXgesvdr(
+    double h_err_sigma = 0.0;
+    // Perform SVD
+    svd_status = cusolverDnXgesvdp (
         minimizer->cusolver_handle, // cusolver handle
         params, // cusolver parameters
-        'S', // Compute the first k left singular vectors 
-        'N', // Don't bother with the right singular vectors
-        static_cast<int64_t>(minimizer->N), // Number of rows
-        static_cast<int64_t>(minimizer->d * minimizer->d), // Number of columns (dxd)
-        static_cast<int64_t>(1),  // k=1
-        static_cast<int64_t>(6), // oversampling (= larger subspace). Suggested: 2k, so let's say 3 = 3k.
-        static_cast<int64_t>(15),  // number of iterations, n_iter. Suggested:2
+        CUSOLVER_EIG_MODE_VECTOR, // compute the vectors and not just the values!
+        1, // Economy size for matrices
+        static_cast<int64_t>(minimizer->N), // Number of rows of input matrix
+        static_cast<int64_t>(minimizer->d * minimizer->d), // Number of columns of input matrix (dxd)
         CudaTraits<T>::CUDA_C, // data type of A
         static_cast<void*>(d_vecs_2), // pointer to the input matrix A
         static_cast<int64_t>(minimizer->N), // leading dimension of A
-        CudaTraits<T>::CUDA_R, // data type of Srand
-        static_cast<void*>(Srand), // pointer to the output vector Srand
+        CudaTraits<T>::CUDA_R, // data type of Srand, which has to be Real
+        static_cast<void*>(Srand), // pointer to the output vector Srand, a min(n,m) long vector of reals.
         CudaTraits<T>::CUDA_C, // data type of Urand
-        static_cast<void*>(Urand), // pointer to the output matrix Urand
+        static_cast<void*>(Urand), // pointer to the output matrix Urand, of dimension ldu x m. In this case: NxN
         static_cast<int64_t>(minimizer->N),
         CudaTraits<T>::CUDA_C, // Type of V
-        static_cast<void*>(Vrand),   // V (nullptr)
-        static_cast<int64_t>(minimizer->d * minimizer->d), // Leading dimension of V (1 since nullptr)
-        CudaTraits<T>::CUDA_C, // Type of work
-        static_cast<void*>(d_scratch),
-        workspace_device_bytes,
-        h_scratch,
-        workspace_host_bytes,
-        devinfo_2 // Pointer to device info
+        static_cast<void*>(Vrand), // V has to be ldv * n. In this case: (dxd) x (dxd)
+        static_cast<int64_t>(minimizer->d * minimizer->d), // Leading dimension of V
+        CudaTraits<T>::CUDA_C, // compute type
+        d_scratch, // Pointer to the workspace on device
+        workspace_device_bytes, // Pointer to the workspace size on device
+        h_scratch, // Pointer to workspace on host
+        workspace_host_bytes, // Pointer to workspace size on host
+        devinfo_2, // Pointer to device info
+        &h_err_sigma
     );
-
 
     cudaDeviceSynchronize();
     cudaFree(devinfo_2); // Free device info

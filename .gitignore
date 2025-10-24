@@ -1,3 +1,4 @@
+
 # Ignore build directories and object files
 build/
 *.o
@@ -20,3 +21,6 @@ data/
 # Ignore system files
 .DS_Store
 Thumbs.db
+
+# Ignore python cache files
+__pycache__/

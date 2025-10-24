@@ -11,6 +11,7 @@ struct DeserializedData {
     std::vector<std::complex<double>> vectorData;
     int d;                     // Metadata: d
     int N;                     // Metadata: N
+    int M;                     // Metadata: M (only for Kraus operators)
     std::string description;   // Metadata: description
     json metadata;   // Full metadata as JSON
 };
@@ -44,7 +45,7 @@ public:
 
     // Serialize the vector to a file
     static void serialize(const std::string& type, const std::string& fileName, const std::vector<std::complex<double>>& vec, 
-                          const std::string& description, int d, int N);
+                          const std::string& description, int d, int N, int M = 0);
     // Deserialize the vector from a file
     DeserializedData deserialize(const std::string& fileName);
 private:

@@ -203,7 +203,7 @@ namespace clebsch {
         // multiplicity_index = 0, ..., multiplicity - 1
         // factor1_state = 0, ..., factor1_dimension - 1
         // factor2_state = 0, ..., factor2_dimension - 1
-        // irrep_state = 0, ..., irrep_dimension
+        // irrep_state = 0, ..., irrep_dimension - 1
         double operator()(int factor1_state,
                           int factor2_state,
                           int multiplicity_index,

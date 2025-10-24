@@ -71,6 +71,53 @@ argparse::ArgumentParser* parse_arguments(int argc, char** argv){
     .default_value(0)
     .scan<'i', int>();
 
+
+    // SUBSUBPARSER 1: haar unitary kraus operators
+    argparse::ArgumentParser* irrep_parser = new argparse::ArgumentParser("irrep", "0.1", argparse::default_arguments::help);
+    irrep_parser->add_description("Generate Kraus operators corresponding to extremal irreducibly SU(d)-covariant channels.\nThe channel obtained is Phi_{S1,S2}^S3, mapping from End(S1) to End(S2). The ancillary irrep S3 appears in the decomposition (S1)^* tensor S2, and is used to construct the Kraus operators.");
+    kraus_parser->add_subparser(*irrep_parser);
+    // options are N and d for the Haar random unitaries
+    irrep_parser->add_argument("-d")
+    .help("dimension of the group (e.g. \"d\" in SU(d))")
+    .required()
+    .scan<'i', int>();
+    // input irrep
+    irrep_parser->add_argument("--S", "-S1")
+    .help("input irrep (format: \"N1, N2, ..., Nd\")")
+    .required();
+    // output irrep
+    irrep_parser->add_argument("--Sprime", "-S2")
+    .help("output irrep (format: \"N1, N2, ..., Nd\")")
+    .required();
+    // ancillary irrep
+    irrep_parser->add_argument("--Sdoubleprime", "-S3")
+    .help("ancillary irrep (format: \"N1, N2, ..., Nd\"). Note: S3 must appear in the decomposition (S1)^* tensor S2.")
+    .required();
+    // ancillary irrep index
+    irrep_parser->add_argument("--alpha", "-a")
+    .help("index of the ancillary irrep (if it appears multiple times in the decomposition. Zero-based indexing, default = 0.")
+    .default_value(0)
+    .scan<'i', int>();
+    // output file
+    irrep_parser->add_argument("--output", "-o")
+    .help("path to save the Kraus operators")
+    .required();
+    // logging?
+    irrep_parser->add_argument("--logging", "-l")
+    .help("enable logging")
+    .default_value(false)
+    .implicit_value(true);
+    // printing?
+    irrep_parser->add_argument("--silent", "-s")
+    .help("disable printing")
+    .default_value(false)
+    .implicit_value(true);
+    // GPU number to use
+    irrep_parser->add_argument("--gpu", "-g")
+    .help("If multiple GPUs present, GPU number to use for the computation")
+    .default_value(0)
+    .scan<'i', int>();
+
     /*
             SUBPARSER 2: Single-shot entropy minimization
     */

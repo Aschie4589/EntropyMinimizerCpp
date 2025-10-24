@@ -335,6 +335,7 @@ int EntropyMinimizer::stepMinimization(){
             // Only run through CONVERGENCE_ITERS-1 because we want the deltas.
             // Compute entropy[i-1]-entropy[i] which needs to be positive. If negative: stop
             if (entropy_buffer[(current_iteration-i-1)%CONVERGENCE_ITERS]-entropy_buffer[(current_iteration-i)%CONVERGENCE_ITERS]<0){
+                //message_handler->message("Numerical instability detected: entropy increased in the last " + std::to_string(CONVERGENCE_ITERS) + " iterations. Stopping minimization.");
                 return ENTROPY_MINIMIZER_NUMERICAL_INST; // Stop
             }
         }

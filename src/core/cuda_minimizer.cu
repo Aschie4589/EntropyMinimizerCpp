@@ -57,8 +57,8 @@ CudaMinimizer<T>::CudaMinimizer(typename CudaTraits<T>::Complex* d_kraus_p, int 
 
     // SVD only supports the case cols >= rows.
     /* TODO: Implement a better algorithm for the second SVD, where only the top eigenvector is actually needed!*/
-    if (d * d > N || d > M){
-        std::cerr << "Error: d * d > N or d > M. This is not supported by the SVD algorithm." << std::endl;
+    if (d > M){
+        std::cerr << "Error: d > M. This is not supported by the SVD algorithm." << std::endl;
         throw std::runtime_error("Invalid dimensions for SVD");
     }
 
