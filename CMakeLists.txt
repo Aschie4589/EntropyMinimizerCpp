@@ -8,6 +8,10 @@ project(moe LANGUAGES CXX CUDA)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Skip RPATH to allow local LAPACK/BLAS libraries to take precedence
+set(CMAKE_SKIP_RPATH TRUE)
+set(CMAKE_SKIP_INSTALL_RPATH TRUE)
+
 # Add base compiler flags
 add_compile_options(-march=native -O3 -ftree-vectorize -fdiagnostics-color=always)
 
@@ -112,17 +116,19 @@ elseif(LAPACK STREQUAL "openblas")
     # Set your local OpenBLAS install path
     set(OPENBLAS_ROOT "$ENV{HOME}/.local")
 
-    # Include headers and link directories
+    # Include headers and link directories - prioritize local over system
     target_include_directories(moe PRIVATE ${OPENBLAS_ROOT}/include)
     link_directories(${OPENBLAS_ROOT}/lib)
 
     # Manually find and link the static or shared libs
-    find_library(OPENBLAS_LIB openblas PATHS ${OPENBLAS_ROOT}/lib REQUIRED)
-    find_library(LAPACKE_LIB lapacke PATHS ${OPENBLAS_ROOT}/lib REQUIRED)
+    # NO_DEFAULT_PATH ensures we use local libraries first, not system ones
+    find_library(OPENBLAS_LIB openblas PATHS ${OPENBLAS_ROOT}/lib NO_DEFAULT_PATH REQUIRED)
+    find_library(LAPACKE_LIB lapacke PATHS ${OPENBLAS_ROOT}/lib NO_DEFAULT_PATH REQUIRED)
 
     message(STATUS "Found OpenBLAS: ${OPENBLAS_LIB}")
     message(STATUS "Found LAPACKE: ${LAPACKE_LIB}")
 
+    # Link libraries with full paths to avoid system library conflicts
     target_link_libraries(moe PRIVATE ${OPENBLAS_LIB} ${LAPACKE_LIB} pthread m)
 
     # Define macro for your code
