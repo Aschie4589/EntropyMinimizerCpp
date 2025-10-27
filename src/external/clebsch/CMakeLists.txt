@@ -11,30 +11,15 @@ target_compile_features(clebsch PUBLIC cxx_std_17)
 # Include the current directory for headers
 target_include_directories(clebsch PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Find LAPACK - it's optional but recommended
-find_package(LAPACK)
+# Use the LAPACK configuration from root CMakeLists
+target_include_directories(clebsch PUBLIC ${LAPACK_INCLUDE_DIR})
+target_link_libraries(clebsch PUBLIC ${LAPACK_LIBRARIES})
 
-if(LAPACK_FOUND)
-    # Link LAPACK
-    target_link_libraries(clebsch PUBLIC LAPACK::LAPACK)
-    
-    # Try to detect and set backend definition
-    # This is used in lapack_interface.h to include the right headers
-    if(APPLE AND "${LAPACK_LIBRARIES}" MATCHES "Accelerate")
-        target_compile_definitions(clebsch PUBLIC LAPACK_ACCELERATE ACCELERATE_NEW_LAPACK)
-        message(STATUS "Clebsch: Using Apple Accelerate framework")
-    elseif("${LAPACK_LIBRARIES}" MATCHES "lapacke|openblas")
-        target_compile_definitions(clebsch PUBLIC LAPACK_OPENBLAS)
-        message(STATUS "Clebsch: Using OpenBLAS (with lapacke)")
-    elseif("${LAPACK_LIBRARIES}" MATCHES "mkl")
-        target_compile_definitions(clebsch PUBLIC LAPACK_MKL)
-        message(STATUS "Clebsch: Using Intel MKL")
-    else()
-        # Generic system LAPACK - use Fortran interface only
-        message(STATUS "Clebsch: Using system LAPACK (Fortran interface)")
-    endif()
-    
-    message(STATUS "Clebsch: LAPACK libraries: ${LAPACK_LIBRARIES}")
+# Set compile definitions based on LAPACK backend used in root
+if(LAPACK_OPENBLAS)
+    target_compile_definitions(clebsch PUBLIC LAPACK_OPENBLAS)
+    message(STATUS "Clebsch: Using OpenBLAS backend")
 else()
-    message(STATUS "Clebsch: LAPACK not found - will use Fortran interface declarations")
+    # Fallback to system LAPACK (Fortran interface only)
+    message(STATUS "Clebsch: Using system LAPACK (Fortran interface)")
 endif()

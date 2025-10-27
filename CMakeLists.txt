@@ -1,42 +1,42 @@
-### This file contains project-wide configuration: compiler, cpp standard, dependencies, top level subdirectory includes.
-
+###############################################################################
+# PROJECT CONFIGURATION & GLOBAL SETTINGS
+###############################################################################
 
 cmake_minimum_required(VERSION 3.15)
-project(moe LANGUAGES CXX CUDA)
+project(EntropyMinimizer LANGUAGES CXX CUDA)
 
-# C++ standard and common flags
+# =============================================================================
+# GLOBAL COMPILATION SETTINGS (Applied to all targets)
+# =============================================================================
+
+# C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# CUDA architecture
+set(CMAKE_CUDA_ARCHITECTURES 89)
+
+# Common compiler flags (optimization, native, vectorization)
+add_compile_options(-march=native -O3 -ftree-vectorize -fdiagnostics-color=always)
 
 # Skip RPATH to allow local LAPACK/BLAS libraries to take precedence
 set(CMAKE_SKIP_RPATH TRUE)
 set(CMAKE_SKIP_INSTALL_RPATH TRUE)
 
-# Add base compiler flags
-add_compile_options(-march=native -O3 -ftree-vectorize -fdiagnostics-color=always)
+# =============================================================================
+# DIRECTORY SETUP
+# =============================================================================
 
-# Set CUDA architecture (optional but recommended)
-# Replace 'sm_70' with your GPU architecture (e.g., sm_75, sm_80)
-set(CMAKE_CUDA_ARCHITECTURES 89)
-
-# Dependencies
-find_package(CUDAToolkit REQUIRED)
-
-# Add source tree - this builds all libraries
-add_subdirectory(src)
-
-# Directories
 set(SRC_DIR "${CMAKE_SOURCE_DIR}/src")
 set(INCLUDE_DIR "${CMAKE_SOURCE_DIR}/include")
 
+# Add include directory to all targets
 include_directories(${INCLUDE_DIR})
 
-# LAPACK implementation choice (default = openblas)
-if(NOT DEFINED LAPACK)
-    set(LAPACK "openblas")
-endif()
+# =============================================================================
+# PLATFORM DETECTION
+# =============================================================================
 
-# Platform check
 if(APPLE)
     set(PLATFORM "apple")
 elseif(UNIX)
@@ -45,98 +45,162 @@ else()
     message(FATAL_ERROR "Unsupported platform.")
 endif()
 
-# Find NVTX (NVIDIA Tools Extension)
+# =============================================================================
+# EXTERNAL DEPENDENCIES
+# =============================================================================
+
+# CUDA Toolkit
+find_package(CUDAToolkit REQUIRED)
+
+# OpenMP
+find_package(OpenMP REQUIRED)
+
+# NVTX (NVIDIA Tools Extension)
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../NVTX" "ImportNVTX")
 
-# Collect only the main entry point source files
-file(GLOB_RECURSE MAIN_SOURCES "${SRC_DIR}/main/moe/*.cpp" "${SRC_DIR}/main/moe/*.cu")
+# =============================================================================
+# LAPACK BACKEND CONFIGURATION
+# =============================================================================
 
-# Define the executable with only the main entry point
-add_executable(moe ${MAIN_SOURCES})
+if(NOT DEFINED LAPACK)
+    set(LAPACK "openblas")
+endif()
 
-target_include_directories(moe PRIVATE ${CUDAToolkit_INCLUDE_DIRS} ${INCLUDE_DIR} ${SRC_DIR}/external)
+if(LAPACK STREQUAL "accelerate")
+    if(NOT APPLE)
+        message(FATAL_ERROR "Accelerate framework is only available on macOS.")
+    endif()
+    message(STATUS "LAPACK Backend: Accelerate (macOS)")
+    set(LAPACK_FOUND TRUE)
+    set(LAPACK_LIBRARIES "-framework Accelerate")
+    add_compile_definitions(LAPACK_ACCELERATE ACCELERATE_NEW_LAPACK)
 
-# Link all minimizer libraries
+elseif(LAPACK STREQUAL "openblas")
+    set(OPENBLAS_ROOT "$ENV{HOME}/.local")
+    
+    # Find OpenBLAS and LAPACKE with NO_DEFAULT_PATH to prioritize local install
+    find_library(OPENBLAS_LIB openblas PATHS ${OPENBLAS_ROOT}/lib NO_DEFAULT_PATH REQUIRED)
+    find_library(LAPACKE_LIB lapacke PATHS ${OPENBLAS_ROOT}/lib NO_DEFAULT_PATH REQUIRED)
+    
+    message(STATUS "LAPACK Backend: OpenBLAS")
+    message(STATUS "  OpenBLAS: ${OPENBLAS_LIB}")
+    message(STATUS "  LAPACKE:  ${LAPACKE_LIB}")
+    
+    set(LAPACK_FOUND TRUE)
+    set(LAPACK_LIBRARIES ${OPENBLAS_LIB} ${LAPACKE_LIB} pthread m)
+    set(LAPACK_INCLUDE_DIR ${OPENBLAS_ROOT}/include)
+    add_compile_definitions(LAPACK_OPENBLAS)
+    
+    # Make LAPACK variables available to all targets
+    set(LAPACK_OPENBLAS TRUE CACHE BOOL "Using OpenBLAS backend" FORCE)
+
+else()
+    message(FATAL_ERROR "Invalid LAPACK backend: ${LAPACK}. Choose from: accelerate, openblas")
+endif()
+
+# Cache LAPACK variables for use by subdirectories
+set(LAPACK_LIBRARIES "${LAPACK_LIBRARIES}" CACHE STRING "LAPACK libraries" FORCE)
+set(LAPACK_INCLUDE_DIR "${LAPACK_INCLUDE_DIR}" CACHE STRING "LAPACK include directory" FORCE)
+
+# =============================================================================
+# BUILD ALL LIBRARIES (src tree)
+# =============================================================================
+
+add_subdirectory(src)
+
+###############################################################################
+# EXECUTABLE TARGETS
+###############################################################################
+
+# Define a helper function to simplify executable creation
+function(create_executable TARGET_NAME MAIN_SOURCE_DIR)
+    file(GLOB_RECURSE SOURCES "${MAIN_SOURCE_DIR}/*.cpp" "${MAIN_SOURCE_DIR}/*.cu")
+    
+    add_executable(${TARGET_NAME} ${SOURCES})
+    
+    # Directories
+    target_include_directories(${TARGET_NAME} PRIVATE 
+        ${CUDAToolkit_INCLUDE_DIRS} 
+        ${INCLUDE_DIR} 
+        ${SRC_DIR}/external
+        ${LAPACK_INCLUDE_DIR}
+    )
+    
+    # CUDA settings
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+    )
+    
+    message(STATUS "Executable target configured: ${TARGET_NAME}")
+endfunction()
+
+# =============================================================================
+# TARGET: moe (Main Optimization Engine)
+# =============================================================================
+
+create_executable(moe "${SRC_DIR}/main/moe")
+
+# Link libraries for moe
 target_link_libraries(moe PRIVATE
+    # Minimizer libraries
     minimizer_algorithm
     minimizer_core
     minimizer_config
     minimizer_analysis
     minimizer_utilities
-)
-
-# Link channel libraries
-target_link_libraries(moe PRIVATE
+    
+    # Channel libraries
     kraus_generators
     channel_utils
-)
-
-# Link utility libraries
-target_link_libraries(moe PRIVATE
+    
+    # Utility libraries
     messaging
     serializer
     uuid
-)
-
-# Link CUDA libraries: cuSOLVER, cuRAND
-target_link_libraries(moe PRIVATE
+    
+    # CUDA libraries
     CUDA::cudart
+    CUDA::cublas
     CUDA::cusolver
     CUDA::curand
-    CUDA::cublas
+    
+    # Profiling
+    nvtx3-cpp
+    
+    # Parallelization
+    OpenMP::OpenMP_CXX
+    
+    # LAPACK backend
+    ${LAPACK_LIBRARIES}
 )
 
-# Link against NVTX (nvToolsExt)
-target_link_libraries(moe PRIVATE nvtx3-cpp)
+# =============================================================================
+# TARGET: stage1 (Placeholder for your next executable)
+# =============================================================================
 
-# Set properties for CUDA compilation
-set_target_properties(moe PROPERTIES
-    CUDA_SEPARABLE_COMPILATION ON
-)
+# Uncomment and modify when ready to add stage1 executable
+# create_executable(stage1 "${SRC_DIR}/main/stage1")
+# 
+# target_link_libraries(stage1 PRIVATE
+#     # Add your libraries here
+#     minimizer_algorithm
+#     minimizer_core
+#     # ... etc
+#     ${LAPACK_LIBRARIES}
+# )
 
-# OpenMP support
-find_package(OpenMP REQUIRED)
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(moe PRIVATE OpenMP::OpenMP_CXX)
-endif()
+###############################################################################
+# BUILD SUMMARY
+###############################################################################
 
-# Link and include LAPACK backend
-if(LAPACK STREQUAL "accelerate")
-    if(APPLE)
-        add_compile_definitions(LAPACK_ACCELERATE ACCELERATE_NEW_LAPACK)
-        find_library(ACCELERATE_FRAMEWORK Accelerate REQUIRED)
-        # Link LAPACK
-        target_link_libraries(moe PRIVATE ${ACCELERATE_FRAMEWORK})
-        target_compile_definitions(moe PRIVATE LAPACK_ACCELERATE)
-    else()
-        message(FATAL_ERROR "Accelerate is only available on macOS.")
-    endif()
-
-elseif(LAPACK STREQUAL "openblas")
-    # Set your local OpenBLAS install path
-    set(OPENBLAS_ROOT "$ENV{HOME}/.local")
-
-    # Include headers and link directories - prioritize local over system
-    target_include_directories(moe PRIVATE ${OPENBLAS_ROOT}/include)
-    link_directories(${OPENBLAS_ROOT}/lib)
-
-    # Manually find and link the static or shared libs
-    # NO_DEFAULT_PATH ensures we use local libraries first, not system ones
-    find_library(OPENBLAS_LIB openblas PATHS ${OPENBLAS_ROOT}/lib NO_DEFAULT_PATH REQUIRED)
-    find_library(LAPACKE_LIB lapacke PATHS ${OPENBLAS_ROOT}/lib NO_DEFAULT_PATH REQUIRED)
-
-    message(STATUS "Found OpenBLAS: ${OPENBLAS_LIB}")
-    message(STATUS "Found LAPACKE: ${LAPACKE_LIB}")
-
-    # Link libraries with full paths to avoid system library conflicts
-    target_link_libraries(moe PRIVATE ${OPENBLAS_LIB} ${LAPACKE_LIB} pthread m)
-
-    # Define macro for your code
-    target_compile_definitions(moe PRIVATE LAPACK_OPENBLAS)
-
-else()
-    message(FATAL_ERROR "Invalid LAPACK setting: ${LAPACK}. Choose from: accelerate, openblas")
-endif()
-
-message(STATUS "MOE executable target configured successfully")
+message(STATUS "")
+message(STATUS "========== BUILD CONFIGURATION SUMMARY ==========")
+message(STATUS "Project:              ${PROJECT_NAME}")
+message(STATUS "C++ Standard:         ${CMAKE_CXX_STANDARD}")
+message(STATUS "CUDA Architecture:    ${CMAKE_CUDA_ARCHITECTURES}")
+message(STATUS "Platform:             ${PLATFORM}")
+message(STATUS "LAPACK Backend:       ${LAPACK}")
+message(STATUS "Build Type:           ${CMAKE_BUILD_TYPE}")
+message(STATUS "================================================")
+message(STATUS "")
 
