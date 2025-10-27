@@ -1,0 +1,3 @@
+add_subdirectory(clebsch)
+add_subdirectory(argparse)
+add_subdirectory(nlohmann)

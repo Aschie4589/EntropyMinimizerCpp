@@ -1,3 +1,6 @@
+### This file contains project-wide configuration: compiler, cpp standard, dependencies, top level subdirectory includes.
+
+
 cmake_minimum_required(VERSION 3.15)
 project(moe LANGUAGES CXX CUDA)
 
@@ -12,19 +15,17 @@ add_compile_options(-march=native -O3 -ftree-vectorize -fdiagnostics-color=alway
 # Replace 'sm_70' with your GPU architecture (e.g., sm_75, sm_80)
 set(CMAKE_CUDA_ARCHITECTURES 89)
 
-
+# Dependencies
 find_package(CUDAToolkit REQUIRED)
+
+# Add source tree - this builds all libraries
+add_subdirectory(src)
+
 # Directories
 set(SRC_DIR "${CMAKE_SOURCE_DIR}/src")
 set(INCLUDE_DIR "${CMAKE_SOURCE_DIR}/include")
 
 include_directories(${INCLUDE_DIR})
-
-# Collect all source files
-file(GLOB_RECURSE CPP_SOURCES "${SRC_DIR}/*.cpp")
-file(GLOB_RECURSE CU_SOURCES "${SRC_DIR}/*.cu")
-
-set(SOURCES ${CPP_SOURCES} ${CU_SOURCES})
 
 # LAPACK implementation choice (default = openblas)
 if(NOT DEFINED LAPACK)
@@ -43,24 +44,48 @@ endif()
 # Find NVTX (NVIDIA Tools Extension)
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../NVTX" "ImportNVTX")
 
-# Define the executable
-add_executable(moe ${SOURCES})
+# Collect only the main entry point source files
+file(GLOB_RECURSE MAIN_SOURCES "${SRC_DIR}/main/moe/*.cpp" "${SRC_DIR}/main/moe/*.cu")
 
-target_include_directories(moe PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+# Define the executable with only the main entry point
+add_executable(moe ${MAIN_SOURCES})
 
+target_include_directories(moe PRIVATE ${CUDAToolkit_INCLUDE_DIRS} ${INCLUDE_DIR} ${SRC_DIR}/external)
+
+# Link all minimizer libraries
+target_link_libraries(moe PRIVATE
+    minimizer_algorithm
+    minimizer_core
+    minimizer_config
+    minimizer_analysis
+    minimizer_utilities
+)
+
+# Link channel libraries
+target_link_libraries(moe PRIVATE
+    kraus_generators
+    channel_utils
+)
+
+# Link utility libraries
+target_link_libraries(moe PRIVATE
+    messaging
+    serializer
+    uuid
+)
 
 # Link CUDA libraries: cuSOLVER, cuRAND
 target_link_libraries(moe PRIVATE
     CUDA::cudart
     CUDA::cusolver
     CUDA::curand
+    CUDA::cublas
 )
-
 
 # Link against NVTX (nvToolsExt)
 target_link_libraries(moe PRIVATE nvtx3-cpp)
 
-# Set properties for CUDA compilation (optional)
+# Set properties for CUDA compilation
 set_target_properties(moe PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
 )
@@ -82,7 +107,6 @@ if(LAPACK STREQUAL "accelerate")
     else()
         message(FATAL_ERROR "Accelerate is only available on macOS.")
     endif()
-
 
 elseif(LAPACK STREQUAL "openblas")
     # Set your local OpenBLAS install path
@@ -108,5 +132,5 @@ else()
     message(FATAL_ERROR "Invalid LAPACK setting: ${LAPACK}. Choose from: accelerate, openblas")
 endif()
 
-
+message(STATUS "MOE executable target configured successfully")
 
