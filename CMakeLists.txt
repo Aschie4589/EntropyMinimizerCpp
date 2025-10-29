@@ -19,9 +19,15 @@ set(CMAKE_CUDA_ARCHITECTURES 89)
 # Common compiler flags (optimization, native, vectorization)
 add_compile_options(-march=native -O3 -ftree-vectorize -fdiagnostics-color=always)
 
-# Skip RPATH to allow local LAPACK/BLAS libraries to take precedence
-set(CMAKE_SKIP_RPATH TRUE)
-set(CMAKE_SKIP_INSTALL_RPATH TRUE)
+# Use RPATH to embed library paths in executables
+# This allows executables to find libraries without setting LD_LIBRARY_PATH
+set(CMAKE_SKIP_RPATH FALSE)
+set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
+set(CMAKE_INSTALL_NAME_DIR "@rpath")
+
+# Suppress RPATH warning about library conflicts
+set(CMAKE_SKIP_INSTALL_RPATH FALSE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 # =============================================================================
 # DIRECTORY SETUP
@@ -102,6 +108,12 @@ endif()
 set(LAPACK_LIBRARIES "${LAPACK_LIBRARIES}" CACHE STRING "LAPACK libraries" FORCE)
 set(LAPACK_INCLUDE_DIR "${LAPACK_INCLUDE_DIR}" CACHE STRING "LAPACK include directory" FORCE)
 
+# Configure RPATH for executables to find libraries
+if(LAPACK STREQUAL "openblas")
+    set(CMAKE_BUILD_RPATH "${OPENBLAS_ROOT}/lib")
+    message(STATUS "RPATH configured to: ${CMAKE_BUILD_RPATH}")
+endif()
+
 # =============================================================================
 # BUILD ALL LIBRARIES (src tree)
 # =============================================================================
@@ -174,6 +186,34 @@ target_link_libraries(moe PRIVATE
     ${LAPACK_LIBRARIES}
 )
 
+# =============================================================================
+# TARGET: phase1 (Main Phase 1 Application)
+# =============================================================================
+create_executable(phase1 "${SRC_DIR}/main/phase1")
+
+target_link_libraries(phase1 PRIVATE
+    # Channel libraries
+    kraus_generators
+    channel_utils
+    
+    # Utility libraries
+    messaging
+    
+    # CUDA libraries
+    CUDA::cudart
+    CUDA::cublas
+    CUDA::cusolver
+    CUDA::curand
+    
+    # Profiling
+    nvtx3-cpp
+    
+    # Parallelization
+    OpenMP::OpenMP_CXX
+    
+    # LAPACK backend
+    ${LAPACK_LIBRARIES}
+)
 # =============================================================================
 # TARGET: stage1 (Placeholder for your next executable)
 # =============================================================================

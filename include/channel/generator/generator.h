@@ -20,6 +20,7 @@ public:
     virtual int generate(std::vector<std::complex<double>>* kraus) = 0; // Purely virtual, MUST be implemented by derived classes
     
     ConfigType* getConfig() const { return &config; }
+    int setConfig(const ConfigType& cfg) { config = cfg; return 0; }
     
 protected:
     ConfigType config;
