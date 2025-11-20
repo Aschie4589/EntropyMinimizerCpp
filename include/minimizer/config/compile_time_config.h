@@ -49,6 +49,7 @@ EntropyMinimizer parameters
 */
 #define CONVERGENCE_TOLERANCE 1e-15     // When running the algorithm, if the improvement is below this threshold value for CONVERGENCE_ITERS iterations, 
 #define CONVERGENCE_ITERS 20            // How many iterations to average over to check for convergence
+#define PRINT_PRECISION 12              // Precision for printing entropy values
 
 /*
 Entropy estimator parameters

@@ -11,6 +11,7 @@
 
 #include "channel/generator/random_generator.h"
 #include "utilities/messaging/message_handler.h"
+#include "utilities/messaging/printer.h"
 #include "yaml-cpp/yaml.h"
 
 #include "minimizer/analysis/tensor_entropy.h"
@@ -58,8 +59,8 @@ int main(int argc, char** argv){
     }
 
     // Create a message handler object
-    MessageHandler* msg_handler = new MessageHandler();
-    msg_handler->createPrinter();
+    auto msg_handler = std::make_unique<MessageHandler>();
+    msg_handler->addSink(std::make_unique<Printer>(0, true));
 
     // Create TensorEntropyEstimator to get the tensor entropy of the channels
     TensorEntropyEstimator<double>* tensor_estimator = new TensorEntropyEstimator<double>();
@@ -84,12 +85,11 @@ int main(int argc, char** argv){
         rg_config.kraus_number = d;
         rg_config.kraus_in_dimension = N;
         rg_config.kraus_out_dimension = N;
-        rg_config.message_handler = msg_handler;
 
         // For each channel
         for (int ch=0; ch<num_channels; ch++){
             std::cout << "Generating channel " << ch+1 << " of " << num_channels << std::endl;
-            RandomGenerator rg(rg_config);
+            RandomGenerator rg(rg_config, *msg_handler);
             
             // Generate unique string: kraus_N_{N}_d_{d}_ch_{ch}_{YY_MM_DD-hh_mm_ss}
             std::ostringstream oss;
@@ -124,7 +124,7 @@ int main(int argc, char** argv){
             tensor_estimator->computeEntropy(reinterpret_cast<cuDoubleComplex*>(h_kraus->data()), rg_config.kraus_number, rg_config.kraus_in_dimension, rg_config.kraus_out_dimension, tensor_eps);
 
 
-            msg_handler->message("Entropy computed to: " + std::to_string(tensor_estimator->getEstimatedEntropy()) + " +/- " + std::to_string(tensor_estimator->getEstimatedError()));
+            msg_handler->info("Entropy computed to: " + std::to_string(tensor_estimator->getEstimatedEntropy()) + " +/- " + std::to_string(tensor_estimator->getEstimatedError()));
             // Generate YAML file with information about channel and run
             std::string yaml_filename = save_folder + "/info.yml";
             std::cout << "Saving channel info to YAML file: " << yaml_filename << std::endl;
@@ -153,11 +153,10 @@ int main(int argc, char** argv){
             
             // Compare to the theoretical entropy of log(d)(2-1/d), d being number of kraus operators
             double theoretical_entropy = std::log(static_cast<double>(d)) * (2.0 - 1.0 / static_cast<double>(d));
-            msg_handler->message("Theoretical entropy (tensor channel): " + std::to_string(theoretical_entropy));
+            msg_handler->info("Theoretical entropy (tensor channel): " + std::to_string(theoretical_entropy));
         }
     }
 
-    delete msg_handler;
     delete tensor_estimator;
     delete h_kraus;
     return 0;

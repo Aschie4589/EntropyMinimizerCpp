@@ -35,7 +35,9 @@ __global__ void complex_floats_to_complex_doubles(const cuComplex* in, cuDoubleC
 }
 
 
-EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf, CudaMinimizerStrategy strategy_preference){
+EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf, MessageHandler& msg_handler, CudaMinimizerStrategy strategy_preference)
+    : message_handler_(msg_handler)
+{
 /*
     Wrapper class for the minimization algorithm.
     This class handles the initialization of the minimizer, the configuration, and the logging.
@@ -48,6 +50,7 @@ EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number,
     - kraus_in_dimension: input dimension of the kraus operators
     - kraus_out_dimension: output dimension of the kraus operators
     - conf: pointer to the configuration object that contains the parameters for the minimization algorithm
+    - msg_handler: reference to the message handler for logging and printing
 
 */
     // Store configuration
@@ -77,23 +80,12 @@ EntropyMinimizer::EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number,
     current_iteration = 0;
     MOE = -1;
 
-    // Setup logging and messages
-    message_handler = new MessageHandler();
-    message_handler->createPrinter();
-    if (config->use_custom_log_file){
-        message_handler->createLogger(config->log_file);
-    } else {
-        message_handler->createLogger();
-    }
-    message_handler->setLogging(config->log);
-    message_handler->setPrinting(config->print);  
-
     if (config->MOE_variable_precision){
-        message_handler->message("Using adaptive precision for MOE calculations. Starting with float precision.");
+        message_handler_.info("Using adaptive precision for MOE calculations. Starting with float precision.");
         current_precision_float = true;
         setMinimizer(minimizer_f);
     } else {
-        message_handler->message("Using double precision for MOE calculations.");
+        message_handler_.info("Using double precision for MOE calculations.");
         current_precision_float = false; // Use full precision already now.
         setMinimizer(minimizer_d);
     }
@@ -140,7 +132,7 @@ cudaError_t EntropyMinimizer::requestStep(){
     */
     cudaError_t err = minimizer->step();
     if (err != cudaSuccess) {
-        message_handler->message("Failed to requestStep: " + std::string(cudaGetErrorString(err)));
+        message_handler_.error("Failed to requestStep: " + std::string(cudaGetErrorString(err)));
     }
     return err;
 }
@@ -183,21 +175,21 @@ cudaError_t EntropyMinimizer::initializeRun(){
 
     */
 
-    message_handler -> message("Initializing new run. Selecting the appropriate precision for the minimizer...");
+    message_handler_.info("Initializing new run. Selecting the appropriate precision for the minimizer...");
     if (config->MOE_variable_precision) {
-        message_handler->message("Using float precision for minimizer initialization.");
+        message_handler_.info("Using float precision for minimizer initialization.");
         current_precision_float = true; // Start with float precision
         setMinimizer(minimizer_f); // Use float precision minimizer
     } else {
-        message_handler->message("Using double precision for minimizer initialization.");
+        message_handler_.info("Using double precision for minimizer initialization.");
         current_precision_float = false; // Use double precision
         setMinimizer(minimizer_d); // Use double precision minimizer
     }
 
-    message_handler->message("Generating a random vector...");
+    message_handler_.info("Generating a random vector...");
     cudaError_t err = minimizer -> initializeRandomVector();
     if (err != cudaSuccess){
-        message_handler->message("Failed to initialize random vector: " + std::string(cudaGetErrorString(err)));
+        message_handler_.error("Failed to initialize random vector: " + std::string(cudaGetErrorString(err)));
         return err;
     }
 
@@ -239,13 +231,13 @@ cudaError_t EntropyMinimizer::initializeRun(cuDoubleComplex* start_vector){
     - The passed vector is copied to the device memory.
     
     */
-    message_handler -> message("Initializing new run. Selecting the appropriate precision for the minimizer...");
+    message_handler_.info("Initializing new run. Selecting the appropriate precision for the minimizer...");
     if (config->MOE_variable_precision) {
-        message_handler->message("Using float precision for minimizer initialization.");
+        message_handler_.info("Using float precision for minimizer initialization.");
         current_precision_float = true; // Start with float precision
         setMinimizer(minimizer_f); // Use float precision minimizer
     } else {
-        message_handler->message("Using double precision for minimizer initialization.");
+        message_handler_.info("Using double precision for minimizer initialization.");
         current_precision_float = false; // Use double precision
         setMinimizer(minimizer_d); // Use double precision minimizer
     }
@@ -258,20 +250,20 @@ cudaError_t EntropyMinimizer::initializeRun(cuDoubleComplex* start_vector){
                                             static_cast<float>(start_vector[i].y));
         }
         // Initialize device...
-        message_handler->message("Copying start vector to device in float precision.");
+        message_handler_.info("Copying start vector to device in float precision.");
         cudaError_t err = minimizer_f->initializeVectorFromHost(static_cast<void*>(tmp_vector));
         delete[] tmp_vector; // Free the temporary vector
         if (err != cudaSuccess) {
-            message_handler->message("Failed to initialize vector from host: " + std::string(cudaGetErrorString(err)));
+            message_handler_.error("Failed to initialize vector from host: " + std::string(cudaGetErrorString(err)));
             return err;
         }
 
     } else {
-        message_handler->message("Copying start vector to device in double precision.");
+        message_handler_.info("Copying start vector to device in double precision.");
         // Initialize device with the given start vector
         cudaError_t err = minimizer_d->initializeVectorFromHost(static_cast<void*>(start_vector));
         if (err != cudaSuccess) {
-            message_handler->message("Failed to initialize vector from host: " + std::string(cudaGetErrorString(err)));
+            message_handler_.error("Failed to initialize vector from host: " + std::string(cudaGetErrorString(err)));
             return err;
         }
     }
@@ -282,7 +274,7 @@ cudaError_t EntropyMinimizer::initializeRun(cuDoubleComplex* start_vector){
     
     current_iteration = 0;
     if (config->MOE_prediction_tolerance){
-        message_handler->message("MOE prediction tolerance is set to " + std::to_string(config->MOE_prediction_tolerance) + ". Using adaptive precision for MOE calculations.");
+        message_handler_.info("MOE prediction tolerance is set to " + std::to_string(config->MOE_prediction_tolerance) + ". Using adaptive precision for MOE calculations.");
         current_precision_float = true; // Start with float precision
     } else {
         current_precision_float = false; // Use double precision
@@ -339,7 +331,7 @@ int EntropyMinimizer::stepMinimization(){
             // Only run through CONVERGENCE_ITERS-1 because we want the deltas.
             // Compute entropy[i-1]-entropy[i] which needs to be positive. If negative: stop
             if (entropy_buffer[(current_iteration-i-1)%CONVERGENCE_ITERS]-entropy_buffer[(current_iteration-i)%CONVERGENCE_ITERS]<0){
-                //message_handler->message("Numerical instability detected: entropy increased in the last " + std::to_string(CONVERGENCE_ITERS) + " iterations. Stopping minimization.");
+                //message_handler_.info("Numerical instability detected: entropy increased in the last " + std::to_string(CONVERGENCE_ITERS) + " iterations. Stopping minimization.");
                 return ENTROPY_MINIMIZER_NUMERICAL_INST; // Stop
             }
         }
@@ -372,22 +364,22 @@ int EntropyMinimizer::runMinimization(){
 
 
 
-    message_handler->message("Running single minimization pass with no entropy prediction.");
+    message_handler_.info("Running single minimization pass with no entropy prediction.");
     // Perform the minimization
-    message_handler->message("Starting minimization...");
+    message_handler_.info("Starting minimization...");
     int status = ENTROPY_MINIMIZER_CONTINUE; // Initialize status
     while (status == ENTROPY_MINIMIZER_CONTINUE && current_iteration < config->max_iterations && !shouldTerminate()){
         status = stepMinimization();
         // Print the current entropy from this run. 
         oss.str("");
         oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << requestEntropy();
-        message_handler->message(oss.str());
+        message_handler_.info(oss.str());
 
         if (config->save_checkpoint && current_iteration % config->checkpoint_interval == 0){
             // Save the state
             oss.str("");
             oss << "[Iteration " << current_iteration << "] Checkpoint reached. Saving current state..";
-            message_handler->message(oss.str());
+            message_handler_.info(oss.str());
             if (config->use_custom_checkpoint_file){
                 saveVector(config->checkpoint_file);
             } else {
@@ -397,10 +389,10 @@ int EntropyMinimizer::runMinimization(){
 
     }
     if (terminate_requested){
-        message_handler->message("Minimization stopped: termination requested.");
+        message_handler_.info("Minimization stopped: termination requested.");
         status = ENTROPY_MINIMIZER_TERMINATED;
         if (config->save_checkpoint){
-            message_handler->message("Checkpoints are enabled. Saving last checkpoint...");
+            message_handler_.info("Checkpoints are enabled. Saving last checkpoint...");
             if (config->use_custom_checkpoint_file){
                 saveVector(config->checkpoint_file);
             } else {
@@ -409,11 +401,11 @@ int EntropyMinimizer::runMinimization(){
         }
     }
     else if (current_iteration >= config->max_iterations){
-            message_handler->message("We reached the maximum number of iterations! Aborting...");
+            message_handler_.info("We reached the maximum number of iterations! Aborting...");
     } else {
         if (config->MOE_variable_precision && current_precision_float){
             // If we are using variable precision, we can switch to double precision minimizer
-            message_handler->message("Switching to double precision minimizer for the final iterations.");
+            message_handler_.info("Switching to double precision minimizer for the final iterations.");
             setMinimizer(minimizer_d);
             current_precision_float = false; // Switch to double precision
 
@@ -428,14 +420,14 @@ int EntropyMinimizer::runMinimization(){
             // Check for errors in the conversion
             cudaError_t err = cudaGetLastError();
             if (err != cudaSuccess) {
-                message_handler->message("Failed to convert float vector to double precision: " + std::string(cudaGetErrorString(err)));
+                message_handler_.error("Failed to convert float vector to double precision: " + std::string(cudaGetErrorString(err)));
                 cudaFree(tmp_vec); // Free the temporary vector
                 return err;
             }
             // Initialize the double precision minimizer with the converted vector
             err = minimizer_d->initializeVectorFromDevice(static_cast<void*>(tmp_vec));
             if (err != cudaSuccess) {
-                message_handler->message("Failed to initialize double precision vector from host: " + std::string(cudaGetErrorString(err)));
+                message_handler_.error("Failed to initialize double precision vector from host: " + std::string(cudaGetErrorString(err)));
                 return err;
             }
             // Free the temporary vector
@@ -447,14 +439,14 @@ int EntropyMinimizer::runMinimization(){
 
         } else {
             // If we are not using variable precision, we just stop
-            message_handler->message("We reached the tolerance: we have converged!");
+            message_handler_.info("We reached the tolerance: we have converged!");
         }
     }
 
     // We have finished the minimization attempts. Print the final MOE
     oss.str("");
     oss << "Final entropy: " << requestEntropy();
-    message_handler->message(oss.str());
+    message_handler_.info(oss.str());
 
     return status;
 }
@@ -478,10 +470,10 @@ int EntropyMinimizer::runMinimization(double target_entropy){
     // Print message
     oss.str("");
     oss << "Running single minimization pass with target entropy " << target_entropy << ".";
-    message_handler->message(oss.str());
+    message_handler_.info(oss.str());
 
     // Perform the minimization
-    message_handler->message("Starting minimization...");
+    message_handler_.info("Starting minimization...");
     // Initialize a flag that, if MOE prediction is used, will stop the minimization
     int status = ENTROPY_MINIMIZER_CONTINUE; // Initialize status
     bool predict_stop = false;
@@ -491,7 +483,7 @@ int EntropyMinimizer::runMinimization(double target_entropy){
         if (current_iteration % 20 == 0){
             oss.str("");
             oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << requestEntropy();
-            message_handler->message(oss.str());
+            message_handler_.info(oss.str());
         }
         // Check if we need to stop because of final entropy prediction
         if (config->MOE_use_prediction){
@@ -509,7 +501,7 @@ int EntropyMinimizer::runMinimization(double target_entropy){
                     // Print log message, use many digits
                     oss.str("");
                     oss << "Predicted final entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << predicted_entropy << " at iteration " << predicted_steps;
-                    message_handler->message(oss.str());
+                    message_handler_.info(oss.str());
                 }
                 if (predicted_entropy - target_entropy > config->MOE_prediction_tolerance){
                     predict_stop = true;
@@ -519,7 +511,7 @@ int EntropyMinimizer::runMinimization(double target_entropy){
 
         }
         if (predict_stop){
-            message_handler->message("Predicted final entropy is above target entropy. Stopping minimization.");
+            message_handler_.info("Predicted final entropy is above target entropy. Stopping minimization.");
             status = ENTROPY_MINIMIZER_MOE_PREDICTION;
         }
 
@@ -527,7 +519,7 @@ int EntropyMinimizer::runMinimization(double target_entropy){
             // Save the state
             oss.str("");
             oss << "[Iteration " << current_iteration << "] Checkpoint reached. Saving current state..";
-            message_handler->message(oss.str());
+            message_handler_.info(oss.str());
             if (config->use_custom_checkpoint_file){
                 saveVector(config->checkpoint_file);
             } else {
@@ -536,12 +528,12 @@ int EntropyMinimizer::runMinimization(double target_entropy){
         }
     }
     if (terminate_requested){
-        message_handler->message("Minimization stopped: termination requested.");
+        message_handler_.info("Minimization stopped: termination requested.");
         status = ENTROPY_MINIMIZER_TERMINATED;
         if (config->save_checkpoint){
             oss.str("");
             oss << "Checkpoints are enabled. Saving last checkpoint...";
-            message_handler->message(oss.str());
+            message_handler_.info(oss.str());
             if (config->use_custom_checkpoint_file){
                 saveVector(config->checkpoint_file);
             } else {
@@ -550,17 +542,17 @@ int EntropyMinimizer::runMinimization(double target_entropy){
         }
     }
     else if (current_iteration >= config->max_iterations){
-        message_handler->message("We reached the maximum number of iterations! Aborting...");
+        message_handler_.info("We reached the maximum number of iterations! Aborting...");
     } else if (predict_stop){
-        message_handler->message("Minimization stopped: predicted MOE is above target entropy.");
+        message_handler_.info("Minimization stopped: predicted MOE is above target entropy.");
     } else {
-        message_handler->message("We reached the tolerance: we have converged!");
+        message_handler_.info("We reached the tolerance: we have converged!");
     }
 
     // We have finished the minimization attempts. Print the final MOE
     oss.str("");
     oss << "Final entropy: " << requestEntropy();
-    message_handler->message(oss.str());
+    message_handler_.info(oss.str());
 
     return status;
 }
@@ -579,12 +571,12 @@ int EntropyMinimizer::findMOE(){
     // Print message
     oss.str("");
     oss << "Will try to find MOE. Running" << config->minimization_attempts << " minimization attempts.";
-    message_handler->message(oss.str());
+    message_handler_.info(oss.str());
 
     // Step through the minimization attempts
     for (int i=0; i<config->minimization_attempts; i++){
         if (shouldTerminate()){
-            message_handler->message("Termination requested. Aborting...");
+            message_handler_.info("Termination requested. Aborting...");
             return 1;
         }
         // Initialize a new run
@@ -592,10 +584,10 @@ int EntropyMinimizer::findMOE(){
         // Print message
         oss.str("");
         oss << "Initializing minimization attempt " << i+1 << " of " << config->minimization_attempts << ".";
-        message_handler->message(oss.str());
+        message_handler_.info(oss.str());
 
         // Perform the minimization
-        message_handler->message("Starting minimization...");
+        message_handler_.info("Starting minimization...");
         // Initialize a flag that, if MOE prediction is used, will stop the minimization
         bool predict_stop = false;
         while (stepMinimization() == 0 && current_iteration < config->max_iterations && !predict_stop && !shouldTerminate()){
@@ -604,7 +596,7 @@ int EntropyMinimizer::findMOE(){
                 // Print every 20 iterations
                 oss.str("");
                 oss << "[Iteration " << current_iteration << "] Entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << requestEntropy();
-                message_handler->message(oss.str());
+                message_handler_.info(oss.str());
             }
             // If necessary, update the MOE
             double new_entropy = requestEntropy();
@@ -615,7 +607,7 @@ int EntropyMinimizer::findMOE(){
             if (current_iteration % 20 == 0){
             oss.str("");
             oss << "Current MOE: " << MOE;
-            message_handler->message(oss.str());
+            message_handler_.info(oss.str());
             }
             // Check if we need to stop because of MOE prediction
             if (config->MOE_use_prediction){
@@ -633,7 +625,7 @@ int EntropyMinimizer::findMOE(){
                         // Print log message, use many digits
                         oss.str("");
                         oss << "Predicted final entropy: " << std::fixed << std::setprecision(PRINT_PRECISION) << predicted_entropy << " at iteration " << predicted_steps;
-                        message_handler->message(oss.str());
+                        message_handler_.info(oss.str());
                     }
                     if (predicted_entropy - MOE > config->MOE_prediction_tolerance){
                         predict_stop = true;
@@ -644,13 +636,13 @@ int EntropyMinimizer::findMOE(){
             }
         }
         if (shouldTerminate()){
-            message_handler->message("Termination requested. Aborting...");
+            message_handler_.info("Termination requested. Aborting...");
             return 1;
         }
         else if (current_iteration >= config->max_iterations){
-            message_handler->message("We reached the maximum number of iterations! Aborting...");
+            message_handler_.info("We reached the maximum number of iterations! Aborting...");
         } else {
-            message_handler->message("We reached the tolerance: we have converged!");
+            message_handler_.info("We reached the tolerance: we have converged!");
         }
 
     }
@@ -658,7 +650,7 @@ int EntropyMinimizer::findMOE(){
     // We have finished the minimization attempts. Print the final MOE
     oss.str("");
     oss << "Final MOE: " << MOE;
-    message_handler->message(oss.str());
+    message_handler_.info(oss.str());
     
 
     return 0;
@@ -674,7 +666,7 @@ int EntropyMinimizer::saveVector(std::string filename){
         cuComplex* tmp_vec = new cuComplex[input_dim];
         cudaError_t err = cudaMemcpy(tmp_vec, minimizer_f->getVector(), input_dim*sizeof(cuComplex), cudaMemcpyDeviceToHost);
         if (err != cudaSuccess){
-            message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+            message_handler_.error("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
             delete[] tmp_vec; // Clean up
             return -1;
         }
@@ -688,7 +680,7 @@ int EntropyMinimizer::saveVector(std::string filename){
         // If we are using double precision, we can copy directly
         cudaError_t err = cudaMemcpy(vec->data(), minimizer_d->getVector(), input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
         if (err != cudaSuccess){
-            message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+            message_handler_.error("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
             return -1;
         }    
     }
@@ -701,7 +693,7 @@ int EntropyMinimizer::saveVector(std::string filename){
     // Print message
     oss.str("");
     oss << "Vector saved to " << filename;
-    message_handler->message(oss.str());
+    message_handler_.info(oss.str());
     // Clean up
     delete vec;
     // Return success
@@ -719,7 +711,7 @@ int EntropyMinimizer::saveVector(){
         cuComplex* tmp_vec = new cuComplex[input_dim];
         cudaError_t err = cudaMemcpy(tmp_vec, minimizer_f->getVector(), input_dim*sizeof(cuComplex), cudaMemcpyDeviceToHost);
         if (err != cudaSuccess){
-            message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+            message_handler_.error("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
             delete[] tmp_vec; // Clean up
             return -1;
         }
@@ -733,7 +725,7 @@ int EntropyMinimizer::saveVector(){
         // If we are using double precision, we can copy directly
         cudaError_t err = cudaMemcpy(vec->data(), minimizer_d->getVector(), input_dim*sizeof(std::complex<double>), cudaMemcpyDeviceToHost);
         if (err != cudaSuccess){
-            message_handler->message("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
+            message_handler_.error("Failed to copy vector state from device: " + std::string(cudaGetErrorString(err)));
             return -1;
         }    
     }    
@@ -766,7 +758,7 @@ int EntropyMinimizer::saveVector(){
     // Print message
     oss.str("");
     oss << "Vector saved to " << filename;
-    message_handler->message(oss.str());
+    message_handler_.info(oss.str());
     // Clean up
     delete vec;
     // Return success
@@ -794,8 +786,7 @@ EntropyMinimizer::~EntropyMinimizer()
     delete minimizer_f;
     delete minimizer_d;
 
-    delete message_handler;
-
+    // message_handler_ is a reference, not owned by this class
 
     delete serializer;
     delete entropy_estimator;

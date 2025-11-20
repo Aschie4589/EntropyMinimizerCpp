@@ -229,7 +229,9 @@ set_target_properties(phase1_parallel PROPERTIES
 # =============================================================================
 # TARGET: phase1 (Main Phase 1 Application)
 # =============================================================================
-create_executable(phase1 "${SRC_DIR}/main/phase1")
+add_executable(phase1
+    "${SRC_DIR}/main/phase1/phase1.cu"
+)
 
 target_link_libraries(phase1 PRIVATE
     # Channel libraries
@@ -260,6 +262,11 @@ target_link_libraries(phase1 PRIVATE
     # LAPACK backend
     ${LAPACK_LIBRARIES}
 )
+
+set_target_properties(phase1 PROPERTIES
+    CUDA_SEPARABLE_COMPILATION OFF
+)
+
 # =============================================================================
 # TARGET: stage1 (Placeholder for your next executable)
 # =============================================================================

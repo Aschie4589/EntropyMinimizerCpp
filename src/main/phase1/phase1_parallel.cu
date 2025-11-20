@@ -16,6 +16,7 @@
 
 #include "channel/generator/random_generator.h"
 #include "utilities/messaging/message_handler.h"
+#include "utilities/messaging/printer.h"
 #include "utilities/gpu/gpu_resource_manager.h"
 #include "yaml-cpp/yaml.h"
 #include "minimizer/analysis/tensor_entropy.h"
@@ -164,10 +165,9 @@ void stage_generate_channel(std::shared_ptr<ChannelTask> task,
     rg_config.kraus_number = task->d;
     rg_config.kraus_in_dimension = task->N;
     rg_config.kraus_out_dimension = task->N;
-    rg_config.message_handler = msg_handler;
     
     // Generate Kraus operators on GPU
-    RandomGenerator rg(rg_config);
+    RandomGenerator rg(rg_config, *msg_handler);
     rg.generate(&task->kraus_operators);
     
     // Release GPU early (file I/O doesn't need it)
@@ -351,8 +351,8 @@ int main(int argc, char** argv) {
     std::cout << "Spawning " << num_workers << " worker threads" << std::endl;
     
     // Create message handler
-    MessageHandler* msg_handler = new MessageHandler();
-    msg_handler->createPrinter();
+    auto msg_handler = std::make_unique<MessageHandler>();
+    msg_handler->addSink(std::make_unique<Printer>(0, true));
     
     // Create task queues
     ThreadSafeQueue<std::shared_ptr<ChannelTask>> generation_queue;
@@ -381,7 +381,7 @@ int main(int argc, char** argv) {
                            std::ref(generation_queue),
                            std::ref(entropy_queue),
                            std::ref(gpu_mgr),
-                           msg_handler,
+                           msg_handler.get(),
                            std::ref(tasks_completed));
     }
     
@@ -413,6 +413,5 @@ int main(int argc, char** argv) {
     std::cout << "\nFinal GPU status:" << std::endl;
     std::cout << gpu_mgr.getStatusString() << std::endl;
     
-    delete msg_handler;
     return 0;
 }

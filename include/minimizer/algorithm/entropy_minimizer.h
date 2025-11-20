@@ -15,7 +15,7 @@
 
 class EntropyMinimizer {
 public:
-    EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf, CudaMinimizerStrategy strategy_preference = CudaMinimizerStrategy::AUTO_DETECT);
+    EntropyMinimizer(cuDoubleComplex* kraus_ops, int kraus_number, int kraus_in_dimension, int kraus_out_dimension, EntropyConfig* conf, MessageHandler& msg_handler, CudaMinimizerStrategy strategy_preference = CudaMinimizerStrategy::AUTO_DETECT);
     ~EntropyMinimizer();
 
     // Setup functions
@@ -59,7 +59,7 @@ private:
     double entropy_buffer[CONVERGENCE_ITERS];   // This array keeps track of past iterations of entropy
     int current_iteration;                      // This is the index of the current iteration, also used for insertion and deletion of elements fromt eh queue
     std::ostringstream oss;                      // Useful for formatting certain strings
-    MessageHandler* message_handler;            // This makes sure logs and messages are handled correctly.
+    MessageHandler& message_handler_;           // Non-owning reference to message handler
     // Seralizer
     VectorSerializer* serializer;               // This is used to save the state of the vector
     // Entropy estimator
