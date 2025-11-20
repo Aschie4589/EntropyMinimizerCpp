@@ -187,6 +187,46 @@ target_link_libraries(moe PRIVATE
 )
 
 # =============================================================================
+# TARGET: phase1_parallel (Parallel Phase 1 with Task Queue)
+# =============================================================================
+add_executable(phase1_parallel
+    "${SRC_DIR}/main/phase1/phase1_parallel.cu"
+)
+
+target_link_libraries(phase1_parallel PRIVATE
+    # Channel libraries
+    kraus_generators
+    channel_utils
+    
+    # Utility libraries
+    messaging
+    gpu_utilities
+    
+    # Minimizer libraries
+    minimizer_analysis
+    
+    # Configuration
+    yaml-cpp::yaml-cpp
+    
+    # CUDA libraries
+    CUDA::cudart
+    CUDA::cublas
+    CUDA::cusolver
+    CUDA::curand
+    
+    # Profiling
+    nvtx3-cpp
+    
+    # LAPACK backend
+    ${LAPACK_LIBRARIES}
+)
+
+set_target_properties(phase1_parallel PROPERTIES
+    CUDA_SEPARABLE_COMPILATION OFF
+)
+
+
+# =============================================================================
 # TARGET: phase1 (Main Phase 1 Application)
 # =============================================================================
 create_executable(phase1 "${SRC_DIR}/main/phase1")
@@ -198,6 +238,12 @@ target_link_libraries(phase1 PRIVATE
     
     # Utility libraries
     messaging
+    
+    # Minimizer libraries
+    minimizer_analysis
+    
+    # Configuration
+    yaml-cpp::yaml-cpp
     
     # CUDA libraries
     CUDA::cudart

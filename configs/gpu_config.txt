@@ -1,0 +1,26 @@
+# GPU Configuration File for EntropyMinimizerCpp
+# This file controls which GPUs are available for computation
+# The manager checks this file every 10 seconds (configurable)
+#
+# Format: GPU <id>: <enabled|disabled>
+#
+# You can edit this file while the program is running!
+# Changes will be picked up automatically.
+
+# GPU 0 - Primary compute GPU
+GPU 0: disabled
+
+# GPU 1 - Reserved for other user (disabled)
+GPU 1: enabled
+
+# GPU 2 - Available
+GPU 2: enabled
+
+# GPU 3 - Available  
+GPU 3: enabled
+
+# Notes:
+# - Lines starting with # are ignored
+# - Valid statuses: enabled, disabled (case-insensitive)
+# - Changes take effect within config_check_interval seconds
+# - Disabling a GPU won't interrupt running jobs, but prevents new allocations

@@ -4,6 +4,7 @@
 
 #include "minimizer/core/cuda_minimizer.h"
 #include "minimizer/config/compile_time_config.h"
+#include "utilities/config/compile_time_macros.h"
 #include "minimizer/core/cuda_traits.h"
 #include "minimizer/core/kernels/rescale_vecs.h"
 #include "minimizer/utilities/generate_random_vector.h"

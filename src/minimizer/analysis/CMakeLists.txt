@@ -5,8 +5,15 @@
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
+
 add_library(minimizer_analysis STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/entropy_estimator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tensor_entropy.cu
+)
+
+set_target_properties(minimizer_analysis PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_ARCHITECTURES native
 )
 
 target_compile_features(minimizer_analysis PUBLIC cxx_std_17)

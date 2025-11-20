@@ -17,6 +17,7 @@ struct CudaTraits<double> {
     // cuBLAS
     static constexpr auto gemv = cublasZgemv;
     static constexpr auto gemm = cublasZgemm;
+    static constexpr auto gemm3m = cublasZgemm3m;
     static constexpr auto geam = cublasZgeam;
     // cuSOLVER
     static constexpr auto gesvd = cusolverDnZgesvd;
@@ -49,6 +50,7 @@ struct CudaTraits<float> {
     // cuBLAS
     static constexpr auto gemv = cublasCgemv;
     static constexpr auto gemm = cublasCgemm;
+    static constexpr auto gemm3m = cublasCgemm3m;
     static constexpr auto geam = cublasCgeam;
     // cuSOLVER
     static constexpr auto gesvd = cusolverDnCgesvd;
