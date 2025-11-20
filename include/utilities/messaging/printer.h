@@ -1,32 +1,28 @@
 #ifndef PRINTER_H
 #define PRINTER_H
 
-#include "utilities/messaging/messaging_config.h"
 #include <string>
 #include <filesystem>
 
-namespace fs = std::filesystem;
-class Printer
-{
+#include "utilities/messaging/message_sink.h"
+#include "utilities/uuid/uuid.h"
+
+class Printer : public MessageSink {
 private:
-    char uuid[37]; // UUID4 for the printer. Note that a UUID is 36 characters long, but strings terminate with \0 in c++.
-
-    // Utilities
-    std::string getCurrentTimeString();         //Returns the current time, formatted as a string (formatting is)
-    std::string getPrintContext(int log_level);
-
-    /* data */
+    std::string uuid_;
+    int min_level_;
+    bool color_enabled_;
+    
 public:
-    Printer(std::string uuidStr);
-    Printer();
+    Printer(int min_level = 0, bool color = true);
+    
+    void send(const std::string& msg, int level) override;
 
-    int printMessage(std::string message);
-    int printMessage(std::string message, int log_level);
+    bool shouldSend(int level) const override; 
+    
+private:
+    std::string getLevelColor(int level) const;
 
-    ~Printer();
 };
-
-
-
 
 #endif

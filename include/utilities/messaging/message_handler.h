@@ -1,36 +1,55 @@
 #ifndef MESSAGE_HANDLER_H
 #define MESSAGE_HANDLER_H
 
-#include "utilities/messaging/logger.h"
-#include "utilities/messaging/printer.h"
 #include <vector>
+#include <string>
+#include <memory>
+#include <mutex>
+
+// Message Sink includes
+#include "utilities/messaging/message_sink.h"
 
 /*
-MessageHandler should do the following:
-- if initialized as a logger, create a log file at a specified destination. then relay all messages to that log file.
-- if intialized as a printer, simply print the messages passed.
+MessageHandler - Manages multiple message sinks (loggers, printers, etc.)
+Features:
+- Thread-safe addition/removal of sinks
+- Broadcast messages to all registered sinks
+- Convenience methods for different log levels
+- Clear encapsulation of sink management: MessageHandler does not need to know about specific sink implementations or types
 */
-class MessageHandler
-{
-public:
-    MessageHandler();
-    ~MessageHandler();
 
-    int createLogger(const std::string& filename);
-    int createLogger();
-    int createPrinter();
-
-    int setLogging(bool logging);
-    int setPrinting(bool printing);
-
-    int message(const std::string& message, int log_level=LOG_LEVEL_INFO);
+class MessageHandler {
 private:
-    bool logging, printing;
-    /* data */
-    std::vector<Logger*> loggers;
-    std::vector<Printer*> printers;
+    std::vector<std::unique_ptr<MessageSink>> sinks_; // Owned sinks (loggers, printers, etc.), using unique_ptr for automatic memory management
+    std::mutex mutex_;  // Thread safety (lock access to sinks_)
+    
+public:
+    MessageHandler() = default;
+    
+    // No copy (unique_ptr is not copyable)
+    MessageHandler(const MessageHandler&) = delete;
+    MessageHandler& operator=(const MessageHandler&) = delete;
+    
+    // Move semantics work automatically
+    MessageHandler(MessageHandler&&) = default;
+    MessageHandler& operator=(MessageHandler&&) = default;
+    
+    // Add a sink with ownership transfer
+    void addSink(std::unique_ptr<MessageSink> sink);
+    
+    // Send message to ALL sinks (they filter themselves)
+    void send(const std::string& msg, int level = 0);
+    
+    // Convenience method for different log levels
+    void info(const std::string& msg)  { send(msg, 0); }
+    void warn(const std::string& msg)  { send(msg, 1); }
+    void error(const std::string& msg) { send(msg, 2); }
+    
+    // Remove all sinks
+    void clearSinks();
+    
+    size_t getSinkCount();
 };
-
 
 
 #endif

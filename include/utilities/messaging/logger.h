@@ -1,36 +1,33 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
-#include "utilities/messaging/messaging_config.h"
 #include <string>
 #include <filesystem>
+#include <fstream>
+#include <chrono>
+#include <iomanip>
+#include <stdexcept>
 
-namespace fs = std::filesystem;
-class Logger
-{
+#include "utilities/messaging/message_sink.h"
+#include "utilities/uuid/uuid.h"
+
+class Logger : public MessageSink {
 private:
-    char uuid[37]; // UUID4 for the logger. Note that a UUID is 36 characters long, but strings terminate with \0 in c++.
-    int log_level;
-
-    // Utilities
-    std::string getCurrentTimeString(bool millis=true);         //Returns the current time, formatted as a string (formatting is)
-    std::string getLogContext(int log_level);
-
-    /* data */
+    std::ofstream file_;
+    std::string uuid_;
+    int min_level_;  // Only log messages >= this level
+    
 public:
-    Logger(std::string filename, std::string uuidStr, int log_level=LOG_LEVEL_INFO);
-    Logger(std::string filename, int log_level=LOG_LEVEL_INFO);
-    Logger(int log_level=LOG_LEVEL_INFO);
-    std::string log_file;
-
-
-    int logMessage(const std::string& message);
-    int logMessage(const std::string& message, int log_level);
-
-    ~Logger();
+    // Constructor
+    Logger(const std::string& filename, int min_level = 0);    
+    // Destructor
+    ~Logger() override;
+    
+    // Implement the interface
+    void send(const std::string& msg, int level) override; 
+    
+    bool shouldSend(int level) const override;
 };
-
-
 
 
 #endif

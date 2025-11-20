@@ -2,8 +2,8 @@
 # Messaging utilities: logging, printing, and message handling
 
 add_library(messaging STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/logger.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/message_handler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/logger.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/printer.cpp
 )
 
