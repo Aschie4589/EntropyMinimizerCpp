@@ -41,6 +41,8 @@ public:
     void send(const std::string& msg, int level = 0);
     
     // Convenience method for different log levels
+    // Level hierarchy: debug(-1) < info(0) < warn(1) < error(2)
+    void debug(const std::string& msg) { send(msg, -1); }
     void info(const std::string& msg)  { send(msg, 0); }
     void warn(const std::string& msg)  { send(msg, 1); }
     void error(const std::string& msg) { send(msg, 2); }

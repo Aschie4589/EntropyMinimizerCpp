@@ -64,6 +64,21 @@ find_package(OpenMP REQUIRED)
 # NVTX (NVIDIA Tools Extension)
 add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../NVTX" "ImportNVTX")
 
+# Google Test (for unit testing)
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG        v1.15.2
+)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+# Enable testing
+enable_testing()
+include(GoogleTest)
+
 # =============================================================================
 # LAPACK BACKEND CONFIGURATION
 # =============================================================================
@@ -281,6 +296,13 @@ set_target_properties(phase1 PROPERTIES
 #     # ... etc
 #     ${LAPACK_LIBRARIES}
 # )
+
+###############################################################################
+# TEST TARGETS
+###############################################################################
+
+# Add tests subdirectory
+add_subdirectory(src/main/tests)
 
 ###############################################################################
 # BUILD SUMMARY

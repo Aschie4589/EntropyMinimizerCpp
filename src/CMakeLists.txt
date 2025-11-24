@@ -1,5 +1,6 @@
 # Adds subdirectories.
 add_subdirectory(channel)
+add_subdirectory(compute)
 add_subdirectory(external)
 add_subdirectory(main)
 add_subdirectory(minimizer)

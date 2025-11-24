@@ -6,7 +6,15 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 
-std::vector<std::complex<double> > generateHaarRandomUnitary(int N);
-cudaError_t generateHaarRandomUnitaries(cuDoubleComplex *d_A, int N, int num_matrices, int num_streams);
+// Forward declaration
+class MessageHandler;
+
+cudaError_t generateHaarRandomUnitaries(
+    cuDoubleComplex *d_A, 
+    int N, 
+    int num_matrices, 
+    int num_streams,
+    MessageHandler* msg_handler = nullptr
+);
 
 #endif // GENERATE_HAAR_UNITARY_H
