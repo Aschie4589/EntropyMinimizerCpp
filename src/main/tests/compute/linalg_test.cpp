@@ -71,7 +71,7 @@ protected:
 // ============================================================================
 
 TEST_F(LinearAlgebraTest, CUDA_AXPY) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int n = 100;
     Complex alpha(2.0, 1.0);
     
@@ -85,8 +85,8 @@ TEST_F(LinearAlgebraTest, CUDA_AXPY) {
     }
     
     // Transfer to GPU
-    CudaMemory x_dev(n * sizeof(Complex));
-    CudaMemory y_dev(n * sizeof(Complex));
+    CudaMemory x_dev(n * sizeof(Complex), 0);
+    CudaMemory y_dev(n * sizeof(Complex), 0);
     x_dev.copyFromHost(x_host.data(), n * sizeof(Complex));
     y_dev.copyFromHost(y_host.data(), n * sizeof(Complex));
     
@@ -218,7 +218,7 @@ TEST_F(LinearAlgebraTest, CPU_GEMV_ConjTrans) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_DOTC) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int n = 100;
     
     auto x_host = randomVector(n);
@@ -229,9 +229,9 @@ TEST_F(LinearAlgebraTest, CUDA_DOTC) {
         expected += std::conj(x_host[i]) * y_host[i];
     }
     
-    CudaMemory x_dev(n * sizeof(Complex));
-    CudaMemory y_dev(n * sizeof(Complex));
-    CudaMemory result_dev(sizeof(Complex));
+    CudaMemory x_dev(n * sizeof(Complex), 0);
+    CudaMemory y_dev(n * sizeof(Complex), 0);
+    CudaMemory result_dev(sizeof(Complex), 0);
     
     x_dev.copyFromHost(x_host.data(), n * sizeof(Complex));
     y_dev.copyFromHost(y_host.data(), n * sizeof(Complex));
@@ -245,7 +245,7 @@ TEST_F(LinearAlgebraTest, CUDA_DOTC) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_NORM2) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int n = 100;
     
     auto x_host = randomVector(n);
@@ -255,7 +255,7 @@ TEST_F(LinearAlgebraTest, CUDA_NORM2) {
     }
     expected = std::sqrt(expected);
     
-    CudaMemory x_dev(n * sizeof(Complex));
+    CudaMemory x_dev(n * sizeof(Complex), 0);
     x_dev.copyFromHost(x_host.data(), n * sizeof(Complex));
     
     double result;
@@ -265,7 +265,7 @@ TEST_F(LinearAlgebraTest, CUDA_NORM2) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_SCAL) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int n = 100;
     Complex alpha(2.0, -1.5);
     
@@ -275,7 +275,7 @@ TEST_F(LinearAlgebraTest, CUDA_SCAL) {
         expected[i] *= alpha;
     }
     
-    CudaMemory x_dev(n * sizeof(Complex));
+    CudaMemory x_dev(n * sizeof(Complex), 0);
     x_dev.copyFromHost(x_host.data(), n * sizeof(Complex));
     
     linalg.scal(n, &alpha, x_dev.data(), PrecisionType::DOUBLE);
@@ -291,7 +291,7 @@ TEST_F(LinearAlgebraTest, CUDA_SCAL) {
 // ============================================================================
 
 TEST_F(LinearAlgebraTest, CUDA_GEMV_NoTrans) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 50, n = 40;
     Complex alpha(1.5, 0.5), beta(0.5, -0.5);
     
@@ -309,9 +309,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEMV_NoTrans) {
         expected[i] = alpha * sum + beta * y_host[i];
     }
     
-    CudaMemory A_dev(m * n * sizeof(Complex));
-    CudaMemory x_dev(n * sizeof(Complex));
-    CudaMemory y_dev(m * sizeof(Complex));
+    CudaMemory A_dev(m * n * sizeof(Complex), 0);
+    CudaMemory x_dev(n * sizeof(Complex), 0);
+    CudaMemory y_dev(m * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m * n * sizeof(Complex));
     x_dev.copyFromHost(x_host.data(), n * sizeof(Complex));
@@ -327,7 +327,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEMV_NoTrans) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEMV_ConjTrans) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m_storage = 40, n_storage = 50;  // A stored as 40×50
     Complex alpha(1.0, 0.0), beta(0.0, 0.0);
     
@@ -348,9 +348,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEMV_ConjTrans) {
         expected[i] = sum;
     }
     
-    CudaMemory A_dev(m_storage * n_storage * sizeof(Complex));
-    CudaMemory x_dev(m_storage * sizeof(Complex));
-    CudaMemory y_dev(n_storage * sizeof(Complex));
+    CudaMemory A_dev(m_storage * n_storage * sizeof(Complex), 0);
+    CudaMemory x_dev(m_storage * sizeof(Complex), 0);
+    CudaMemory y_dev(n_storage * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m_storage * n_storage * sizeof(Complex));
     x_dev.copyFromHost(x_host.data(), m_storage * sizeof(Complex));
@@ -370,7 +370,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEMV_ConjTrans) {
 // ============================================================================
 
 TEST_F(LinearAlgebraTest, CUDA_GEMM_NoTrans) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 30, n = 25, k = 20;
     Complex alpha(1.0, 0.0), beta(0.0, 0.0);
     
@@ -390,9 +390,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEMM_NoTrans) {
         }
     }
     
-    CudaMemory A_dev(m * k * sizeof(Complex));
-    CudaMemory B_dev(k * n * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(m * k * sizeof(Complex), 0);
+    CudaMemory B_dev(k * n * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m * k * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), k * n * sizeof(Complex));
@@ -409,7 +409,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEMM_NoTrans) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEMM_TransA) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 30, n = 25, k = 20;
     Complex alpha(1.0, 0.0), beta(0.0, 0.0);
     
@@ -429,9 +429,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEMM_TransA) {
         }
     }
     
-    CudaMemory A_dev(k * m * sizeof(Complex));
-    CudaMemory B_dev(k * n * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(k * m * sizeof(Complex), 0);
+    CudaMemory B_dev(k * n * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), k * m * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), k * n * sizeof(Complex));
@@ -448,7 +448,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEMM_TransA) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEMM_TransB) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 30, n = 25, k = 20;
     Complex alpha(1.0, 0.0), beta(0.0, 0.0);
     
@@ -468,9 +468,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEMM_TransB) {
         }
     }
     
-    CudaMemory A_dev(m * k * sizeof(Complex));
-    CudaMemory B_dev(n * k * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(m * k * sizeof(Complex), 0);
+    CudaMemory B_dev(n * k * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m * k * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), n * k * sizeof(Complex));
@@ -487,7 +487,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEMM_TransB) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEMM_BothTrans) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 30, n = 25, k = 20;
     Complex alpha(1.5, 0.5), beta(0.5, -0.5);
     
@@ -508,9 +508,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEMM_BothTrans) {
         }
     }
     
-    CudaMemory A_dev(k * m * sizeof(Complex));
-    CudaMemory B_dev(n * k * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(k * m * sizeof(Complex), 0);
+    CudaMemory B_dev(n * k * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), k * m * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), n * k * sizeof(Complex));
@@ -527,7 +527,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEMM_BothTrans) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEAM_NoTrans) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 30, n = 25;
     Complex alpha(2.0, 0.5), beta(1.5, -0.5);
     
@@ -542,9 +542,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_NoTrans) {
         }
     }
     
-    CudaMemory A_dev(m * n * sizeof(Complex));
-    CudaMemory B_dev(m * n * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(m * n * sizeof(Complex), 0);
+    CudaMemory B_dev(m * n * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m * n * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), m * n * sizeof(Complex));
@@ -560,7 +560,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_NoTrans) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEAM_TransA) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 30, n = 25;
     Complex alpha(1.0, 0.0), beta(1.0, 0.0);
     
@@ -575,9 +575,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_TransA) {
         }
     }
     
-    CudaMemory A_dev(n * m * sizeof(Complex));
-    CudaMemory B_dev(m * n * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(n * m * sizeof(Complex), 0);
+    CudaMemory B_dev(m * n * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), n * m * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), m * n * sizeof(Complex));
@@ -593,7 +593,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_TransA) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEMV_Trans) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m_storage = 40, n_storage = 50;
     Complex alpha(1.0, 0.5), beta(0.5, 0.0);
     
@@ -611,9 +611,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEMV_Trans) {
         expected[i] = alpha * sum + beta * y_host[i];
     }
     
-    CudaMemory A_dev(m_storage * n_storage * sizeof(Complex));
-    CudaMemory x_dev(m_storage * sizeof(Complex));
-    CudaMemory y_dev(n_storage * sizeof(Complex));
+    CudaMemory A_dev(m_storage * n_storage * sizeof(Complex), 0);
+    CudaMemory x_dev(m_storage * sizeof(Complex), 0);
+    CudaMemory y_dev(n_storage * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m_storage * n_storage * sizeof(Complex));
     x_dev.copyFromHost(x_host.data(), m_storage * sizeof(Complex));
@@ -861,7 +861,7 @@ TEST_F(LinearAlgebraTest, CPU_GEAM_BetaZero) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEAM_TransBoth) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 20, n = 15;
     Complex alpha(1.5, 0.25), beta(0.5, -0.25);
     
@@ -876,9 +876,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_TransBoth) {
         }
     }
     
-    CudaMemory A_dev(n * m * sizeof(Complex));
-    CudaMemory B_dev(n * m * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(n * m * sizeof(Complex), 0);
+    CudaMemory B_dev(n * m * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), n * m * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), n * m * sizeof(Complex));
@@ -894,7 +894,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_TransBoth) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEAM_AlphaZero) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 25, n = 20;
     Complex alpha(0.0, 0.0), beta(2.0, 1.0);
     
@@ -909,9 +909,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_AlphaZero) {
         }
     }
     
-    CudaMemory A_dev(m * n * sizeof(Complex));
-    CudaMemory B_dev(m * n * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(m * n * sizeof(Complex), 0);
+    CudaMemory B_dev(m * n * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m * n * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), m * n * sizeof(Complex));
@@ -927,7 +927,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_AlphaZero) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEAM_BetaZero) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 25, n = 20;
     Complex alpha(2.0, -1.0), beta(0.0, 0.0);
     
@@ -942,9 +942,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_BetaZero) {
         }
     }
     
-    CudaMemory A_dev(m * n * sizeof(Complex));
-    CudaMemory B_dev(m * n * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(m * n * sizeof(Complex), 0);
+    CudaMemory B_dev(m * n * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m * n * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), m * n * sizeof(Complex));
@@ -960,7 +960,7 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_BetaZero) {
 }
 
 TEST_F(LinearAlgebraTest, CUDA_GEAM_TransBOnly) {
-    CudaLinearAlgebra linalg;
+    CudaLinearAlgebra linalg(0);
     int m = 18, n = 22;
     Complex alpha(1.0, 0.5), beta(2.0, -0.5);
     
@@ -975,9 +975,9 @@ TEST_F(LinearAlgebraTest, CUDA_GEAM_TransBOnly) {
         }
     }
     
-    CudaMemory A_dev(m * n * sizeof(Complex));
-    CudaMemory B_dev(n * m * sizeof(Complex));
-    CudaMemory C_dev(m * n * sizeof(Complex));
+    CudaMemory A_dev(m * n * sizeof(Complex), 0);
+    CudaMemory B_dev(n * m * sizeof(Complex), 0);
+    CudaMemory C_dev(m * n * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m * n * sizeof(Complex));
     B_dev.copyFromHost(B_host.data(), n * m * sizeof(Complex));
@@ -1021,21 +1021,21 @@ TEST_F(LinearAlgebraTest, CPU_GEAM_TransBOnly) {
 // ============================================================================
 
 TEST_F(LinearAlgebraTest, CUDA_QR_Factorization) {
-    CudaSolver solver;
+    CudaSolver solver(0);
     int m = 50, n = 30;
     
     auto A_host = randomMatrix(m, n);
     auto A_copy = A_host;  // Keep original for verification
     std::vector<Complex> tau(std::min(m, n));
     
-    CudaMemory A_dev(m * n * sizeof(Complex));
-    CudaMemory tau_dev(std::min(m,n) * sizeof(Complex));
+    CudaMemory A_dev(m * n * sizeof(Complex), 0);
+    CudaMemory tau_dev(std::min(m,n) * sizeof(Complex), 0);
     
     A_dev.copyFromHost(A_host.data(), m * n * sizeof(Complex));
     
     // Query workspace
     int lwork = solver.geqrf_workspace_size(m, n, PrecisionType::DOUBLE);
-    CudaMemory work_dev(lwork * sizeof(Complex));
+    CudaMemory work_dev(lwork * sizeof(Complex), 0);
     
     // Perform QR
     solver.geqrf(m, n, A_dev.data(), tau_dev.data(), work_dev.data(),
@@ -1043,7 +1043,7 @@ TEST_F(LinearAlgebraTest, CUDA_QR_Factorization) {
     
     // Extract Q
     lwork = solver.orgqr_workspace_size(m, n, std::min(m,n), PrecisionType::DOUBLE);
-    work_dev = CudaMemory(lwork * sizeof(Complex));
+    work_dev = CudaMemory(lwork * sizeof(Complex), 0);
     solver.orgqr(m, n, std::min(m,n), A_dev.data(), tau_dev.data(),
                  work_dev.data(), lwork, PrecisionType::DOUBLE);
     
@@ -1125,10 +1125,10 @@ TEST_F(LinearAlgebraTest, CrossBackend_GEMM_Consistency) {
     auto B_host = randomMatrix(k, n);
     
     // CUDA computation
-    CudaLinearAlgebra cuda_linalg;
-    CudaMemory A_cuda(m * k * sizeof(Complex));
-    CudaMemory B_cuda(k * n * sizeof(Complex));
-    CudaMemory C_cuda(m * n * sizeof(Complex));
+    CudaLinearAlgebra cuda_linalg(0);
+    CudaMemory A_cuda(m * k * sizeof(Complex), 0);
+    CudaMemory B_cuda(k * n * sizeof(Complex), 0);
+    CudaMemory C_cuda(m * n * sizeof(Complex), 0);
     
     A_cuda.copyFromHost(A_host.data(), m * k * sizeof(Complex));
     B_cuda.copyFromHost(B_host.data(), k * n * sizeof(Complex));
@@ -1161,10 +1161,10 @@ TEST_F(LinearAlgebraTest, CrossBackend_GEMV_Consistency) {
     auto y_host = randomVector(m);
     
     // CUDA computation
-    CudaLinearAlgebra cuda_linalg;
-    CudaMemory A_cuda(m * n * sizeof(Complex));
-    CudaMemory x_cuda(n * sizeof(Complex));
-    CudaMemory y_cuda(m * sizeof(Complex));
+    CudaLinearAlgebra cuda_linalg(0);
+    CudaMemory A_cuda(m * n * sizeof(Complex), 0);
+    CudaMemory x_cuda(n * sizeof(Complex), 0);
+    CudaMemory y_cuda(m * sizeof(Complex), 0);
     
     A_cuda.copyFromHost(A_host.data(), m * n * sizeof(Complex));
     x_cuda.copyFromHost(x_host.data(), n * sizeof(Complex));
@@ -1193,23 +1193,23 @@ TEST_F(LinearAlgebraTest, CrossBackend_QR_Consistency) {
     auto A_host = randomMatrix(m, n);
     
     // CUDA computation
-    CudaSolver cuda_solver;
+    CudaSolver cuda_solver(0);
     auto A_cuda_host = A_host;
     std::vector<Complex> tau_cuda(std::min(m, n));
     
-    CudaMemory A_cuda(m * n * sizeof(Complex));
-    CudaMemory tau_cuda_dev(std::min(m, n) * sizeof(Complex));
+    CudaMemory A_cuda(m * n * sizeof(Complex), 0);
+    CudaMemory tau_cuda_dev(std::min(m, n) * sizeof(Complex), 0);
     
     A_cuda.copyFromHost(A_cuda_host.data(), m * n * sizeof(Complex));
     
     int lwork_cuda = cuda_solver.geqrf_workspace_size(m, n, PrecisionType::DOUBLE);
-    CudaMemory work_cuda(lwork_cuda * sizeof(Complex));
+    CudaMemory work_cuda(lwork_cuda * sizeof(Complex), 0);
     
     cuda_solver.geqrf(m, n, A_cuda.data(), tau_cuda_dev.data(), work_cuda.data(),
                       lwork_cuda, PrecisionType::DOUBLE);
     
     lwork_cuda = cuda_solver.orgqr_workspace_size(m, n, std::min(m, n), PrecisionType::DOUBLE);
-    work_cuda = CudaMemory(lwork_cuda * sizeof(Complex));
+    work_cuda = CudaMemory(lwork_cuda * sizeof(Complex), 0);
     
     cuda_solver.orgqr(m, n, std::min(m, n), A_cuda.data(), tau_cuda_dev.data(),
                       work_cuda.data(), lwork_cuda, PrecisionType::DOUBLE);

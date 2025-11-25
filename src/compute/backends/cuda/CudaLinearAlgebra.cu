@@ -4,10 +4,54 @@
 #include <cuComplex.h>
 #include <stdexcept>
 
-CudaLinearAlgebra::CudaLinearAlgebra() : handle_(nullptr) {
-    // Create the cuBLAS handle. Note: handle is device-specific. So if you are using different GPUs, you need more instances of CudaLinearAlgebra!!!
-    // This is taken care by the IComputeDevice abstraction: each GPU is connected to one, and each has their own CudaLinearAlgebra with cuBLAS handles
+// ============================================================================
+// DeviceGuard Implementation
+// ============================================================================
+
+CudaLinearAlgebra::DeviceGuard::DeviceGuard(int device_id, cublasHandle_t handle, IStream* stream)
+    : handle_(handle), stream_was_set_(false) {
+    // Set correct device
+    cudaGetDevice(&previous_device_);
+    if (previous_device_ != device_id) {
+        cudaSetDevice(device_id);
+    }
+    
+    // Set stream if provided
+    if (stream) {
+        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
+        if (cudaStream) {
+            CUBLAS_CHECK(cublasSetStream(handle_, cudaStream->getCudaStream()));
+            stream_was_set_ = true;
+        }
+    }
+}
+
+CudaLinearAlgebra::DeviceGuard::~DeviceGuard() {
+    if (stream_was_set_) {
+        cublasSetStream(handle_, nullptr);  // Don't check errors in destructor
+    }
+    cudaSetDevice(previous_device_);
+}
+
+// ============================================================================
+// CudaLinearAlgebra Implementation
+// ============================================================================
+
+CudaLinearAlgebra::CudaLinearAlgebra(int device_id) : handle_(nullptr), device_id_(device_id) {
+    // Ensure we create the handle on the correct device
+    int previous_device;
+    cudaGetDevice(&previous_device);
+    if (previous_device != device_id_) {
+        cudaSetDevice(device_id_);
+    }
+    
+    // Create the cuBLAS handle. Note: handle is device-specific.
     CUBLAS_CHECK(cublasCreate(&handle_));
+    
+    // Restore previous device
+    if (previous_device != device_id_) {
+        cudaSetDevice(previous_device);
+    }
 }
 
 CudaLinearAlgebra::~CudaLinearAlgebra() {
@@ -17,7 +61,7 @@ CudaLinearAlgebra::~CudaLinearAlgebra() {
 }
 
 CudaLinearAlgebra::CudaLinearAlgebra(CudaLinearAlgebra&& other) noexcept 
-    : handle_(other.handle_) {
+    : handle_(other.handle_), device_id_(other.device_id_) {
     other.handle_ = nullptr;
 }
 
@@ -27,6 +71,7 @@ CudaLinearAlgebra& CudaLinearAlgebra::operator=(CudaLinearAlgebra&& other) noexc
             cublasDestroy(handle_);
         }
         handle_ = other.handle_;
+        device_id_ = other.device_id_;
         other.handle_ = nullptr;
     }
     return *this;
@@ -53,12 +98,7 @@ void CudaLinearAlgebra::axpy(
     PrecisionType precision,
     IStream* stream
 ) { 
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUBLAS_CHECK(cublasSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     if (precision == PrecisionType::DOUBLE) {
         CUBLAS_CHECK(cublasZaxpy(
@@ -75,10 +115,6 @@ void CudaLinearAlgebra::axpy(
             static_cast<cuComplex*>(y), 1
         ));
     }
-    
-    if (stream) {
-        CUBLAS_CHECK(cublasSetStream(handle_, nullptr));
-    }
 }
 
 void CudaLinearAlgebra::dotc(
@@ -89,12 +125,7 @@ void CudaLinearAlgebra::dotc(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUBLAS_CHECK(cublasSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     if (precision == PrecisionType::DOUBLE) {
         CUBLAS_CHECK(cublasZdotc(
@@ -111,10 +142,6 @@ void CudaLinearAlgebra::dotc(
             static_cast<cuComplex*>(result)
         ));
     }
-    // Reset stream to default
-    if (stream) {
-        CUBLAS_CHECK(cublasSetStream(handle_, nullptr));
-    }
 }
 
 void CudaLinearAlgebra::norm2(
@@ -124,12 +151,7 @@ void CudaLinearAlgebra::norm2(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUBLAS_CHECK(cublasSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     if (precision == PrecisionType::DOUBLE) {
         double result_d;
@@ -148,10 +170,6 @@ void CudaLinearAlgebra::norm2(
         ));
         *static_cast<float*>(result) = result_f;
     }
-    
-    if (stream) {
-        CUBLAS_CHECK(cublasSetStream(handle_, nullptr));
-    }
 }
 
 void CudaLinearAlgebra::scal(
@@ -161,12 +179,7 @@ void CudaLinearAlgebra::scal(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUBLAS_CHECK(cublasSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     if (precision == PrecisionType::DOUBLE) {
         CUBLAS_CHECK(cublasZscal(
@@ -180,10 +193,6 @@ void CudaLinearAlgebra::scal(
             static_cast<const cuComplex*>(alpha),
             static_cast<cuComplex*>(x), 1
         ));
-    }
-    
-    if (stream) {
-        CUBLAS_CHECK(cublasSetStream(handle_, nullptr));
     }
 }
 
@@ -202,12 +211,7 @@ void CudaLinearAlgebra::gemv(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUBLAS_CHECK(cublasSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     cublasOperation_t op = toCublasOp(trans);
     
@@ -235,10 +239,6 @@ void CudaLinearAlgebra::gemv(
             static_cast<const cuComplex*>(beta), // beta: scalar multiplier (host or device)
             static_cast<cuComplex*>(y), 1 // y: vector pointer (device), incy: stride
         ));
-    }
-    
-    if (stream) {
-        CUBLAS_CHECK(cublasSetStream(handle_, nullptr));
     }
 }
 
@@ -284,12 +284,7 @@ void CudaLinearAlgebra::gemm(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUBLAS_CHECK(cublasSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     cublasOperation_t opA = toCublasOp(transA);
     cublasOperation_t opB = toCublasOp(transB);
@@ -322,10 +317,6 @@ void CudaLinearAlgebra::gemm(
             static_cast<cuComplex*>(C), ldc
         ));
     }
-    
-    if (stream) {
-        CUBLAS_CHECK(cublasSetStream(handle_, nullptr));
-    }
 }
 
 void CudaLinearAlgebra::geam(
@@ -339,12 +330,7 @@ void CudaLinearAlgebra::geam(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUBLAS_CHECK(cublasSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     cublasOperation_t opA = toCublasOp(transA);
     cublasOperation_t opB = toCublasOp(transB);
@@ -376,9 +362,5 @@ void CudaLinearAlgebra::geam(
             static_cast<const cuComplex*>(B), ldb,
             static_cast<cuComplex*>(C), ldc
         ));
-    }
-    
-    if (stream) {
-        CUBLAS_CHECK(cublasSetStream(handle_, nullptr));
     }
 }

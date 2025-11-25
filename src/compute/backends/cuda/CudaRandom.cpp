@@ -4,7 +4,9 @@
 #include <stdexcept>
 #include <cuComplex.h>
 
-CudaRandom::CudaRandom() : current_seed_(1234ULL) {
+CudaRandom::CudaRandom(int device_id) : current_seed_(1234ULL), device_id_(device_id) {
+    DeviceGuard guard(device_id_);
+    
     // Create generator (default: PSEUDO_DEFAULT which is XORWOW)
     curandStatus_t status = curandCreateGenerator(&generator_, CURAND_RNG_PSEUDO_DEFAULT);
     if (status != CURAND_STATUS_SUCCESS) {
@@ -17,11 +19,14 @@ CudaRandom::CudaRandom() : current_seed_(1234ULL) {
 
 CudaRandom::~CudaRandom() {
     if (generator_) {
+        DeviceGuard guard(device_id_);
         curandDestroyGenerator(generator_);
     }
 }
 
 void CudaRandom::setSeed(unsigned long long seed) {
+    DeviceGuard guard(device_id_);
+    
     current_seed_ = seed;
     curandStatus_t status = curandSetPseudoRandomGeneratorSeed(generator_, seed);
     if (status != CURAND_STATUS_SUCCESS) {
@@ -35,6 +40,8 @@ void CudaRandom::generateUniform(
     PrecisionType precision,
     IStream* stream
 ) {
+    DeviceGuard guard(device_id_);
+    
     // Set stream if provided
     if (stream != nullptr) {
         auto* cuda_stream = dynamic_cast<CudaStream*>(stream);
@@ -62,6 +69,8 @@ void CudaRandom::generateNormal(
     PrecisionType precision,
     IStream* stream
 ) {
+    DeviceGuard guard(device_id_);
+    
     // Set stream if provided
     if (stream != nullptr) {
         auto* cuda_stream = dynamic_cast<CudaStream*>(stream);
@@ -104,6 +113,8 @@ void CudaRandom::generateComplexNormal(
     PrecisionType precision,
     IStream* stream
 ) {
+    DeviceGuard guard(device_id_);
+    
     // Set stream if provided
     if (stream != nullptr) {
         auto* cuda_stream = dynamic_cast<CudaStream*>(stream);

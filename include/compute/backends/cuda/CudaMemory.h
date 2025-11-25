@@ -6,8 +6,29 @@
 
 class CudaMemory : public IDeviceMemory {
 public:
+    // RAII helper to ensure operations happen on correct device
+    class DeviceGuard {
+    public:
+        explicit DeviceGuard(int device_id) {
+            cudaGetDevice(&previous_device_);
+            if (previous_device_ != device_id) {
+                cudaSetDevice(device_id);
+            }
+        }
+        
+        ~DeviceGuard() {
+            cudaSetDevice(previous_device_);
+        }
+        
+        DeviceGuard(const DeviceGuard&) = delete;
+        DeviceGuard& operator=(const DeviceGuard&) = delete;
+        
+    private:
+        int previous_device_;
+    };
+    
     // Allocate device memory
-    explicit CudaMemory(size_t bytes);
+    explicit CudaMemory(size_t bytes, int device_id);
     
     ~CudaMemory() override;
     
@@ -37,6 +58,7 @@ public:
 private:
     void* device_ptr_ = nullptr;
     size_t size_ = 0;
+    int device_id_;
     
     void free();
 };

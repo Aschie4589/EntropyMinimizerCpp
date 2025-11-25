@@ -1,19 +1,21 @@
 #include "compute/backends/cuda/CudaStream.h"
 #include "utilities/cuda/error_handling.h"  // Your existing CUDA_CHECK macro
 
-CudaStream::CudaStream() {
+CudaStream::CudaStream(int device_id) : device_id_(device_id) {
+    DeviceGuard guard(device_id_);
     CUDA_CHECK(cudaStreamCreate(&stream_));
 }
 
 CudaStream::~CudaStream() {
     if (stream_ != nullptr) {
+        DeviceGuard guard(device_id_);
         cudaStreamDestroy(stream_);  // Don't check errors in destructor
         stream_ = nullptr;
     }
 }
 
 CudaStream::CudaStream(CudaStream&& other) noexcept
-    : stream_(other.stream_) {
+    : stream_(other.stream_), device_id_(other.device_id_) {
     other.stream_ = nullptr;
 }
 
@@ -21,20 +23,25 @@ CudaStream& CudaStream::operator=(CudaStream&& other) noexcept {
     if (this != &other) {
         // Clean up existing stream
         if (stream_ != nullptr) {
+            DeviceGuard guard(device_id_);
             cudaStreamDestroy(stream_);
         }
         // Move from other
         stream_ = other.stream_;
+        device_id_ = other.device_id_;
         other.stream_ = nullptr;
     }
     return *this;
 }
 
 void CudaStream::synchronize() {
+    DeviceGuard guard(device_id_);
     CUDA_CHECK(cudaStreamSynchronize(stream_));
 }
 
 bool CudaStream::isComplete() const {
+    DeviceGuard guard(device_id_);
+    
     cudaError_t status = cudaStreamQuery(stream_);
     if (status == cudaSuccess) {
         return true;  // Stream is idle

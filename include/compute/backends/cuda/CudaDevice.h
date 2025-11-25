@@ -11,6 +11,11 @@
 #include <cublas_v2.h>
 #include <memory>
 
+// Forward declarations
+class CudaLinearAlgebra;
+class CudaSolver;
+class CudaRandom;
+
 namespace compute {
 
 /**
@@ -89,8 +94,31 @@ private:
     std::unique_ptr<CudaScratchMemory> device_scratch_;
     std::unique_ptr<CpuScratchMemory> host_scratch_;
     
-    // Note: solver_ and linalg_ would be implemented in full version
-    // For now, returning nullptr from createSolver/getLinearAlgebra
+    // Component instances (created lazily on first access)
+    std::unique_ptr<CudaLinearAlgebra> linalg_;
+    std::unique_ptr<CudaSolver> solver_;
+    std::unique_ptr<CudaRandom> random_;
+    
+    /**
+     * @brief RAII helper to ensure operations happen on correct GPU
+     * 
+     * CUDA operations use the "current device" set by cudaSetDevice().
+     * This guard saves the current device, sets to this device's ID,
+     * and restores the previous device on destruction.
+     * 
+     * Critical for multi-GPU scenarios where multiple CudaDevice instances
+     * exist for different GPUs.
+     */
+    class DeviceGuard {
+    public:
+        explicit DeviceGuard(int device_id);
+        ~DeviceGuard();
+        DeviceGuard(const DeviceGuard&) = delete;
+        DeviceGuard& operator=(const DeviceGuard&) = delete;
+    private:
+        int previous_device_;
+        bool need_restore_;
+    };
 };
 
 } // namespace compute

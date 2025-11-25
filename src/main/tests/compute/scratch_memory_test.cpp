@@ -25,26 +25,26 @@ protected:
 };
 
 TEST_F(CudaScratchMemoryTest, DefaultConstructor) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     EXPECT_EQ(scratch.capacity(), 0);
     EXPECT_EQ(scratch.getBackend(), DeviceBackend::CUDA);
 }
 
 TEST_F(CudaScratchMemoryTest, ConstructorWithInitialCapacity) {
     const size_t initial_size = 1024;
-    CudaScratchMemory scratch(initial_size);
+    CudaScratchMemory scratch(initial_size, 0);
     
     EXPECT_GE(scratch.capacity(), initial_size);
     EXPECT_EQ(scratch.getBackend(), DeviceBackend::CUDA);
 }
 
 TEST_F(CudaScratchMemoryTest, RequestZeroBytesThrows) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     EXPECT_THROW(scratch.request(0), std::invalid_argument);
 }
 
 TEST_F(CudaScratchMemoryTest, FirstRequest) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     const size_t size = 2048;
     
     void* ptr = scratch.request(size);
@@ -58,7 +58,7 @@ TEST_F(CudaScratchMemoryTest, FirstRequest) {
 }
 
 TEST_F(CudaScratchMemoryTest, SubsequentSmallerRequestReusesMemory) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     
     // First request
     const size_t size1 = 4096;
@@ -75,7 +75,7 @@ TEST_F(CudaScratchMemoryTest, SubsequentSmallerRequestReusesMemory) {
 }
 
 TEST_F(CudaScratchMemoryTest, GrowthStrategy) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     
     // First request
     const size_t size1 = 1000;
@@ -97,7 +97,7 @@ TEST_F(CudaScratchMemoryTest, GrowthStrategy) {
 }
 
 TEST_F(CudaScratchMemoryTest, LargeAllocation) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     
     // Request 100 MB
     const size_t large_size = 100 * 1024 * 1024;
@@ -120,7 +120,7 @@ TEST_F(CudaScratchMemoryTest, LargeAllocation) {
 }
 
 TEST_F(CudaScratchMemoryTest, Release) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     
     // Allocate some memory
     const size_t size = 4096;
@@ -139,7 +139,7 @@ TEST_F(CudaScratchMemoryTest, Release) {
 }
 
 TEST_F(CudaScratchMemoryTest, MultipleReleases) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     scratch.request(1024);
     
     // Multiple releases should be safe
@@ -151,7 +151,7 @@ TEST_F(CudaScratchMemoryTest, MultipleReleases) {
 }
 
 TEST_F(CudaScratchMemoryTest, MoveConstructor) {
-    CudaScratchMemory scratch1;
+    CudaScratchMemory scratch1(0, 0);
     const size_t size = 2048;
     void* ptr1 = scratch1.request(size);
     size_t capacity1 = scratch1.capacity();
@@ -169,12 +169,12 @@ TEST_F(CudaScratchMemoryTest, MoveConstructor) {
 }
 
 TEST_F(CudaScratchMemoryTest, MoveAssignment) {
-    CudaScratchMemory scratch1;
+    CudaScratchMemory scratch1(0, 0);
     const size_t size = 2048;
     void* ptr1 = scratch1.request(size);
     size_t capacity1 = scratch1.capacity();
     
-    CudaScratchMemory scratch2;
+    CudaScratchMemory scratch2(0, 0);
     scratch2.request(1024);  // Pre-allocate scratch2
     
     // Move assign
@@ -190,7 +190,7 @@ TEST_F(CudaScratchMemoryTest, MoveAssignment) {
 }
 
 TEST_F(CudaScratchMemoryTest, RepeatedRequestsSimulateRealUsage) {
-    CudaScratchMemory scratch;
+    CudaScratchMemory scratch(0, 0);
     
     // Simulate repeated SVD workspace requests of varying sizes
     std::vector<size_t> request_sizes = {
@@ -417,7 +417,7 @@ TEST(ScratchMemoryInterfaceTest, CudaPolymorphism) {
         GTEST_SKIP() << "No CUDA devices available";
     }
     
-    std::unique_ptr<IScratchMemory> scratch = std::make_unique<CudaScratchMemory>();
+    std::unique_ptr<IScratchMemory> scratch = std::make_unique<CudaScratchMemory>(0, 0);
     
     EXPECT_EQ(scratch->capacity(), 0);
     EXPECT_EQ(scratch->getBackend(), DeviceBackend::CUDA);

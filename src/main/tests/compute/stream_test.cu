@@ -21,14 +21,14 @@ __global__ void delayKernel(int* flag, int delay_ms) {
 // ====================
 
 TEST_F(ComputeTest, CudaStream_Creation) {
-    auto stream = std::make_unique<CudaStream>();
+    auto stream = std::make_unique<CudaStream>(0);
     
     EXPECT_NE(stream->getNativeHandle(), nullptr);
 }
 
 TEST_F(ComputeTest, CudaStream_Synchronize) {
-    auto stream = std::make_unique<CudaStream>();
-    auto mem = std::make_unique<CudaMemory>(sizeof(int));
+    auto stream = std::make_unique<CudaStream>(0);
+    auto mem = std::make_unique<CudaMemory>(sizeof(int), 0);
     
     int* device_flag = static_cast<int*>(mem->data());
     int host_flag = 0;
@@ -49,12 +49,12 @@ TEST_F(ComputeTest, CudaStream_Synchronize) {
 }
 
 TEST_F(ComputeTest, CudaStream_IsComplete) {
-    auto stream = std::make_unique<CudaStream>();
+    auto stream = std::make_unique<CudaStream>(0);
     
     // Stream should be idle initially
     EXPECT_TRUE(stream->isComplete());
     
-    auto mem = std::make_unique<CudaMemory>(sizeof(int));
+    auto mem = std::make_unique<CudaMemory>(sizeof(int), 0);
     int* device_flag = static_cast<int*>(mem->data());
     
     // Launch long-running kernel
@@ -75,7 +75,7 @@ TEST_F(ComputeTest, CudaStream_IsComplete) {
 }
 
 TEST_F(ComputeTest, CudaStream_MoveSemantics) {
-    auto stream1 = std::make_unique<CudaStream>();
+    auto stream1 = std::make_unique<CudaStream>(0);
     void* original_handle = stream1->getNativeHandle();
     
     // Move construct
@@ -86,9 +86,9 @@ TEST_F(ComputeTest, CudaStream_MoveSemantics) {
 
 TEST_F(ComputeTest, CudaStream_MultipleStreams) {
     // Create multiple streams
-    auto stream1 = std::make_unique<CudaStream>();
-    auto stream2 = std::make_unique<CudaStream>();
-    auto stream3 = std::make_unique<CudaStream>();
+    auto stream1 = std::make_unique<CudaStream>(0);
+    auto stream2 = std::make_unique<CudaStream>(0);
+    auto stream3 = std::make_unique<CudaStream>(0);
     
     // All should have different handles
     EXPECT_NE(stream1->getNativeHandle(), stream2->getNativeHandle());
@@ -134,7 +134,7 @@ TEST_F(ComputeTest, CpuStream_MoveSemantics) {
 
 TEST_F(ComputeTest, IStream_Polymorphism) {
     // Test that we can use IStream* for both backends
-    std::unique_ptr<IStream> cuda_stream = std::make_unique<CudaStream>();
+    std::unique_ptr<IStream> cuda_stream = std::make_unique<CudaStream>(0);
     std::unique_ptr<IStream> cpu_stream = std::make_unique<CpuStream>();
     
     // Both should work through interface

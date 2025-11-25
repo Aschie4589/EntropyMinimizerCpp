@@ -6,9 +6,54 @@
 #include <stdexcept>
 #include <algorithm>
 
-CudaSolver::CudaSolver() : handle_(nullptr), params_(nullptr) {
+// ============================================================================
+// DeviceGuard Implementation
+// ============================================================================
+
+CudaSolver::DeviceGuard::DeviceGuard(int device_id, cusolverDnHandle_t handle, IStream* stream)
+    : handle_(handle), stream_was_set_(false) {
+    // Set correct device
+    cudaGetDevice(&previous_device_);
+    if (previous_device_ != device_id) {
+        cudaSetDevice(device_id);
+    }
+    
+    // Set stream if provided
+    if (stream) {
+        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
+        if (cudaStream) {
+            CUSOLVER_CHECK(cusolverDnSetStream(handle_, cudaStream->getCudaStream()));
+            stream_was_set_ = true;
+        }
+    }
+}
+
+CudaSolver::DeviceGuard::~DeviceGuard() {
+    if (stream_was_set_) {
+        cusolverDnSetStream(handle_, nullptr);  // Don't check errors in destructor
+    }
+    cudaSetDevice(previous_device_);
+}
+
+// ============================================================================
+// CudaSolver Implementation
+// ============================================================================
+
+CudaSolver::CudaSolver(int device_id) : handle_(nullptr), params_(nullptr), device_id_(device_id) {
+    // Ensure we create handles on the correct device
+    int previous_device;
+    cudaGetDevice(&previous_device);
+    if (previous_device != device_id_) {
+        cudaSetDevice(device_id_);
+    }
+    
     CUSOLVER_CHECK(cusolverDnCreate(&handle_));
     CUSOLVER_CHECK(cusolverDnCreateParams(&params_));
+    
+    // Restore previous device
+    if (previous_device != device_id_) {
+        cudaSetDevice(previous_device);
+    }
 }
 
 CudaSolver::~CudaSolver() {
@@ -21,7 +66,7 @@ CudaSolver::~CudaSolver() {
 }
 
 CudaSolver::CudaSolver(CudaSolver&& other) noexcept 
-    : handle_(other.handle_), params_(other.params_) {
+    : handle_(other.handle_), params_(other.params_), device_id_(other.device_id_) {
     other.handle_ = nullptr;
     other.params_ = nullptr;
 }
@@ -36,6 +81,7 @@ CudaSolver& CudaSolver::operator=(CudaSolver&& other) noexcept {
         }
         handle_ = other.handle_;
         params_ = other.params_;
+        device_id_ = other.device_id_;
         other.handle_ = nullptr;
         other.params_ = nullptr;
     }
@@ -55,17 +101,12 @@ void CudaSolver::geqrf(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUSOLVER_CHECK(cusolverDnSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     int lda = m;  // Always m for column-major m×n matrix
     
     // Device info for error checking
-    auto devInfo = std::make_unique<CudaMemory>(sizeof(int));
+    auto devInfo = std::make_unique<CudaMemory>(sizeof(int), device_id_);
     
     if (precision == PrecisionType::DOUBLE) {
         CUSOLVER_CHECK(cusolverDnZgeqrf( // This is the legacy cusolver api (2.4.2.8)
@@ -91,10 +132,6 @@ void CudaSolver::geqrf(
     if (info_host != 0) {
         throw std::runtime_error("cuSOLVER geqrf failed with info = " + std::to_string(info_host));
     }
-    
-    if (stream) {
-        CUSOLVER_CHECK(cusolverDnSetStream(handle_, nullptr));
-    }
 }
 
 void CudaSolver::orgqr(
@@ -106,16 +143,11 @@ void CudaSolver::orgqr(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUSOLVER_CHECK(cusolverDnSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     int lda = m;
     
-    auto devInfo = std::make_unique<CudaMemory>(sizeof(int));
+    auto devInfo = std::make_unique<CudaMemory>(sizeof(int), device_id_);
     
     if (precision == PrecisionType::DOUBLE) {
         CUSOLVER_CHECK(cusolverDnZungqr(
@@ -140,10 +172,6 @@ void CudaSolver::orgqr(
     if (info_host != 0) {
         throw std::runtime_error("cuSOLVER orgqr failed with info = " + std::to_string(info_host));
     }
-    
-    if (stream) {
-        CUSOLVER_CHECK(cusolverDnSetStream(handle_, nullptr));
-    }
 }
 
 // ============================================================================
@@ -162,12 +190,7 @@ void CudaSolver::gesvd(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUSOLVER_CHECK(cusolverDnSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     int64_t lda = m;
     int64_t ldu = (jobu == 'A' || jobu == 'S') ? m : 1;
@@ -176,7 +199,7 @@ void CudaSolver::gesvd(
     else if (jobvt == 'S') ldvt = std::min(m, n);
     else ldvt = 1;
     
-    auto devInfo = std::make_unique<CudaMemory>(sizeof(int));
+    auto devInfo = std::make_unique<CudaMemory>(sizeof(int), device_id_);
     
     signed char jobz_u = jobu;
     signed char jobz_vt = jobvt;
@@ -218,10 +241,6 @@ void CudaSolver::gesvd(
     if (info_host != 0) {
         throw std::runtime_error("cuSOLVER gesvd failed with info = " + std::to_string(info_host));
     }
-    
-    if (stream) {
-        CUSOLVER_CHECK(cusolverDnSetStream(handle_, nullptr));
-    }
 }
 
 // ============================================================================
@@ -241,12 +260,7 @@ void CudaSolver::gesvdp(
     PrecisionType precision,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUSOLVER_CHECK(cusolverDnSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     int64_t lda = m;
     // Leading dimensions must always be valid even if vectors not computed
@@ -326,10 +340,6 @@ void CudaSolver::gesvdp(
     if (info_host != 0) {
         throw std::runtime_error("cuSOLVER gesvdp failed with info = " + std::to_string(info_host));
     }
-    
-    if (stream) {
-        CUSOLVER_CHECK(cusolverDnSetStream(handle_, nullptr));
-    }
 }
 
 // ============================================================================
@@ -350,12 +360,7 @@ void CudaSolver::gesvdr(
     int niters,
     IStream* stream
 ) {
-    if (stream) {
-        auto* cudaStream = dynamic_cast<CudaStream*>(stream);
-        if (cudaStream) {
-            CUSOLVER_CHECK(cusolverDnSetStream(handle_, cudaStream->getCudaStream()));
-        }
-    }
+    DeviceGuard guard(device_id_, handle_, stream);
     
     // Default oversampling if not specified
     if (oversampling < 0) {
@@ -366,7 +371,7 @@ void CudaSolver::gesvdr(
     int64_t ldu = (jobu == 'S') ? m : 1;
     int64_t ldv = (jobv == 'S') ? n : 1;
     
-    auto devInfo = std::make_unique<CudaMemory>(sizeof(int));
+    auto devInfo = std::make_unique<CudaMemory>(sizeof(int), device_id_);
     
     signed char jobz_u = jobu;
     signed char jobz_v = jobv;
@@ -415,10 +420,6 @@ void CudaSolver::gesvdr(
     devInfo->copyToHost(&info_host, sizeof(int));
     if (info_host != 0) {
         throw std::runtime_error("cuSOLVER gesvdr failed with info = " + std::to_string(info_host));
-    }
-    
-    if (stream) {
-        CUSOLVER_CHECK(cusolverDnSetStream(handle_, nullptr));
     }
 }
 

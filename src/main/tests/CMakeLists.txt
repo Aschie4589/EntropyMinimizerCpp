@@ -19,6 +19,7 @@ set(TEST_SOURCES
     compute/stream_test.cu
     compute/random_test.cpp
     compute/linalg_test.cpp
+    compute/multi_gpu_test.cu
 )
 
 # Create test executable
@@ -40,6 +41,7 @@ target_sources(compute_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuSolver.cpp
     ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuSVDSolver.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/device/DeviceFactory.cpp
 )
 
 # Link libraries

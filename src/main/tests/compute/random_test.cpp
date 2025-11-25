@@ -14,12 +14,12 @@
 // ====================
 
 TEST_F(ComputeTest, CudaRandom_Creation) {
-    auto rng = std::make_unique<CudaRandom>();
+    auto rng = std::make_unique<CudaRandom>(0);
     EXPECT_NE(rng->getGenerator(), nullptr);
 }
 
 TEST_F(ComputeTest, CudaRandom_SetSeed) {
-    auto rng = std::make_unique<CudaRandom>();
+    auto rng = std::make_unique<CudaRandom>(0);
     
     // Should not throw
     EXPECT_NO_THROW(rng->setSeed(42));
@@ -27,8 +27,8 @@ TEST_F(ComputeTest, CudaRandom_SetSeed) {
 }
 
 TEST_F(ComputeTest, CudaRandom_GenerateUniform_Double) {
-    auto rng = std::make_unique<CudaRandom>();
-    auto mem = std::make_unique<CudaMemory>(100 * sizeof(double));
+    auto rng = std::make_unique<CudaRandom>(0);
+    auto mem = std::make_unique<CudaMemory>(100 * sizeof(double), 0);
     
     rng->setSeed(42);
     EXPECT_NO_THROW(rng->generateUniform(mem->data(), 100, PrecisionType::DOUBLE));
@@ -44,8 +44,8 @@ TEST_F(ComputeTest, CudaRandom_GenerateUniform_Double) {
 }
 
 TEST_F(ComputeTest, CudaRandom_GenerateUniform_Float) {
-    auto rng = std::make_unique<CudaRandom>();
-    auto mem = std::make_unique<CudaMemory>(100 * sizeof(float));
+    auto rng = std::make_unique<CudaRandom>(0);
+    auto mem = std::make_unique<CudaMemory>(100 * sizeof(float), 0);
     
     rng->setSeed(42);
     EXPECT_NO_THROW(rng->generateUniform(mem->data(), 100, PrecisionType::FLOAT));
@@ -61,8 +61,8 @@ TEST_F(ComputeTest, CudaRandom_GenerateUniform_Float) {
 }
 
 TEST_F(ComputeTest, CudaRandom_GenerateNormal_Double) {
-    auto rng = std::make_unique<CudaRandom>();
-    auto mem = std::make_unique<CudaMemory>(1000 * sizeof(double));
+    auto rng = std::make_unique<CudaRandom>(0);
+    auto mem = std::make_unique<CudaMemory>(1000 * sizeof(double), 0);
     
     rng->setSeed(42);
     EXPECT_NO_THROW(rng->generateNormal(mem->data(), 1000, PrecisionType::DOUBLE));
@@ -86,8 +86,8 @@ TEST_F(ComputeTest, CudaRandom_GenerateNormal_Double) {
 }
 
 TEST_F(ComputeTest, CudaRandom_GenerateComplexNormal_Double) {
-    auto rng = std::make_unique<CudaRandom>();
-    auto mem = std::make_unique<CudaMemory>(100 * sizeof(std::complex<double>));
+    auto rng = std::make_unique<CudaRandom>(0);
+    auto mem = std::make_unique<CudaMemory>(100 * sizeof(std::complex<double>), 0);
     
     rng->setSeed(42);
     EXPECT_NO_THROW(rng->generateComplexNormal(mem->data(), 100, PrecisionType::DOUBLE));
@@ -107,11 +107,11 @@ TEST_F(ComputeTest, CudaRandom_GenerateComplexNormal_Double) {
 }
 
 TEST_F(ComputeTest, CudaRandom_Reproducibility) {
-    auto rng1 = std::make_unique<CudaRandom>();
-    auto rng2 = std::make_unique<CudaRandom>();
+    auto rng1 = std::make_unique<CudaRandom>(0);
+    auto rng2 = std::make_unique<CudaRandom>(0);
     
-    auto mem1 = std::make_unique<CudaMemory>(100 * sizeof(double));
-    auto mem2 = std::make_unique<CudaMemory>(100 * sizeof(double));
+    auto mem1 = std::make_unique<CudaMemory>(100 * sizeof(double), 0);
+    auto mem2 = std::make_unique<CudaMemory>(100 * sizeof(double), 0);
     
     // Same seed should produce same results
     rng1->setSeed(12345);
@@ -225,10 +225,10 @@ TEST_F(ComputeTest, CpuRandom_Reproducibility) {
 // ====================
 
 TEST_F(ComputeTest, CrossBackend_DifferentSeedsProduceDifferentResults) {
-    auto cuda_rng = std::make_unique<CudaRandom>();
+    auto cuda_rng = std::make_unique<CudaRandom>(0);
     auto cpu_rng = std::make_unique<CpuRandom>();
     
-    auto cuda_mem = std::make_unique<CudaMemory>(100 * sizeof(double));
+    auto cuda_mem = std::make_unique<CudaMemory>(100 * sizeof(double), 0);
     auto cpu_mem = std::make_unique<CpuMemory>(100 * sizeof(double));
     
     // Different seeds
@@ -259,10 +259,10 @@ TEST_F(ComputeTest, CrossBackend_DifferentSeedsProduceDifferentResults) {
 
 TEST_F(ComputeTest, IRandomGenerator_Polymorphism) {
     // Test that we can use IRandomGenerator* for both backends
-    std::unique_ptr<IRandomGenerator> cuda_rng = std::make_unique<CudaRandom>();
+    std::unique_ptr<IRandomGenerator> cuda_rng = std::make_unique<CudaRandom>(0);
     std::unique_ptr<IRandomGenerator> cpu_rng = std::make_unique<CpuRandom>();
     
-    auto cuda_mem = std::make_unique<CudaMemory>(50 * sizeof(double));
+    auto cuda_mem = std::make_unique<CudaMemory>(50 * sizeof(double), 0);
     auto cpu_mem = std::make_unique<CpuMemory>(50 * sizeof(double));
     
     // Both should work through interface

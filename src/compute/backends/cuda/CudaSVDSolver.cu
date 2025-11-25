@@ -43,7 +43,7 @@ CudaSVDSolver::CudaSVDSolver(
     }
     
     // Allocate devInfo (small, owned by this instance)
-    devinfo_ = std::make_unique<CudaMemory>(sizeof(int));
+    devinfo_ = std::make_unique<CudaMemory>(sizeof(int), device_->getDeviceID());
     
     // Query workspace requirements
     queryWorkspace();

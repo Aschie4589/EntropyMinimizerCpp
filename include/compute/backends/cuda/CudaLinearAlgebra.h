@@ -13,7 +13,7 @@
  */
 class CudaLinearAlgebra : public ILinearAlgebra {
 public:
-    CudaLinearAlgebra();
+    explicit CudaLinearAlgebra(int device_id);
     ~CudaLinearAlgebra() override;
     
     // Disable copy, enable move
@@ -100,9 +100,23 @@ public:
 
 private:
     cublasHandle_t handle_;
+    int device_id_;
     
     // Helper to convert Transpose enum to cuBLAS operation
     static cublasOperation_t toCublasOp(Transpose trans);
+    
+    // RAII helper for device and stream management
+    class DeviceGuard {
+    public:
+        DeviceGuard(int device_id, cublasHandle_t handle, IStream* stream);
+        ~DeviceGuard();
+        DeviceGuard(const DeviceGuard&) = delete;
+        DeviceGuard& operator=(const DeviceGuard&) = delete;
+    private:
+        int previous_device_;
+        cublasHandle_t handle_;
+        bool stream_was_set_;
+    };
 };
 
 #endif // CUDA_LINEAR_ALGEBRA_H_

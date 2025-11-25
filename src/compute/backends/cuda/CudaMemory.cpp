@@ -2,20 +2,22 @@
 #include "utilities/cuda/error_handling.h"  // Your existing CUDA_CHECK macro
 #include <stdexcept>
 
-CudaMemory::CudaMemory(size_t bytes) : size_(bytes) {
+CudaMemory::CudaMemory(size_t bytes, int device_id) : size_(bytes), device_id_(device_id) {
     if (bytes == 0) {
         throw std::invalid_argument("Cannot allocate 0 bytes");
     }
     
+    DeviceGuard guard(device_id_);
     CUDA_CHECK(cudaMalloc(&device_ptr_, bytes));
 }
 
 CudaMemory::~CudaMemory() {
+    DeviceGuard guard(device_id_);
     free();
 }
 
 CudaMemory::CudaMemory(CudaMemory&& other) noexcept
-    : device_ptr_(other.device_ptr_), size_(other.size_) {
+    : device_ptr_(other.device_ptr_), size_(other.size_), device_id_(other.device_id_) {
     other.device_ptr_ = nullptr;
     other.size_ = 0;
 }
@@ -23,11 +25,13 @@ CudaMemory::CudaMemory(CudaMemory&& other) noexcept
 CudaMemory& CudaMemory::operator=(CudaMemory&& other) noexcept {
     if (this != &other) {
         // Free existing memory
+        DeviceGuard guard(device_id_);
         free();
         
         // Move from other
         device_ptr_ = other.device_ptr_;
         size_ = other.size_;
+        device_id_ = other.device_id_;
         
         // Nullify other
         other.device_ptr_ = nullptr;
@@ -37,6 +41,8 @@ CudaMemory& CudaMemory::operator=(CudaMemory&& other) noexcept {
 }
 
 void CudaMemory::copyFromHost(const void* host_ptr, size_t bytes) {
+    DeviceGuard guard(device_id_);
+    
     if (bytes > size_) {
         throw std::invalid_argument("Copy size exceeds allocated memory");
     }
@@ -45,6 +51,8 @@ void CudaMemory::copyFromHost(const void* host_ptr, size_t bytes) {
 }
 
 void CudaMemory::copyToHost(void* host_ptr, size_t bytes) const {
+    DeviceGuard guard(device_id_);
+    
     if (bytes > size_) {
         throw std::invalid_argument("Copy size exceeds allocated memory");
     }
@@ -53,6 +61,8 @@ void CudaMemory::copyToHost(void* host_ptr, size_t bytes) const {
 }
 
 void CudaMemory::copyFrom(const IDeviceMemory* other, size_t bytes) {
+    DeviceGuard guard(device_id_);
+    
     if (bytes > size_) {
         throw std::invalid_argument("Copy size exceeds allocated memory");
     }
@@ -70,6 +80,8 @@ void CudaMemory::copyFrom(const IDeviceMemory* other, size_t bytes) {
 }
 
 void CudaMemory::fill(int value, size_t bytes) {
+    DeviceGuard guard(device_id_);
+    
     if (bytes > size_) {
         throw std::invalid_argument("Fill size exceeds allocated memory");
     }

@@ -12,7 +12,7 @@
 TEST_F(ComputeTest, CudaMemory_Allocation) {
     // Test basic allocation
     size_t size = 1024;
-    auto mem = std::make_unique<CudaMemory>(size);
+    auto mem = std::make_unique<CudaMemory>(size, 0);
     
     EXPECT_NE(mem->data(), nullptr);
     EXPECT_EQ(mem->size(), size);
@@ -21,7 +21,7 @@ TEST_F(ComputeTest, CudaMemory_Allocation) {
 
 TEST_F(ComputeTest, CudaMemory_CopyFromHost) {
     size_t count = 100;
-    auto mem = std::make_unique<CudaMemory>(count * sizeof(double));
+    auto mem = std::make_unique<CudaMemory>(count * sizeof(double), 0);
     
     // Create test data
     auto host_data = generateRandomDoubles(count);
@@ -38,7 +38,7 @@ TEST_F(ComputeTest, CudaMemory_CopyFromHost) {
 
 TEST_F(ComputeTest, CudaMemory_CopyToHost) {
     size_t count = 50;
-    auto mem = std::make_unique<CudaMemory>(count * sizeof(std::complex<double>));
+    auto mem = std::make_unique<CudaMemory>(count * sizeof(std::complex<double>), 0);
     
     // Create complex test data
     auto host_data = generateRandomComplex(count);
@@ -55,7 +55,7 @@ TEST_F(ComputeTest, CudaMemory_CopyToHost) {
 
 TEST_F(ComputeTest, CudaMemory_Fill) {
     size_t size = 256;
-    auto mem = std::make_unique<CudaMemory>(size);
+    auto mem = std::make_unique<CudaMemory>(size, 0);
     
     // Fill with pattern
     mem->fill(0xAB, size);
@@ -71,7 +71,7 @@ TEST_F(ComputeTest, CudaMemory_Fill) {
 
 TEST_F(ComputeTest, CudaMemory_MoveSemantics) {
     size_t size = 512;
-    auto mem1 = std::make_unique<CudaMemory>(size);
+    auto mem1 = std::make_unique<CudaMemory>(size, 0);
     void* original_ptr = mem1->data();
     
     // Move construct
@@ -84,8 +84,8 @@ TEST_F(ComputeTest, CudaMemory_MoveSemantics) {
 
 TEST_F(ComputeTest, CudaMemory_DeviceToDeviceCopy) {
     size_t count = 128;
-    auto mem1 = std::make_unique<CudaMemory>(count * sizeof(double));
-    auto mem2 = std::make_unique<CudaMemory>(count * sizeof(double));
+    auto mem1 = std::make_unique<CudaMemory>(count * sizeof(double), 0);
+    auto mem2 = std::make_unique<CudaMemory>(count * sizeof(double), 0);
     
     // Fill mem1 with data
     auto host_data = generateRandomDoubles(count);
@@ -162,7 +162,7 @@ TEST_F(ComputeTest, CpuMemory_MoveSemantics) {
 TEST_F(ComputeTest, CrossBackend_CpuToCuda) {
     size_t count = 75;
     auto cpu_mem = std::make_unique<CpuMemory>(count * sizeof(double));
-    auto cuda_mem = std::make_unique<CudaMemory>(count * sizeof(double));
+    auto cuda_mem = std::make_unique<CudaMemory>(count * sizeof(double), 0);
     
     // Fill CPU memory
     auto host_data = generateRandomDoubles(count);
@@ -180,7 +180,7 @@ TEST_F(ComputeTest, CrossBackend_CpuToCuda) {
 
 TEST_F(ComputeTest, CrossBackend_CudaToCpu) {
     size_t count = 60;
-    auto cuda_mem = std::make_unique<CudaMemory>(count * sizeof(std::complex<double>));
+    auto cuda_mem = std::make_unique<CudaMemory>(count * sizeof(std::complex<double>), 0);
     auto cpu_mem = std::make_unique<CpuMemory>(count * sizeof(std::complex<double>));
     
     // Fill CUDA memory
@@ -202,7 +202,7 @@ TEST_F(ComputeTest, CrossBackend_CudaToCpu) {
 // ====================
 
 TEST_F(ComputeTest, CudaMemory_ZeroAllocationThrows) {
-    EXPECT_THROW(CudaMemory(0), std::invalid_argument);
+    EXPECT_THROW(CudaMemory(0, 0), std::invalid_argument);
 }
 
 TEST_F(ComputeTest, CpuMemory_ZeroAllocationThrows) {
@@ -210,7 +210,7 @@ TEST_F(ComputeTest, CpuMemory_ZeroAllocationThrows) {
 }
 
 TEST_F(ComputeTest, CudaMemory_CopyExceedsSizeThrows) {
-    auto mem = std::make_unique<CudaMemory>(100);
+    auto mem = std::make_unique<CudaMemory>(100, 0);
     std::vector<unsigned char> data(200);
     
     EXPECT_THROW(mem->copyFromHost(data.data(), 200), std::invalid_argument);

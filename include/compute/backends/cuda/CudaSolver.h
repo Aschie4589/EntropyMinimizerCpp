@@ -13,7 +13,7 @@
  */
 class CudaSolver : public ISolver {
 public:
-    CudaSolver();
+    explicit CudaSolver(int device_id);
     ~CudaSolver() override;
     
     // Disable copy, enable move
@@ -123,6 +123,20 @@ public:
 private:
     cusolverDnHandle_t handle_;
     cusolverDnParams_t params_;
+    int device_id_;
+    
+    // RAII helper for device and stream management
+    class DeviceGuard {
+    public:
+        DeviceGuard(int device_id, cusolverDnHandle_t handle, IStream* stream);
+        ~DeviceGuard();
+        DeviceGuard(const DeviceGuard&) = delete;
+        DeviceGuard& operator=(const DeviceGuard&) = delete;
+    private:
+        int previous_device_;
+        cusolverDnHandle_t handle_;
+        bool stream_was_set_;
+    };
 };
 
 #endif // CUDA_SOLVER_H_

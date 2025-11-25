@@ -8,6 +8,11 @@
 #include <compute/memory/CpuScratchMemory.h>
 #include <memory>
 
+// Forward declarations
+class CpuLinearAlgebra;
+class CpuSolver;
+class CpuRandom;
+
 namespace compute {
 
 /**
@@ -73,6 +78,11 @@ public:
 private:
     int device_id_;
     std::unique_ptr<CpuScratchMemory> scratch_;
+    
+    // Component instances (created lazily on first access)
+    std::unique_ptr<CpuLinearAlgebra> linalg_;
+    std::unique_ptr<CpuSolver> solver_;
+    std::unique_ptr<CpuRandom> random_;
 };
 
 } // namespace compute

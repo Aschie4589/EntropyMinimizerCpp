@@ -21,10 +21,31 @@
  */
 class CudaScratchMemory : public IScratchMemory {
 public:
+    // RAII helper to ensure operations happen on correct device
+    class DeviceGuard {
+    public:
+        explicit DeviceGuard(int device_id) {
+            cudaGetDevice(&previous_device_);
+            if (previous_device_ != device_id) {
+                cudaSetDevice(device_id);
+            }
+        }
+        
+        ~DeviceGuard() {
+            cudaSetDevice(previous_device_);
+        }
+        
+        DeviceGuard(const DeviceGuard&) = delete;
+        DeviceGuard& operator=(const DeviceGuard&) = delete;
+        
+    private:
+        int previous_device_;
+    };
+    
     /**
      * @brief Construct empty scratch memory (no allocation)
      */
-    CudaScratchMemory() : data_(nullptr), capacity_(0) {}
+    explicit CudaScratchMemory(int device_id) : data_(nullptr), capacity_(0), device_id_(device_id) {}
     
     /**
      * @brief Construct with pre-allocated capacity
@@ -32,8 +53,8 @@ public:
      * @param initial_capacity Initial allocation size in bytes
      * @throws std::runtime_error if allocation fails
      */
-    explicit CudaScratchMemory(size_t initial_capacity) 
-        : data_(nullptr), capacity_(0) 
+    CudaScratchMemory(size_t initial_capacity, int device_id) 
+        : data_(nullptr), capacity_(0), device_id_(device_id) 
     {
         if (initial_capacity > 0) {
             request(initial_capacity);
@@ -44,6 +65,7 @@ public:
      * @brief Destructor - automatically frees device memory
      */
     ~CudaScratchMemory() override {
+        DeviceGuard guard(device_id_);
         release();
     }
     
@@ -59,6 +81,8 @@ public:
      * @throws std::runtime_error if cudaMalloc fails
      */
     void* request(size_t bytes) override {
+        DeviceGuard guard(device_id_);
+        
         if (bytes == 0) {
             throw std::invalid_argument("CudaScratchMemory::request: bytes must be > 0");
         }
@@ -122,7 +146,7 @@ public:
     
     // Move constructor
     CudaScratchMemory(CudaScratchMemory&& other) noexcept
-        : data_(other.data_), capacity_(other.capacity_) 
+        : data_(other.data_), capacity_(other.capacity_), device_id_(other.device_id_) 
     {
         other.data_ = nullptr;
         other.capacity_ = 0;
@@ -132,11 +156,13 @@ public:
     CudaScratchMemory& operator=(CudaScratchMemory&& other) noexcept {
         if (this != &other) {
             // Release current resources
+            DeviceGuard guard(device_id_);
             release();
             
             // Transfer ownership
             data_ = other.data_;
             capacity_ = other.capacity_;
+            device_id_ = other.device_id_;
             
             // Clear other
             other.data_ = nullptr;
@@ -148,6 +174,7 @@ public:
 private:
     void* data_;        // Device pointer
     size_t capacity_;   // Current allocation size in bytes
+    int device_id_;     // CUDA device ID
 };
 
 #endif // CUDA_SCRATCH_MEMORY_H_
