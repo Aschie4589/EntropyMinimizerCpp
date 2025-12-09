@@ -1,33 +1,27 @@
-# src/minimizer/algorithm/CMakeLists.txt
-# High-level entropy minimization algorithm orchestration
+# Minimizer Algorithm Library
+# Core algorithm execution and minimization strategies
 
-add_library(minimizer_algorithm STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/entropy_minimizer.cu
+add_library(minimizer_algorithm
+    cuda_minimization_strategy.cu
+    generic_minimization_strategy.cpp
+    algorithm_manager.cpp
 )
 
 set_target_properties(minimizer_algorithm PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
-    CUDA_ARCHITECTURES native
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON
 )
 
-target_compile_features(minimizer_algorithm PUBLIC cxx_std_17)
-
-target_include_directories(minimizer_algorithm
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/src/external
-    PUBLIC
-        $<INSTALL_INTERFACE:include>
+target_include_directories(minimizer_algorithm PUBLIC
+    ${CMAKE_SOURCE_DIR}/include
 )
 
 target_link_libraries(minimizer_algorithm PUBLIC
-    minimizer_core
-    minimizer_config
-    minimizer_analysis
-    messaging
-    serializer
-    uuid
+    minimizer_state
+    compute_device
     CUDA::cudart
+    CUDA::cublas
+    CUDA::cusolver
 )
 
-message(STATUS "Minimizer algorithm module configured: minimizer_algorithm library")
+target_compile_features(minimizer_algorithm PUBLIC cxx_std_17)

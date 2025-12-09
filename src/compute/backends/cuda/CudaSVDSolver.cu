@@ -9,7 +9,7 @@
 
 CudaSVDSolver::CudaSVDSolver(
     IComputeDevice* device,
-    int m, int n,
+    int m, int n, // Matrix dimensions, 
     const SVDSpec& spec,
     PrecisionType precision
 ) : m_(m), n_(n), spec_(spec), precision_(precision),
@@ -59,13 +59,7 @@ CudaSVDSolver::~CudaSVDSolver() {
 }
 
 void CudaSVDSolver::queryWorkspace() {
-    // Map SVDVectors to cuSOLVER parameters
-    cusolverEigMode_t jobz = (spec_.vectors == SVDVectors::NONE) 
-        ? CUSOLVER_EIG_MODE_NOVECTOR 
-        : CUSOLVER_EIG_MODE_VECTOR;
-    
-    int econ = (spec_.vectors == SVDVectors::THIN) ? 1 : 0;
-    
+
     cudaDataType dtype = (precision_ == PrecisionType::DOUBLE) ? CUDA_C_64F : CUDA_C_32F;
     cudaDataType dtype_real = (precision_ == PrecisionType::DOUBLE) ? CUDA_R_64F : CUDA_R_32F;
     
@@ -76,34 +70,52 @@ void CudaSVDSolver::queryWorkspace() {
     // Choose algorithm and query workspace
     SVDAlgorithm effective_algorithm = spec_.algorithm;
     
+    // Auto maps to QR for now
+
+    if (effective_algorithm == SVDAlgorithm::AUTO){
+        std::cout << "Automatically selected QR algorithm..." << std::endl;
+        effective_algorithm = SVDAlgorithm::QR;
+    }
+
     // Handle QR algorithm limitations: cusolverDnXgesvd only works well for m>=n
     // For wide matrices (m < n), fall back to POLAR which handles both cases
-    if (spec_.algorithm == SVDAlgorithm::QR && m_ < n_) {
+    if (effective_algorithm == SVDAlgorithm::QR && m_ < n_) {
         std::cout << "Warning: QR algorithm requested for wide matrix (" << m_ << "x" << n_ 
-                  << "). Falling back to POLAR algorithm." << std::endl;
+                  << "). Not supported. Falling back to POLAR algorithm." << std::endl;
         effective_algorithm = SVDAlgorithm::POLAR;
-        spec_.algorithm = SVDAlgorithm::POLAR;  // Update spec
     }
+
     
     // cusolverDnXgesvdp does NOT support CUSOLVER_EIG_MODE_NOVECTOR
     // If POLAR is requested with NONE vectors, fallback to QR
-    if (effective_algorithm == SVDAlgorithm::POLAR && spec_.vectors == SVDVectors::NONE) {
+    if (effective_algorithm == SVDAlgorithm::POLAR && spec_.lvectors == SVDVectors::NONE && spec_.rvectors == SVDVectors::NONE) {
         std::cout << "Warning: POLAR algorithm does not support computing singular values only. "
                   << "Falling back to QR algorithm." << std::endl;
+        // Check that dimensions are ok, else throw error
+        if (m_ < n_) {
+            throw std::invalid_argument(
+                "CudaSVDSolver: Cannot fall back to QR algorithm for wide matrix when singular vectors are not requested."
+            );
+        }
         effective_algorithm = SVDAlgorithm::QR;
     }
-    
-    if (effective_algorithm == SVDAlgorithm::AUTO || effective_algorithm == SVDAlgorithm::QR) {
+
+    // Update spec so that compute() uses the same algorithm
+    if (effective_algorithm != spec_.algorithm) {
+        spec_.algorithm = effective_algorithm;
+    } 
+
+    if (effective_algorithm == SVDAlgorithm::QR) {
         // Use cusolverDnXgesvd (QR-based)
-        int64_t ldvt = (spec_.vectors == SVDVectors::ALL) ? n_ : 
-                       (spec_.vectors == SVDVectors::THIN) ? std::min(m_, n_) : 1;
-        
+        int64_t ldvt = (spec_.rvectors == SVDVectors::ALL) ? n_ : 
+                       (spec_.rvectors == SVDVectors::THIN) ? std::min(m_, n_) : 1;
+
         CUSOLVER_CHECK(cusolverDnXgesvd_bufferSize(
             cusolver_handle_, cusolver_params_,
-            (spec_.vectors == SVDVectors::NONE) ? 'N' : 
-            (spec_.vectors == SVDVectors::ALL) ? 'A' : 'S',  // jobu
-            (spec_.vectors == SVDVectors::NONE) ? 'N' : 
-            (spec_.vectors == SVDVectors::ALL) ? 'A' : 'S',  // jobvt
+            (spec_.lvectors == SVDVectors::NONE) ? 'N' : 
+            (spec_.lvectors == SVDVectors::ALL) ? 'A' : 'S',  // jobu
+            (spec_.rvectors == SVDVectors::NONE) ? 'N' : 
+            (spec_.rvectors == SVDVectors::ALL) ? 'A' : 'S',  // jobvt
             m_, n_,
             dtype, nullptr, lda,
             dtype_real, nullptr,
@@ -114,8 +126,14 @@ void CudaSVDSolver::queryWorkspace() {
             &workspace_host_bytes_
         ));
     }
+
     else if (effective_algorithm == SVDAlgorithm::POLAR) {
-        // Use cusolverDnXgesvdp (polar decomposition)
+        // Map SVDVectors to cuSOLVER parameters
+        cusolverEigMode_t jobz = (spec_.lvectors == SVDVectors::NONE && spec_.rvectors == SVDVectors::NONE) 
+            ? CUSOLVER_EIG_MODE_NOVECTOR 
+            : CUSOLVER_EIG_MODE_VECTOR;
+        int econ = (spec_.rvectors == SVDVectors::ALL || spec_.lvectors == SVDVectors::ALL) ? 0 : 1;
+            // Use cusolverDnXgesvdp (polar decomposition)
         CUSOLVER_CHECK(cusolverDnXgesvdp_bufferSize(
             cusolver_handle_, cusolver_params_,
             jobz, econ,
@@ -129,16 +147,18 @@ void CudaSVDSolver::queryWorkspace() {
             &workspace_host_bytes_
         ));
     }
+
     else if (effective_algorithm == SVDAlgorithm::RANDOMIZED) {
         // Use cusolverDnXgesvdr (randomized)
         int rank = (spec_.rank <= 0) ? std::min(m_, n_) : spec_.rank;
         int oversampling = (spec_.oversampling < 0) ? 
-            std::min(2 * rank, std::min(m_, n_) - rank) : spec_.oversampling;
-        
+            std::min(2 * rank, std::min(m_, n_) - rank) : 
+            std::min(spec_.oversampling, std::min(m_, n_) - rank);        
+ 
         CUSOLVER_CHECK(cusolverDnXgesvdr_bufferSize(
             cusolver_handle_, cusolver_params_,
-            (spec_.vectors == SVDVectors::NONE) ? 'N' : 'S',  // jobu
-            (spec_.vectors == SVDVectors::NONE) ? 'N' : 'S',  // jobv
+            (spec_.lvectors == SVDVectors::NONE) ? 'N' : 'S',  // jobu
+            (spec_.rvectors == SVDVectors::NONE) ? 'N' : 'S',  // jobv
             m_, n_,
             rank, oversampling, spec_.power_iterations,
             dtype, nullptr, lda,
@@ -164,17 +184,11 @@ void CudaSVDSolver::compute(void* A, void* S, void* U, void* VT, IStream* stream
         }
     }
     
-    // Determine effective algorithm (handle fallbacks)
+    // Determine effective algorithm.
     SVDAlgorithm effective_algorithm = spec_.algorithm;
-    if (spec_.algorithm == SVDAlgorithm::QR && m_ < n_) {
-        effective_algorithm = SVDAlgorithm::POLAR;  // Already warned in queryWorkspace
-    }
-    if (effective_algorithm == SVDAlgorithm::POLAR && spec_.vectors == SVDVectors::NONE) {
-        effective_algorithm = SVDAlgorithm::QR;  // Already warned in queryWorkspace
-    }
     
     // Dispatch to appropriate algorithm
-    if (effective_algorithm == SVDAlgorithm::AUTO || effective_algorithm == SVDAlgorithm::QR) {
+    if (effective_algorithm == SVDAlgorithm::QR) {
         computeQR(A, S, U, VT);
     }
     else if (effective_algorithm == SVDAlgorithm::POLAR) {
@@ -211,30 +225,33 @@ void CudaSVDSolver::computeQR(void* A, void* S, void* U, void* VT) {
     // Request workspace
     void* d_work = dev_scratch->request(workspace_device_bytes_);
     void* h_work = (workspace_host_bytes_ > 0) ? host_scratch->request(workspace_host_bytes_) : nullptr;
-    
     // Map SVDVectors to jobu/jobvt characters
     signed char jobu, jobvt;
-    if (spec_.vectors == SVDVectors::NONE) {
-        jobu = jobvt = 'N';
-    } else if (spec_.vectors == SVDVectors::ALL) {
-        jobu = jobvt = 'A';
+    if (spec_.lvectors == SVDVectors::NONE) {
+        jobu = 'N';
+    } else if (spec_.lvectors == SVDVectors::ALL) {
+        jobu = 'A';
     } else {  // THIN
-        jobu = jobvt = 'S';
+        jobu = 'S';
+    }
+    if (spec_.rvectors == SVDVectors::NONE) {
+        jobvt = 'N';
+    } else if (spec_.rvectors == SVDVectors::ALL) {
+        jobvt = 'A';
+    } else {  // THIN
+        jobvt = 'S';
     }
     
     // Calculate leading dimensions
-    int64_t lda = m_;
-    int64_t ldu = (jobu == 'A' || jobu == 'S') ? m_ : 1;
-    int64_t ldvt = (jobvt == 'A') ? n_ : 
+    int lda = m_;
+    int ldu = m_;
+    int ldvt = (jobvt == 'A') ? n_ : 
                    (jobvt == 'S') ? std::min(m_, n_) : 1;
-    
+
     cudaDataType dtype = (precision_ == PrecisionType::DOUBLE) ? CUDA_C_64F : CUDA_C_32F;
     cudaDataType dtype_real = (precision_ == PrecisionType::DOUBLE) ? CUDA_R_64F : CUDA_R_32F;
     
-    // Initialize devInfo
-    int zero = 0;
-    devinfo_->copyFromHost(&zero, sizeof(int));
-    
+
     // Call cusolverDnXgesvd
     CUSOLVER_CHECK(cusolverDnXgesvd(
         cusolver_handle_, cusolver_params_,
@@ -251,7 +268,14 @@ void CudaSVDSolver::computeQR(void* A, void* S, void* U, void* VT) {
     ));
 }
 
-void CudaSVDSolver::computePolar(void* A, void* S, void* U, void* VT) {
+void CudaSVDSolver::computePolar(void* A, void* S, void* U, void* V) {
+    // Polar decomposition REQUIRES both U and V to be provided if vectors are requested
+    if ((spec_.lvectors != SVDVectors::NONE || spec_.rvectors != SVDVectors::NONE) && (U == nullptr || V == nullptr)) {
+        throw std::invalid_argument(
+            "CudaSVDSolver: Polar SVD requires both U and V to be provided when singular vectors are requested."
+        );
+    }
+
     // Get scratch pools
     auto* dev_scratch = device_->getDeviceScratch();
     auto* host_scratch = device_->getHostScratch();
@@ -265,10 +289,10 @@ void CudaSVDSolver::computePolar(void* A, void* S, void* U, void* VT) {
     void* h_work = (workspace_host_bytes_ > 0) ? host_scratch->request(workspace_host_bytes_) : nullptr;
     
     // Map SVDVectors to cuSOLVER parameters
-    cusolverEigMode_t jobz = (spec_.vectors == SVDVectors::NONE) 
+    cusolverEigMode_t jobz = (spec_.lvectors == SVDVectors::NONE && spec_.rvectors == SVDVectors::NONE) 
         ? CUSOLVER_EIG_MODE_NOVECTOR 
         : CUSOLVER_EIG_MODE_VECTOR;
-    int econ = (spec_.vectors == SVDVectors::THIN) ? 1 : 0;
+    int econ = (spec_.rvectors == SVDVectors::ALL || spec_.lvectors == SVDVectors::ALL) ? 0 : 1;
     
     // Calculate leading dimensions
     int64_t lda = m_;
@@ -292,7 +316,7 @@ void CudaSVDSolver::computePolar(void* A, void* S, void* U, void* VT) {
         dtype, A, lda,
         dtype_real, S,
         dtype, U, ldu,
-        dtype, VT, ldv,  // This is actually V, not V^H!
+        dtype, V, ldv,  // This is actually V, not V^H!
         dtype,
         d_work, workspace_device_bytes_,
         h_work, workspace_host_bytes_,
@@ -317,27 +341,29 @@ void CudaSVDSolver::computeRandomized(void* A, void* S, void* U, void* VT) {
     // Extract randomized SVD parameters
     int rank = (spec_.rank <= 0) ? std::min(m_, n_) : spec_.rank;
     int oversampling = (spec_.oversampling < 0) ? 
-        std::min(2 * rank, std::min(m_, n_) - rank) : spec_.oversampling;
+        std::min(2 * rank, std::min(m_, n_) - rank) : 
+        std::min(spec_.oversampling, std::min(m_, n_) - rank);        
     
     // Map SVDVectors to jobu/jobv characters
     signed char jobu, jobv;
-    if (spec_.vectors == SVDVectors::NONE) {
-        jobu = jobv = 'N';
+    if (spec_.lvectors == SVDVectors::NONE) {
+        jobu = 'N';
     } else {
-        jobu = jobv = 'S';  // Randomized only supports 'S' or 'N'
+        jobu = 'S';  // Randomized only supports 'S' or 'N'
+    }
+    if (spec_.rvectors == SVDVectors::NONE) {
+        jobv = 'N';
+    } else {
+        jobv = 'S';  // Randomized only supports 'S' or 'N'
     }
     
     // Calculate leading dimensions
     int64_t lda = m_;
-    int64_t ldu = (jobu == 'S') ? m_ : 1;
-    int64_t ldv = (jobv == 'S') ? n_ : 1;
+    int64_t ldu = m_;
+    int64_t ldv = n_;
     
     cudaDataType dtype = (precision_ == PrecisionType::DOUBLE) ? CUDA_C_64F : CUDA_C_32F;
     cudaDataType dtype_real = (precision_ == PrecisionType::DOUBLE) ? CUDA_R_64F : CUDA_R_32F;
-    
-    // Initialize devInfo
-    int zero = 0;
-    devinfo_->copyFromHost(&zero, sizeof(int));
     
     // Call cusolverDnXgesvdr
     // NOTE: gesvdr also returns V, not V^H

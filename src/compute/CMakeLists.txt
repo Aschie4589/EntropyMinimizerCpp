@@ -45,6 +45,7 @@ set_target_properties(compute_cuda PROPERTIES
 add_library(compute_cpu STATIC ${CPU_BACKEND_SOURCES})
 target_include_directories(compute_cpu PUBLIC
     ${CMAKE_SOURCE_DIR}/include
+    ${LAPACK_INCLUDE_DIR}
 )
 
 # Find BLAS/LAPACK for CPU backend

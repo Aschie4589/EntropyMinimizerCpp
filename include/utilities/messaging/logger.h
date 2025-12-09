@@ -11,6 +11,8 @@
 #include "utilities/messaging/message_sink.h"
 #include "utilities/uuid/uuid.h"
 
+namespace entropy {
+
 class Logger : public MessageSink {
 private:
     std::ofstream file_;
@@ -29,5 +31,6 @@ public:
     bool shouldSend(int level) const override;
 };
 
+} // namespace entropy
 
 #endif

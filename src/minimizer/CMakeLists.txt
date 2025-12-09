@@ -1,22 +1,11 @@
-# src/minimizer/CMakeLists.txt
-# Main minimizer module with all submodules
+# New minimizer components (refactored from god class)
 
-# Add all minimizer submodules
 add_subdirectory(config)
-add_subdirectory(core)
-add_subdirectory(utilities)
-add_subdirectory(analysis)
 add_subdirectory(algorithm)
+add_subdirectory(prediction)
+add_subdirectory(stopping)
+add_subdirectory(state)
+add_subdirectory(management)
+add_subdirectory(orchestration)
 
-# Create a top-level minimizer library that aggregates everything
-add_library(minimizer INTERFACE)
-
-target_link_libraries(minimizer INTERFACE
-    minimizer_config
-    minimizer_core
-    minimizer_utilities
-    minimizer_analysis
-    minimizer_algorithm
-)
-
-message(STATUS "Minimizer module configured: core minimizer with config, utilities, analysis, and algorithm")
+message(STATUS "Minimizer refactored modules configured: config, algorithm, prediction, stopping, state, management, orchestration")

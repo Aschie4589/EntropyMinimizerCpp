@@ -56,8 +56,6 @@ public:
      * Matrix dimensions and computation mode are fixed at construction.
      * All matrices must be pre-allocated by caller with correct sizes.
      * 
-     * Matrix A is modified in-place (may be overwritten depending on algorithm).
-     * 
      * Expected sizes based on spec.vectors:
      * - SVDVectors::ALL:  U is m×m, VT is n×n
      * - SVDVectors::THIN: U is m×min(m,n), VT is min(m,n)×n
@@ -66,7 +64,7 @@ public:
      * 
      * All matrices stored in column-major order.
      * 
-     * @param A Input matrix m×n, may be overwritten (column-major)
+     * @param A Input matrix m×n, (column-major)
      * @param S Output singular values, size min(m,n), descending order
      * @param U Output left singular vectors (or nullptr if vectors=NONE)
      * @param VT Output right singular vectors^H (or nullptr if vectors=NONE)

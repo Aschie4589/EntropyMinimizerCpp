@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <sstream>
 
+namespace entropy {
+
 Printer::Printer(int min_level, bool color)
     : uuid_(generate_uuid_v4()), min_level_(min_level), color_enabled_(color) {}
 
@@ -42,3 +44,5 @@ std::string Printer::getLevelColor(int level) const {
     if (level >= 2) return "\033[1;33m";  // Yellow for warnings
     return "\033[1;37m";                   // White for info
 }
+
+} // namespace entropy

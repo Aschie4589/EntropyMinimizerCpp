@@ -9,6 +9,8 @@
 // Message Sink includes
 #include "utilities/messaging/message_sink.h"
 
+namespace entropy {
+
 /*
 MessageHandler - Manages multiple message sinks (loggers, printers, etc.)
 Features:
@@ -53,5 +55,6 @@ public:
     size_t getSinkCount();
 };
 
+} // namespace entropy
 
 #endif

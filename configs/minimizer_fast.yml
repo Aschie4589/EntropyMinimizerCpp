@@ -1,0 +1,26 @@
+# Fast Test Configuration
+# Minimal settings for quick testing and debugging
+
+minimizer:
+  algorithm:
+    epsilon: 1.0e-3
+    precision: DOUBLE
+    device_id: 0
+
+  stopping:
+    max_iterations: 1000      # Very few iterations for quick testing
+    convergence_tolerance: 1.0e-10
+    convergence_window: 10
+
+  prediction:
+    enabled: false            # Disable prediction for speed
+
+  checkpoint:
+    enabled: false            # No checkpoints for testing
+
+  logging:
+    enabled: false            # Minimal logging
+
+  multi_run:
+    num_attempts: 10          # Fewer attempts for quick tests
+    track_global_moe: true

@@ -7,6 +7,8 @@
 #include "utilities/messaging/message_sink.h"
 #include "utilities/uuid/uuid.h"
 
+namespace entropy {
+
 class Printer : public MessageSink {
 private:
     std::string uuid_;
@@ -24,5 +26,7 @@ private:
     std::string getLevelColor(int level) const;
 
 };
+
+} // namespace entropy
 
 #endif

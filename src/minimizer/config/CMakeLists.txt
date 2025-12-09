@@ -1,17 +1,14 @@
-# src/minimizer/config/CMakeLists.txt
-# Minimizer configuration management
+# Config library
+add_library(minimizer_config INTERFACE)
 
-add_library(minimizer_config STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/entropy_config.cpp
+target_include_directories(minimizer_config INTERFACE
+    ${PROJECT_SOURCE_DIR}/include
 )
 
-target_compile_features(minimizer_config PUBLIC cxx_std_17)
-
-target_include_directories(minimizer_config
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
-    PUBLIC
-        $<INSTALL_INTERFACE:include>
+# Config depends on yaml-cpp (already in project via external/)
+target_link_libraries(minimizer_config INTERFACE
+    yaml-cpp
 )
 
-message(STATUS "Minimizer config module configured: minimizer_config library")
+# Config is header-only, so no source files to compile
+# All functionality is in headers

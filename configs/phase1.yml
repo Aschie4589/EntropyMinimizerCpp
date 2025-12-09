@@ -1,4 +1,6 @@
 # Phase 1 Configuration
+
+# Workflow-specific configuration
 config:
   params:
     N: [256]
@@ -20,6 +22,44 @@ config:
       iters: 500000
   output:
     output-directory: "results/phase11"
+
+# Minimizer configuration (used by all passes)
+minimizer:
+  algorithm:
+    epsilon: 1.0e-3
+    precision: DOUBLE
+    device_id: 0
+
+  stopping:
+    # max_iterations is determined by pass-specific iters above
+    convergence_tolerance: 1.0e-15
+    convergence_window: 20
+
+  prediction:
+    enabled: true
+    strategy: AUTO
+    window_size: 200
+    rsquared_threshold: 0.999
+    convergence_tolerance: 1.0e-15
+    min_data_points: 100
+
+  checkpoint:
+    enabled: false
+    interval: 10000
+    directory: checkpoints/
+
+  logging:
+    enabled: true
+    level: INFO
+    file_path: phase1.log
+    log_interval: 100
+    print_to_console: true
+    color_enabled: true
+
+  multi_run:
+    # num_attempts determined by workflow logic
+    track_global_moe: true
+    restart_on_failure: false
 
 
 

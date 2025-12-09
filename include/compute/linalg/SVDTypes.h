@@ -51,14 +51,16 @@ enum class SVDAlgorithm {
  * Usage:
  * @code
  * SVDSpec spec;
- * spec.vectors = SVDVectors::THIN;
+ * spec.lvectors = SVDVectors::THIN;
+ * spec.rvectors = SVDVectors::THIN;
  * spec.algorithm = SVDAlgorithm::RANDOMIZED;
  * spec.rank = 50;  // Compute top 50 singular values/vectors
  * @endcode
  */
 struct SVDSpec {
     /// Which singular vectors to compute
-    SVDVectors vectors = SVDVectors::THIN;
+    SVDVectors lvectors = SVDVectors::THIN;
+    SVDVectors rvectors = SVDVectors::THIN;
     
     /// Algorithm preference (backend may override if unsupported)
     SVDAlgorithm algorithm = SVDAlgorithm::AUTO;
@@ -73,7 +75,7 @@ struct SVDSpec {
     int oversampling = 10;
     
     /// For randomized SVD: number of power iterations (improves accuracy)
-    int power_iterations = 0;
+    int power_iterations = 2;
     
     /// For Jacobi SVD: convergence tolerance
     double tolerance = 1e-7;
@@ -85,8 +87,8 @@ struct SVDSpec {
     SVDSpec() = default;
     
     /// Convenience constructor for common cases
-    SVDSpec(SVDVectors v, SVDAlgorithm a = SVDAlgorithm::AUTO)
-        : vectors(v), algorithm(a) {}
+    SVDSpec(SVDVectors lv, SVDVectors rv, SVDAlgorithm a = SVDAlgorithm::AUTO)
+        : lvectors(lv), rvectors(rv), algorithm(a) {}
 };
 
 #endif // SVD_TYPES_H_

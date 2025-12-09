@@ -28,30 +28,6 @@ protected:
 // DeviceGuard Tests
 // ====================
 
-TEST_F(MultiGPUTest, DeviceGuard_SavesAndRestoresContext) {
-    if (device_count_ < 2) {
-        GTEST_SKIP() << "Need at least 2 GPUs for this test";
-    }
-    
-    // Set to device 0
-    cudaSetDevice(0);
-    int before;
-    cudaGetDevice(&before);
-    EXPECT_EQ(before, 0);
-    
-    {
-        // Create device 1 - its operations should use device 1
-        auto device1 = std::make_unique<compute::CudaDevice>(1);
-        
-        // While device1 exists, current device is unknown (could be 0 or 1)
-        // We don't check here because it depends on implementation
-    }
-    
-    // After device1 is destroyed, we're back where we started - no guarantee
-    // The DeviceGuard only protects during method calls, not across object lifetime
-    // So this test just verifies no crashes occur
-}
-
 TEST_F(MultiGPUTest, DeviceGuard_ProtectsDuringOperations) {
     if (device_count_ < 2) {
         GTEST_SKIP() << "Need at least 2 GPUs for this test";
@@ -172,7 +148,9 @@ TEST_F(MultiGPUTest, DeviceFactory_MultipleDevices) {
     auto device1 = DeviceFactory::create(DeviceFactory::DeviceType::CUDA, 1);
     
     EXPECT_EQ(device0->getDeviceID(), 0);
+    EXPECT_EQ(device0->getBackend(), DeviceBackend::CUDA);
     EXPECT_EQ(device1->getDeviceID(), 1);
+    EXPECT_EQ(device1->getBackend(), DeviceBackend::CUDA);
 }
 
 TEST_F(MultiGPUTest, DeviceFactory_InvalidDeviceThrows) {
@@ -235,6 +213,8 @@ TEST_F(MultiGPUTest, Component_LinearAlgebra_IsolatedPerDevice) {
     auto linalg1 = device1->getLinearAlgebra();
     
     // Each device has its own linalg instance
+    EXPECT_NE(linalg0, nullptr);
+    EXPECT_NE(linalg1, nullptr);
     EXPECT_NE(linalg0, linalg1);
 }
 

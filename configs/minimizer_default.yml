@@ -1,0 +1,50 @@
+# Default Minimizer Configuration
+# This file documents all available configuration options with their default values
+
+minimizer:
+  # Algorithm execution parameters
+  algorithm:
+    epsilon: 1.0e-3           # Depolarization parameter (must be in (0,1))
+    precision: DOUBLE         # Computation precision: DOUBLE or FLOAT
+    device_id: 0              # CUDA device ID for multi-GPU systems
+
+  # Stopping conditions
+  stopping:
+    max_iterations: 500000    # Maximum iterations before forced termination
+    convergence_tolerance: 1.0e-15  # Tolerance for entropy stability detection
+    convergence_window: 20    # Number of recent values for convergence analysis
+    # target_entropy: 0.5     # Optional: stop when reaching this entropy value
+
+  # Entropy prediction system
+  prediction:
+    enabled: true             # Enable/disable prediction
+    strategy: AUTO            # Strategy: EXPONENTIAL, LINEAR, or AUTO
+    window_size: 200          # Number of recent entropy values for prediction
+    rsquared_threshold: 0.999 # R² threshold for exponential fit acceptance
+    convergence_tolerance: 1.0e-15  # Tolerance for predicted convergence
+    min_data_points: 100      # Minimum data points before making predictions
+
+  # Checkpoint management
+  checkpoint:
+    enabled: false            # Enable/disable checkpoint saving
+    interval: 10000           # Save checkpoint every N iterations
+    directory: checkpoints/   # Directory for checkpoint files
+    filename_pattern: "{run_id}_iter{iteration}.dat"  # Filename pattern
+    keep_last_n: 3            # Keep only last N checkpoints (0 = keep all)
+    compress: false           # Enable compression for checkpoint files
+
+  # Logging system
+  logging:
+    enabled: false            # Enable/disable logging
+    level: INFO               # Log level: DEBUG, INFO, WARN, ERROR
+    file_path: minimizer.log  # Log file path
+    log_interval: 100         # Log progress every N iterations
+    print_to_console: true    # Print logs to console
+    color_enabled: true       # Enable colored console output
+
+  # Multi-run orchestration
+  multi_run:
+    num_attempts: 100         # Number of independent minimization attempts
+    track_global_moe: true    # Track minimum-of-entropies across all runs
+    restart_on_failure: false # Restart failed runs with new random vectors
+    max_failures: 10          # Max consecutive failures before giving up

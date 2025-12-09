@@ -60,14 +60,21 @@ void CpuSVDSolver::queryWorkspace() {
     // Determine job characters based on spec
     char jobu, jobvt;
     
-    if (spec_.vectors == SVDVectors::NONE) {
-        jobu = jobvt = 'N';
-    } else if (spec_.vectors == SVDVectors::THIN) {
-        jobu = jobvt = 'S';
+    if (spec_.lvectors == SVDVectors::NONE) {
+        jobu = 'N';
+    } else if (spec_.lvectors == SVDVectors::THIN) {
+        jobu = 'S';
     } else {  // ALL
-        jobu = jobvt = 'A';
+        jobu = 'A';
     }
-    
+    if (spec_.rvectors == SVDVectors::NONE) {
+        jobvt = 'N';
+    } else if (spec_.rvectors == SVDVectors::THIN) {
+        jobvt = 'S';
+    } else {  // ALL
+        jobvt = 'A';
+    }    
+
     int lda = m_;
     int ldu = (jobu == 'A') ? m_ : (jobu == 'S') ? m_ : 1;
     int ldvt = (jobvt == 'A') ? n_ : (jobvt == 'S') ? std::min(m_, n_) : 1;
@@ -135,15 +142,22 @@ void CpuSVDSolver::computeLAPACK(void* A, void* S, void* U, void* VT) {
     
     // Determine job characters
     char jobu, jobvt;
-    
-    if (spec_.vectors == SVDVectors::NONE) {
-        jobu = jobvt = 'N';
-    } else if (spec_.vectors == SVDVectors::THIN) {
-        jobu = jobvt = 'S';
+
+    if (spec_.lvectors == SVDVectors::NONE) {
+        jobu = 'N';
+    } else if (spec_.lvectors == SVDVectors::THIN) {
+        jobu = 'S';
     } else {  // ALL
-        jobu = jobvt = 'A';
+        jobu = 'A';
     }
-    
+    if (spec_.rvectors == SVDVectors::NONE) {
+        jobvt = 'N';
+    } else if (spec_.rvectors == SVDVectors::THIN) {
+        jobvt = 'S';
+    } else {  // ALL
+        jobvt = 'A';
+    }    
+
     int lda = m_;
     int ldu = (jobu == 'A') ? m_ : (jobu == 'S') ? m_ : 1;
     int ldvt = (jobvt == 'A') ? n_ : (jobvt == 'S') ? std::min(m_, n_) : 1;

@@ -8,11 +8,10 @@ add_library(serializer STATIC
 target_compile_features(serializer PUBLIC cxx_std_17)
 
 target_include_directories(serializer
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/src/external
     PUBLIC
-        $<INSTALL_INTERFACE:include>
+        ${PROJECT_SOURCE_DIR}/include
+    PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/external
 )
 
 target_link_libraries(serializer PUBLIC

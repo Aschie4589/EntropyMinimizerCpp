@@ -1,0 +1,43 @@
+# Production Configuration
+# High-accuracy settings with full features enabled
+
+minimizer:
+  algorithm:
+    epsilon: 1.0e-4           # Tighter epsilon for higher accuracy
+    precision: DOUBLE
+    device_id: 0
+
+  stopping:
+    max_iterations: 1000000   # High iteration limit
+    convergence_tolerance: 1.0e-16  # Stricter convergence
+    convergence_window: 30
+
+  prediction:
+    enabled: true
+    strategy: AUTO
+    window_size: 250
+    rsquared_threshold: 0.9995  # Stricter R² requirement
+    convergence_tolerance: 1.0e-16
+    min_data_points: 150
+
+  checkpoint:
+    enabled: true             # Enable checkpoints for recovery
+    interval: 50000           # Save every 50k iterations
+    directory: ${HOME}/minimizer_checkpoints/  # Use home directory
+    filename_pattern: "{run_id}_iter{iteration}.dat"
+    keep_last_n: 5            # Keep last 5 checkpoints
+    compress: false
+
+  logging:
+    enabled: true             # Full logging
+    level: INFO
+    file_path: ${HOME}/minimizer_logs/production.log
+    log_interval: 1000        # Log every 1000 iterations
+    print_to_console: true
+    color_enabled: true
+
+  multi_run:
+    num_attempts: 100
+    track_global_moe: true
+    restart_on_failure: false
+    max_failures: 10

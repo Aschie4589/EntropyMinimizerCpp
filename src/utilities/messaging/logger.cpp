@@ -1,5 +1,7 @@
 #include "utilities/messaging/logger.h"
 
+namespace entropy {
+
 Logger::Logger(const std::string& filename, int min_level)
     : uuid_(generate_uuid_v4()), min_level_(min_level) {
     file_.open(filename, std::ios::app);
@@ -37,3 +39,5 @@ void Logger::send(const std::string& msg, int level) {
 bool Logger::shouldSend(int level) const {
     return level >= min_level_;
 }
+
+} // namespace entropy

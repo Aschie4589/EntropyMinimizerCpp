@@ -1,0 +1,42 @@
+# Debug Configuration
+# Verbose logging and frequent checkpoints for debugging
+
+minimizer:
+  algorithm:
+    epsilon: 1.0e-3
+    precision: DOUBLE
+    device_id: 0
+
+  stopping:
+    max_iterations: 10000     # Limited iterations for debugging
+    convergence_tolerance: 1.0e-12
+    convergence_window: 20
+
+  prediction:
+    enabled: true
+    strategy: AUTO
+    window_size: 200
+    rsquared_threshold: 0.999
+    convergence_tolerance: 1.0e-12
+    min_data_points: 100
+
+  checkpoint:
+    enabled: true
+    interval: 10              # Very frequent checkpoints
+    directory: debug_checkpoints/
+    filename_pattern: "{run_id}_iter{iteration}.dat"
+    keep_last_n: 0            # Keep all checkpoints for analysis
+    compress: false
+
+  logging:
+    enabled: true
+    level: DEBUG              # Maximum verbosity
+    file_path: debug.log
+    log_interval: 1           # Log every iteration
+    print_to_console: true
+    color_enabled: true
+
+  multi_run:
+    num_attempts: 5           # Few attempts for debugging
+    track_global_moe: true
+    restart_on_failure: false

@@ -1,6 +1,8 @@
 #include "utilities/serializer/serializer.h"
-#include "nlohmann/json.hpp"
+#include "json.hpp"
 using json = nlohmann::json;
+
+namespace entropy {
 
 VectorSerializer::VectorSerializer(/* args */)
 {
@@ -16,33 +18,52 @@ void VectorSerializer::serialize(const std::string& type, const std::string& fil
                                   const std::string& description, int d, int N, int M) {
     std::ofstream outFile(fileName, std::ios::binary);
     /*
+    Serialize a vector of std::complex<double> to a file.
     
-    Serialize a vector of std::complex<double> to a file. This is used to save the state of minimizer.
-    The file format is as follows:
+    FILE FORMAT:
     +------------------+
     | Magic identifier |  (always "VECTR" or "KRAUS") 5 characters
     +------------------+
     | Format Version   |  (e.g., 1.0 - Variable length string)
     +------------------+
-    | Metadata Size    |  (size in bytes of metadata)
+    | Metadata Size    |  (size in bytes of metadata JSON)
     +------------------+
-    | Metadata         |  (JSON string with metadata)
+    | Metadata (JSON)  |  Contains: description, d, N, M
     +------------------+
-    | Vector Size      |  (number of elements in vector)
+    | Vector Size      |  (number of complex elements)
     +------------------+
-    | Vector Data      |  (binary data of vector)
+    | Vector Data      |  (binary: real, imag pairs as doubles)
     +------------------+
-    | Footer (Optional)|  (checksum) 
+    | Checksum (CRC32) |  (uint32_t CRC32 of metadata + data)
     +------------------+
 
+    METADATA FIELDS (stored as JSON):
+    For quantum state vectors (type=\"vector\"):
+      - d: Dimension of the Hilbert space (number of basis states)
+      - N: Not used for single vectors (set to 1)
+      - M: Not used for single vectors (set to 0)
+    
+    For Kraus operators (type=\"kraus\"):
+      - d: Number of Kraus operators in the channel
+      - N: Input dimension of each operator (columns)
+      - M: Output dimension of each operator (rows)
+      - vec contains all operators flattened: [K_0, K_1, ..., K_{d-1}]
+        Each K_i is stored in column-major order
+        Total size: d * M * N complex numbers
+
+    PERFORMANCE:
+      - Checksum uses CRC32 (standard polynomial 0xEDB88320)
+      - Computed incrementally during write (single pass)
+      - No buffer rebuilding required
+
     Arguments:
-    - type: "vector" or "kraus" to indicate the type of data being serialized.
-    - fileName: The name of the file to write the serialized data to.
-    - vec: The vector of std::complex<double> to serialize.
-    - description: A description of the data being serialized.
-    - d: An integer representing the dimension of the data. This is only used for metadata
-    - N: An integer representing the size of the vector, or the input dimension of the channel (K_i is MxN). This is only used for metadata.
-    - M: An integer representing the output dimension of the channel. This is only used for metadata.
+    - type: \"vector\" (quantum state) or \"kraus\" (quantum channel operators)
+    - fileName: Output file path
+    - vec: Flattened complex data
+    - description: Human-readable description
+    - d: See metadata fields above
+    - N: See metadata fields above  
+    - M: See metadata fields above
     */
     if (!outFile.is_open()) {
         throw std::runtime_error("Failed to open file for writing.");
@@ -82,24 +103,29 @@ void VectorSerializer::serialize(const std::string& type, const std::string& fil
     uint32_t vectorSize = vec.size(); 
     outFile.write(reinterpret_cast<const char*>(&vectorSize), sizeof(vectorSize)); // Write the size of the vector
 
-    // Vector data
+    // Vector data - compute checksum incrementally during write
+    std::vector<uint8_t> checksumBuffer;
+    
+    // Add metadata to checksum buffer
+    checksumBuffer.insert(checksumBuffer.end(), 
+                         metadataStr.begin(), metadataStr.end());
+    
+    // Write vector data and build checksum buffer
     for (const auto& elem : vec) {
         double real = elem.real();
         double imag = elem.imag();
         outFile.write(reinterpret_cast<const char*>(&real), sizeof(real));
         outFile.write(reinterpret_cast<const char*>(&imag), sizeof(imag));
+        
+        // Add to checksum buffer (more efficient than stringstream)
+        const uint8_t* realBytes = reinterpret_cast<const uint8_t*>(&real);
+        const uint8_t* imagBytes = reinterpret_cast<const uint8_t*>(&imag);
+        checksumBuffer.insert(checksumBuffer.end(), realBytes, realBytes + sizeof(real));
+        checksumBuffer.insert(checksumBuffer.end(), imagBytes, imagBytes + sizeof(imag));
     }
 
-    // Footer: Calculate checksum
-    std::vector<uint8_t> footerBuffer;
-    std::stringstream footerStream;
-    footerStream.write(metadataStr.c_str(), metadataSize);
-    for (const auto& elem : vec) {
-        footerStream.write(reinterpret_cast<const char*>(&elem), sizeof(elem));
-    }
-
-    footerBuffer.assign(std::istreambuf_iterator<char>(footerStream), std::istreambuf_iterator<char>()); 
-    uint32_t checksum = calculateChecksum(footerBuffer);
+    // Footer: Calculate checksum (now only one pass through data)
+    uint32_t checksum = calculateChecksum(checksumBuffer);
     outFile.write(reinterpret_cast<const char*>(&checksum), sizeof(checksum)); // Write the checksum
 
     outFile.close();
@@ -172,29 +198,33 @@ DeserializedData VectorSerializer::deserialize(const std::string& fileName) {
     uint32_t vectorSize;
     inFile.read(reinterpret_cast<char*>(&vectorSize), sizeof(vectorSize));
 
-    // Read vector data
+    // Read vector data and build checksum buffer incrementally
     std::vector<std::complex<double>> vec(vectorSize);
+    std::vector<uint8_t> checksumBuffer;
+    
+    // Add metadata to checksum buffer
+    checksumBuffer.insert(checksumBuffer.end(), 
+                         metadataStr.begin(), metadataStr.end());
+    
     for (size_t i = 0; i < vectorSize; ++i) {
         double real, imag;
         inFile.read(reinterpret_cast<char*>(&real), sizeof(real));
         inFile.read(reinterpret_cast<char*>(&imag), sizeof(imag));
         vec[i] = std::complex<double>(real, imag);
+        
+        // Add to checksum buffer (more efficient than stringstream)
+        const uint8_t* realBytes = reinterpret_cast<const uint8_t*>(&real);
+        const uint8_t* imagBytes = reinterpret_cast<const uint8_t*>(&imag);
+        checksumBuffer.insert(checksumBuffer.end(), realBytes, realBytes + sizeof(real));
+        checksumBuffer.insert(checksumBuffer.end(), imagBytes, imagBytes + sizeof(imag));
     }
 
     // Read footer: checksum
     uint32_t checksum;
     inFile.read(reinterpret_cast<char*>(&checksum), sizeof(checksum));
 
-    // Validate checksum
-    std::vector<uint8_t> footerBuffer;
-    std::stringstream footerStream;
-    footerStream.write(metadataStr.c_str(), metadataSize);
-    for (const auto& elem : vec) {
-        footerStream.write(reinterpret_cast<const char*>(&elem), sizeof(elem));
-    }
-
-    footerBuffer.assign(std::istreambuf_iterator<char>(footerStream), std::istreambuf_iterator<char>());
-    uint32_t calculatedChecksum = calculateChecksum(footerBuffer);
+    // Validate checksum (now only one pass through data)
+    uint32_t calculatedChecksum = calculateChecksum(checksumBuffer);
 
     if (calculatedChecksum != checksum) {
         throw std::runtime_error("Checksum validation failed.");
@@ -223,10 +253,19 @@ DeserializedData VectorSerializer::deserialize(const std::string& fileName) {
 }
 
 uint32_t VectorSerializer::calculateChecksum(const std::vector<uint8_t>& buffer) {
-    uint32_t checksum = 0;
+    // CRC32 implementation for better error detection
+    // Uses standard CRC32 polynomial: 0xEDB88320
+    uint32_t crc = 0xFFFFFFFF;
+    
     for (uint8_t byte : buffer) {
-        checksum += byte;
+        crc ^= byte;
+        for (int i = 0; i < 8; ++i) {
+            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+        }
     }
-    return checksum;
+    
+    return ~crc;
 }
+
+} // namespace entropy
 

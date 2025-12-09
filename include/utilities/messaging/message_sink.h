@@ -2,6 +2,9 @@
 #define MESSAGE_SINK_H
 
 #include <string>
+
+namespace entropy {
+
 /*
 MessageSink - Abstract base class for message sinks (loggers, printers, etc.)
 */
@@ -15,5 +18,7 @@ public:
     // Optional: filtering capability
     virtual bool shouldSend(int level) const { return true; }
 };
+
+} // namespace entropy
 
 #endif // MESSAGE_SINK_H
