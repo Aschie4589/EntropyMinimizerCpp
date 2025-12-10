@@ -91,6 +91,11 @@ public:
         config_.prediction.convergence_tolerance = tolerance;
         return *this;
     }
+
+    ConfigBuilder& setPredictionMultiplier(double multiplier) {
+        config_.prediction.prediction_multiplier = multiplier;
+        return *this;
+    }
     
     ConfigBuilder& setMinDataPoints(size_t min_points) {
         config_.prediction.min_data_points = min_points;
@@ -202,6 +207,7 @@ public:
             .enablePrediction(true)
             .enableCheckpoints(false)
             .enableLogging(false)
+            .setPredictionMultiplier(1.05)
             .build();
     }
     

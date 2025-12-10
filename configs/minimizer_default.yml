@@ -23,6 +23,7 @@ minimizer:
     rsquared_threshold: 0.999 # R² threshold for exponential fit acceptance
     convergence_tolerance: 1.0e-15  # Tolerance for predicted convergence
     min_data_points: 100      # Minimum data points before making predictions
+    prediction_multiplier: 1.05  # Multiplier for target entropy divergence check
 
   # Checkpoint management
   checkpoint:

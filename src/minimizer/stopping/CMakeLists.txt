@@ -6,7 +6,7 @@ add_library(minimizer_stopping
     max_iterations_condition.cpp
     convergence_condition.cpp
     numerical_instability_condition.cpp
-    target_entropy_condition.cpp
+    prediction_check_condition.cpp
     conditions_checker.cpp
 )
 

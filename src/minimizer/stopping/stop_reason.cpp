@@ -12,8 +12,10 @@ std::string to_string(StopReason reason) {
             return "MAX_ITERATIONS";
         case StopReason::NUMERICAL_INSTABILITY:
             return "NUMERICAL_INSTABILITY";
-        case StopReason::TARGET_REACHED:
-            return "TARGET_REACHED";
+        case StopReason::FORECASTED_DIVERGENCE:
+            return "FORECASTED_DIVERGENCE";
+        case StopReason::TARGET_UNREACHABLE:
+            return "TARGET_UNREACHABLE";
         default:
             return "UNKNOWN";
     }

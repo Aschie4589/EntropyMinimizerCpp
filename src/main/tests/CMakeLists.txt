@@ -632,7 +632,7 @@ target_sources(run_orchestrator_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/max_iterations_condition.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/convergence_condition.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/numerical_instability_condition.cpp
-    ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/target_entropy_condition.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/prediction_check_condition.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/stop_reason.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/prediction/exponential_fitting_strategy.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/prediction/linear_extrapolation_strategy.cpp

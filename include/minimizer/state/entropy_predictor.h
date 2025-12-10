@@ -81,7 +81,7 @@ public:
      * Delegates to strategy->predict(). Returns invalid result if
      * insufficient data or strategy returns invalid.
      */
-    PredictionResult predict();
+    PredictionResult predict() const;
     
     /**
      * @brief Check if enough data is available for prediction

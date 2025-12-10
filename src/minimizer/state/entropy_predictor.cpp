@@ -26,7 +26,7 @@ void EntropyPredictor::reset() {
     entropy_history_.clear();
 }
 
-PredictionResult EntropyPredictor::predict() {
+PredictionResult EntropyPredictor::predict() const {
     if (!hasEnoughData()) {
         return PredictionResult();  // Invalid result
     }

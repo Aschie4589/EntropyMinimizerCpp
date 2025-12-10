@@ -142,6 +142,7 @@ private:
         if (node["target_entropy"]) {
             config.target_entropy = node["target_entropy"].as<double>();
         }
+
     }
     
     static void parsePredictionConfig(const YAML::Node& node, PredictionConfig& config, const std::string& source) {
@@ -177,6 +178,10 @@ private:
         
         if (node["convergence_tolerance"]) {
             config.convergence_tolerance = node["convergence_tolerance"].as<double>();
+        }
+
+        if (node["prediction_multiplier"]) {
+            config.prediction_multiplier = node["prediction_multiplier"].as<double>();
         }
         
         if (node["min_data_points"]) {

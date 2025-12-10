@@ -3,7 +3,7 @@
 #include "minimizer/stopping/max_iterations_condition.h"
 #include "minimizer/stopping/convergence_condition.h"
 #include "minimizer/stopping/numerical_instability_condition.h"
-#include "minimizer/stopping/target_entropy_condition.h"
+#include "minimizer/stopping/prediction_check_condition.h"
 #include "minimizer/prediction/exponential_fitting_strategy.h"
 #include "minimizer/prediction/linear_extrapolation_strategy.h"
 #include "minimizer/algorithm/strategy_factory.h"
@@ -75,17 +75,8 @@ RunOrchestrator::RunOrchestrator(
         std::make_unique<NumericalInstabilityCondition>()
     );
     
-    // 2. Target entropy (second priority - goal reached)
-    if (config.stopping.target_entropy.has_value()) {
-        conditions_->addCondition(
-            std::make_unique<TargetEntropyCondition>(
-                config.stopping.target_entropy.value(),
-                1e-6  // tolerance
-            )
-        );
-    }
     
-    // 3. Convergence (third priority - plateau detected)
+    // 2. Convergence (second priority - plateau detected)
     conditions_->addCondition(
         std::make_unique<ConvergenceCondition>(
             config.stopping.convergence_window,
@@ -93,7 +84,7 @@ RunOrchestrator::RunOrchestrator(
         )
     );
     
-    // 4. Max iterations (lowest priority - fallback)
+    // 3. Max iterations (lowest priority - fallback)
     conditions_->addCondition(
         std::make_unique<MaxIterationsCondition>(config.stopping.max_iterations)
     );
@@ -122,6 +113,20 @@ RunOrchestrator::RunOrchestrator(
             std::move(strategy),
             config.prediction.window_size
         );
+        
+        // Add prediction check condition if target entropy is set
+        // This allows early termination when predictor detects unrecoverable divergence
+        if (config.stopping.target_entropy.has_value()) {
+            conditions_->addCondition(
+                std::make_unique<PredictionCheckCondition>(
+                    predictor_.get(),
+                    config.stopping.target_entropy,
+                    config.prediction.prediction_multiplier,  // Stop if predicted > target × multiplier
+                    config.prediction.min_data_points,   // Wait before checking predictions
+                    config.prediction.rsquared_threshold  // Only trust predictions with R² >= threshold
+                )
+            );
+        }
     }
     
     // Create CheckpointManager if enabled

@@ -24,8 +24,11 @@ enum class StopReason {
     /// Numerical instability detected (entropy increased instead of decreased)
     NUMERICAL_INSTABILITY,
     
-    /// Target entropy value reached
-    TARGET_REACHED
+    /// Predictor forecasts entropy will exceed target by significant margin
+    FORECASTED_DIVERGENCE,
+    
+    /// Predictor forecasts target entropy unreachable from current trajectory
+    TARGET_UNREACHABLE
 };
 
 /**

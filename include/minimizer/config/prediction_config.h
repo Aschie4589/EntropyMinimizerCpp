@@ -27,7 +27,7 @@ struct PredictionConfig {
     bool enabled = true;
     
     // Strategy to use for prediction
-    PredictionStrategyType strategy_type = PredictionStrategyType::AUTO;
+    PredictionStrategyType strategy_type = PredictionStrategyType::EXPONENTIAL;
     
     // Number of recent entropy values to use for prediction
     size_t window_size = 200;
@@ -38,6 +38,9 @@ struct PredictionConfig {
     // Convergence tolerance for predicted entropy
     double convergence_tolerance = 1e-15;
     
+    // Multiplier for target entropy divergence check (i.e. return stop if predicted > target × multiplier)
+    double prediction_multiplier = 1.05;
+ 
     // Minimum data points required before making predictions
     size_t min_data_points = 100;
     
