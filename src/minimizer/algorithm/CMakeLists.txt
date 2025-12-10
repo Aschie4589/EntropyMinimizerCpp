@@ -5,6 +5,7 @@ add_library(minimizer_algorithm
     cuda_minimization_strategy.cu
     generic_minimization_strategy.cpp
     algorithm_manager.cpp
+    strategy_factory.cpp
 )
 
 set_target_properties(minimizer_algorithm PROPERTIES

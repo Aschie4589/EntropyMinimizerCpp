@@ -2,9 +2,8 @@
 #define CHECKPOINT_MANAGER_H
 
 #include "minimizer/config/checkpoint_config.h"
+#include "minimizer/orchestration/types.h"
 #include <string>
-#include <complex>
-#include <vector>
 #include <chrono>
 #include <memory>
 #include <filesystem>
@@ -31,19 +30,6 @@ struct CheckpointMetadata {
           current_entropy(0.0), 
           run_minimum_entropy(0.0),
           timestamp(std::chrono::system_clock::now()) {}
-};
-
-/**
- * @brief HostVector - simple wrapper for host-side complex vectors
- * Used for checkpoint serialization (device-agnostic)
- */
-struct HostVector {
-    std::vector<std::complex<double>> data;
-    int dimension;
-    
-    HostVector() : dimension(0) {}
-    explicit HostVector(const std::vector<std::complex<double>>& vec) 
-        : data(vec), dimension(static_cast<int>(vec.size())) {}
 };
 
 /**

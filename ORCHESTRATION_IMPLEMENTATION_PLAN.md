@@ -262,67 +262,410 @@ private:
 
 ### **Phase 3: Worker Management**
 
-#### **Step 3.1: RunOrchestrator (Single Run Execution)**
-**File:** `include/minimizer/orchestration/run_orchestrator.h`
+#### **Step 3.1: StrategyFactory & RunOrchestrator Integration** ✅ COMPLETED (RunOrchestrator)
 
-**Responsibilities:**
-- Execute single minimization run from start to finish
-- Own/manage: ConditionsChecker, EntropyPredictor, CheckpointManager
-- Use (not own): IComputeDevice, AlgorithmManager
-- Report progress via callbacks
-- Handle exceptions gracefully
+##### **Step 3.1.1-3.1.4: StrategyFactory Implementation (Phase 1)** 🔄 IN PROGRESS
 
-**Key Types:**
+**Goal:** Replace hard-coded `GenericMinimizationStrategy` in RunOrchestrator with intelligent AUTO selection based on device backend + memory constraints.
+
+**Problem:** Kraus operators for large systems require massive GPU memory. Current RunOrchestrator always uses `GenericMinimizationStrategy` regardless of:
+- Device type (CUDA vs CPU)
+- Available GPU memory
+- Workspace requirements
+
+This leads to suboptimal strategy selection and potential out-of-memory errors.
+
+**Solution:** Memory-aware factory pattern with AUTO/GENERIC/CUDA modes.
+
+---
+
+**Step 3.1.1: Create StrategyFactory Interface**
+
+**File:** `include/minimizer/algorithm/strategy_factory.h`
+
+**Key Components:**
 ```cpp
+enum class StrategyType {
+    AUTO,     // Auto-select based on device backend + memory
+    GENERIC,  // Force GenericMinimizationStrategy
+    CUDA      // Force CudaMinimizationStrategy (CUDA only)
+};
+
+class StrategyFactory {
+public:
+    // Create with AUTO selection
+    static std::unique_ptr<IMinimizationStrategy> create(
+        IComputeDevice& device,
+        int kraus_count, int input_dim, int output_dim,
+        PrecisionType precision, int num_streams = 4
+    );
+    
+    // Create with explicit type
+    static std::unique_ptr<IMinimizationStrategy> create(
+        StrategyType type, IComputeDevice& device,
+        int kraus_count, int input_dim, int output_dim,
+        PrecisionType precision, int num_streams = 4
+    );
+    
+    // Memory estimation (before allocation)
+    static size_t estimateWorkspaceSize(
+        int kraus_count, int input_dim, int output_dim,
+        PrecisionType precision
+    );
+    
+    // Check available device memory
+    static size_t getAvailableMemory(IComputeDevice& device);
+};
+```
+
+**Memory Estimation Formula:**
+```
+complex_size = sizeof(std::complex<T>)  // 8 (float) or 16 (double) bytes
+real_size = sizeof(T)                    // 4 (float) or 8 (double) bytes
+
+vecs1 = d × M × complex_size             // Step 1: {K_i|ψ⟩}
+sing1 = d × M × complex_size             // Step 1: SVD U vectors
+vecs2 = d² × N × complex_size            // Step 2: {K_j^H|φ_i⟩}
+sing2 = N × complex_size                 // Step 2: SVD U (rank 1)
+sv1 = d × real_size                      // Step 1: singular values
+sv2 = d² × real_size                     // Step 2: singular values
+svd1_workspace ≈ M × d × complex_size    // cuSOLVER (QR algorithm)
+svd2_workspace ≈ N × d² × complex_size   // cuSOLVER (randomized)
+
+Total ≈ 3×d×M×c + 2×d²×N×c + N×c + (d+d²)×r
+```
+
+**AUTO Selection Logic:**
+1. Check device backend (CUDA vs CPU)
+2. If CUDA:
+   - Estimate workspace size
+   - Query GPU free memory via `cudaMemGetInfo()`
+   - If `free_memory ≥ 1.3 × workspace`: CudaMinimizationStrategy
+   - Else: GenericMinimizationStrategy (fallback)
+3. If CPU: GenericMinimizationStrategy
+
+**Safety Margins:**
+- AUTO mode: 30% buffer (1.3x)
+- Explicit CUDA: 20% buffer (1.2x)
+- GENERIC: No check (fallback, less memory efficient)
+
+---
+
+**Step 3.1.2: Implement StrategyFactory**
+
+**File:** `src/minimizer/algorithm/strategy_factory.cpp`
+
+**Key Methods:**
+
+```cpp
+std::unique_ptr<IMinimizationStrategy> StrategyFactory::create(
+    IComputeDevice& device,
+    int kraus_count, int input_dim, int output_dim,
+    PrecisionType precision, int num_streams
+) {
+    return create(StrategyType::AUTO, device, kraus_count, 
+                  input_dim, output_dim, precision, num_streams);
+}
+
+std::unique_ptr<IMinimizationStrategy> StrategyFactory::create(
+    StrategyType type, IComputeDevice& device, /* ... */
+) {
+    switch (type) {
+        case StrategyType::AUTO:
+            return createAuto(device, /* ... */);
+        case StrategyType::GENERIC:
+            return std::make_unique<GenericMinimizationStrategy>(device, num_streams);
+        case StrategyType::CUDA:
+            if (device.getBackend() != DeviceBackend::CUDA) {
+                throw std::invalid_argument("CUDA strategy requires CUDA device");
+            }
+            if (!cudaStrategyFitsMemory(device, /* ... */, 1.2)) {
+                throw std::runtime_error("Insufficient GPU memory");
+            }
+            return std::make_unique<CudaMinimizationStrategy>(device, num_streams);
+    }
+}
+
+size_t StrategyFactory::getAvailableMemory(IComputeDevice& device) {
+    if (device.getBackend() == DeviceBackend::CUDA) {
+        size_t free_bytes, total_bytes;
+        cudaMemGetInfo(&free_bytes, &total_bytes);  // Query GPU
+        return free_bytes;
+    } else {
+        return SIZE_MAX;  // CPU: no practical limit
+    }
+}
+```
+
+---
+
+**Step 3.1.3: Update RunOrchestrator**
+
+**File:** `src/minimizer/orchestration/run_orchestrator.cpp`
+
+**Change (line 62):**
+```cpp
+// OLD: Hard-coded GenericMinimizationStrategy
+auto strategy = std::make_unique<GenericMinimizationStrategy>(device_, 4);
+
+// NEW: Use factory with AUTO selection
+auto strategy = StrategyFactory::create(
+    device_,
+    kraus_ops.kraus_count,
+    kraus_ops.input_dim,
+    kraus_ops.output_dim,
+    config.algorithm.precision
+);
+```
+
+**Add include:**
+```cpp
+#include "minimizer/algorithm/strategy_factory.h"
+```
+
+---
+
+**Step 3.1.4: Create StrategyFactory Tests**
+
+**File:** `src/main/tests/test_strategy_factory.cpp`
+
+**Test Cases:**
+1. `estimateWorkspaceSize_float_vs_double` - Double uses 2x memory
+2. `estimateWorkspaceSize_scaling` - Verify d² scaling
+3. `getAvailableMemory_cuda` - Query GPU memory
+4. `getAvailableMemory_cpu` - Returns SIZE_MAX
+5. `create_auto_cuda_sufficient` - AUTO → CUDA when memory fits
+6. `create_auto_cuda_insufficient` - AUTO → Generic fallback
+7. `create_explicit_generic` - Force Generic always works
+8. `create_explicit_cuda_sufficient` - Force CUDA with memory
+9. `create_explicit_cuda_insufficient` - Force CUDA throws
+10. `create_cuda_on_cpu_throws` - CUDA on CPU throws
+11. `create_invalid_dimensions` - Negative dims throw
+
+**Expected Results:**
+- All StrategyFactory tests pass (11/11)
+- All RunOrchestrator tests still pass (14/14)
+- No regressions in other orchestration tests
+
+---
+
+##### **Step 3.1.5: Configuration Integration (Phase 2)** ⏳ FUTURE
+
+**Goal:** Allow users to control strategy selection via YAML config.
+
+**Changes:**
+
+1. **Extend AlgorithmConfig** (`include/minimizer/config/algorithm_config.h`):
+   ```cpp
+   struct AlgorithmConfig {
+       double epsilon = 1e-3;
+       PrecisionType precision = PrecisionType::DOUBLE;
+       int device_id = 0;
+       StrategyType strategy = StrategyType::AUTO;  // NEW
+   };
+   ```
+
+2. **Create YAML Parser** (`src/minimizer/config/algorithm_config_parser.cpp`):
+   ```cpp
+   StrategyType parseStrategyType(const std::string& str) {
+       if (str == "AUTO") return StrategyType::AUTO;
+       if (str == "GENERIC") return StrategyType::GENERIC;
+       if (str == "CUDA") return StrategyType::CUDA;
+       throw std::invalid_argument("Invalid strategy: " + str);
+   }
+   ```
+
+3. **Update YAML Configs** (`configs/minimizer_default.yml`):
+   ```yaml
+   algorithm:
+     epsilon: 1.0e-3
+     precision: DOUBLE
+     device_id: 0
+     strategy: AUTO  # NEW: AUTO | GENERIC | CUDA
+   ```
+
+4. **Update RunOrchestrator** to use `config.algorithm.strategy`:
+   ```cpp
+   auto strategy = StrategyFactory::create(
+       config.algorithm.strategy,  // Use config field
+       device_, kraus_ops.kraus_count, /* ... */
+   );
+   ```
+
+**Note:** Phase 2 deferred to future work. Phase 1 provides full functionality with AUTO as default.
+
+---
+
+##### **Step 3.1.6: CheckpointManager Implementation** ⏳ NEXT
+
+**Goal:** Enable checkpoint save/restore functionality in RunOrchestrator.
+
+**Current Status:** Stubbed out due to missing `json.hpp` dependency.
+
+**Files:**
+- `include/minimizer/orchestration/checkpoint_manager.h` - Interface exists
+- `src/minimizer/orchestration/checkpoint_manager.cpp` - Stub implementation
+- `src/main/tests/orchestration/test_checkpoint_manager.cpp` - Basic tests
+
+**Tasks:**
+1. Integrate nlohmann/json library (already in `src/external/nlohmann/`)
+2. Implement `CheckpointManager::save()` - Serialize state to JSON file
+3. Implement `CheckpointManager::load()` - Deserialize from JSON file
+4. Add compression support (optional, via zlib)
+5. Implement checkpoint cleanup (keep last N checkpoints)
+6. Update RunOrchestrator to enable checkpointing
+7. Add comprehensive tests (save/load, compression, cleanup)
+
+**Design:**
+```cpp
+class CheckpointManager {
+public:
+    void save(int iteration, double entropy, const HostVector& vector);
+    CheckpointData load(const std::string& filepath);
+    void cleanup();  // Remove old checkpoints
+    
+private:
+    CheckpointConfig config_;
+    std::vector<std::string> saved_files_;  // Track for cleanup
+};
+```
+
+**Checkpoint File Format (JSON):**
+```json
+{
+  "run_id": "abc-123",
+  "iteration": 1000,
+  "entropy": 0.123456,
+  "vector": {
+    "dimension": 16,
+    "data_real": [0.1, 0.2, ...],
+    "data_imag": [0.0, 0.1, ...]
+  },
+  "timestamp": "2025-12-09T10:30:00Z"
+}
+```
+
+**Testing:**
+- Save checkpoint, verify file exists and format correct
+- Load checkpoint, verify vector restored correctly
+- Compression enabled/disabled
+- Cleanup keeps last N files
+- Invalid checkpoint file throws exception
+- RunOrchestrator integration (save every N iterations)
+
+---
+
+##### **RunOrchestrator Summary** ✅ COMPLETED
+
+**Files:** 
+- `include/minimizer/orchestration/types.h` - Shared types
+- `include/minimizer/orchestration/run_orchestrator.h`
+- `src/minimizer/orchestration/run_orchestrator.cpp`
+- `src/main/tests/orchestration/test_run_orchestrator.cpp`
+
+**Status:** Fully implemented and tested (14/14 tests passing)
+
+**Shared Types (`include/minimizer/orchestration/types.h`):**
+```cpp
+struct HostVector {
+    std::vector<std::complex<double>> data;
+    int dimension;
+};
+
+enum class RunErrorType {
+    NONE, INVALID_INPUT, DEVICE_ERROR, CHECKPOINT_FAILURE,
+    TIMEOUT, ALGORITHM_FAILURE, UNKNOWN
+};
+
 struct RunTask {
     int run_id;
-    int config_id;          // Index into shared config array
+    int config_id;          // Index into shared config array (future multi-config)
     HostVector initial_vector;
     int priority = 0;       // For future work prioritization
 };
+```
 
+**RunOrchestrator Interface:**
+```cpp
 class RunOrchestrator {
 public:
+    // Thread-safe callback signature
+    // Called from worker thread - implementation MUST be thread-safe
+    // Protected by try-catch - exceptions won't crash runs
     using ProgressCallback = std::function<void(int run_id, int iteration, double entropy)>;
     
     RunOrchestrator(
         const MinimizerConfig& config,
+        const HostKrausOperators& kraus_ops,  // Copied by AlgorithmManager
+        int input_dim,
         IComputeDevice& device,
         ProgressCallback progress_cb = nullptr
     );
     
-    RunResult execute(const HostVector& initial_vector);
+    RunResult execute(int run_id, const HostVector& initial_vector);
     
 private:
-    void mainLoop();
-    bool checkStoppingConditions();
-    void handleCheckpoint(int iteration);
-    
-    const MinimizerConfig& config_;
-    IComputeDevice& device_;
-    
-    // Components (owned)
+    // Owned components
+    std::unique_ptr<EntropyManager> entropy_manager_;
     std::unique_ptr<AlgorithmManager> algorithm_mgr_;
     std::unique_ptr<ConditionsChecker> conditions_;
     std::unique_ptr<EntropyPredictor> predictor_;
-    std::unique_ptr<CheckpointManager> checkpoint_mgr_;
-    
-    ProgressCallback progress_cb_;
+    // CheckpointManager temporarily disabled (requires json.hpp)
 };
 ```
 
-**Testing:** `test_run_orchestrator.cpp`
-- Execute simple run (CPU device, 100 iters)
-    - Execute simple run with more complex kraus operators (random unitary matrices), check entropy decreases, 1000 iters
-- Stopping condition: max iterations reached
-- Stopping condition: convergence detected
-- Progress callback invoked correctly
-- Exception in iteration → error result returned
-- Checkpoint saving works (if enabled)
+**Design Decisions:**
+
+1. **HostVector Deduplication:** 
+   - Previously defined in 3 places (result_collector.h, checkpoint_manager.h, run_orchestrator.h)
+   - Now in single location: `include/minimizer/orchestration/types.h`
+   - Eliminates forward declaration hacks and compilation conflicts
+
+2. **Kraus Operators Ownership:**
+   - Passed to constructor but NOT stored in RunOrchestrator
+   - AlgorithmManager makes internal copy (avoids expensive duplication)
+   - Documented clearly in constructor comments
+
+3. **Error Handling:**
+   - RunResult now includes `RunErrorType error_type` field for structured errors
+   - Multiple catch blocks categorize exceptions (invalid_argument → INVALID_INPUT, etc.)
+   - Device/CUDA errors detected via string matching in exception messages
+   - All tests updated to check `error_type` field
+
+4. **Progress Callback Thread Safety:**
+   - Documented that callbacks run on worker thread
+   - Implementation MUST be thread-safe (atomics, mutexes, lock-free)
+   - Wrapped in try-catch to prevent callback exceptions from crashing runs
+   - Callback errors silently logged (in production, use proper logging)
+
+5. **Checkpoint System:**
+   - Disabled due to missing json.hpp dependency
+   - Stubbed out in handleCheckpoint() with clear comments
+   - Can be re-enabled when serializer is integrated
+   - Consider Null Object Pattern for cleaner code (future enhancement)
+
+**Testing:** `test_run_orchestrator.cpp` - 14/14 passing
+- Constructor validation (valid/invalid epsilon, with/without callback)
+- Execute simple run (success with error_type = NONE)
+- Max iterations limit reached
+- Convergence detection
+- Invalid input dimension (error_type = INVALID_INPUT)
+- Progress callback invoked from worker thread
+- Progress callback receives decreasing entropy
+- Multiple sequential runs
+- Different initial vectors
+- Target entropy threshold
+- Result validation (entropy, iterations, runtime)
+
+**Known Limitations:**
+- Checkpoint functionality disabled (requires json.hpp integration) - See Step 3.1.6
+- Strategy selection hard-coded to AUTO (Phase 2 config integration pending) - See Step 3.1.5
+- No timeout mechanism (TIMEOUT error type reserved for future)
+- Error categorization uses string matching (fragile, but acceptable for now)
 
 ---
 
-#### **Step 3.2: WorkerThreadPool**
+#### **Step 3.2: WorkerThreadPool** 🔄 NEXT
 **File:** `include/minimizer/orchestration/worker_thread_pool.h`
 
 **Responsibilities:**
@@ -906,6 +1249,82 @@ try {
 5. **GPU sharing:** Should multiple workers share one GPU (via streams)?
 
 These can be addressed in future iterations after core functionality is stable.
+
+---
+
+## Recent Changes (December 9, 2025)
+
+### **Refactoring: Shared Types and Error Handling**
+
+**Motivation:** Eliminate code duplication, improve error handling, and prepare for WorkerThreadPool implementation.
+
+**Changes Made:**
+
+1. **Created `include/minimizer/orchestration/types.h`** - Single source of truth for shared types:
+   - `HostVector` - Previously duplicated in 3 files, now canonical definition
+   - `RunErrorType` enum - Structured error categorization (NONE, INVALID_INPUT, DEVICE_ERROR, CHECKPOINT_FAILURE, TIMEOUT, ALGORITHM_FAILURE, UNKNOWN)
+   - `RunTask` struct - Task specification (moved from run_orchestrator.h for sharing with WorkerThreadPool)
+   - `RunResult` struct - Execution outcome (moved from result_collector.h, now includes error_type field)
+
+2. **Updated RunOrchestrator** (`include/minimizer/orchestration/run_orchestrator.h`):
+   - Removed duplicate RunTask definition (now in types.h)
+   - Enhanced ProgressCallback documentation:
+     - Thread safety requirements (MUST be thread-safe, runs on worker thread)
+     - Exception safety (protected by try-catch, won't crash runs)
+     - Performance guidelines (non-blocking, fast, use atomics/lock-free)
+   - Clarified Kraus operators ownership:
+     - NOT stored in RunOrchestrator (avoid expensive duplication)
+     - Copied by AlgorithmManager internally
+     - Documented in constructor parameters
+
+3. **Improved Error Handling** (`src/minimizer/orchestration/run_orchestrator.cpp`):
+   - Added multiple catch blocks to categorize exceptions:
+     - `std::invalid_argument` → RunErrorType::INVALID_INPUT
+     - `std::runtime_error` → Device/checkpoint/algorithm errors (string matching)
+     - `std::exception` → RunErrorType::UNKNOWN
+     - Non-standard exceptions → RunErrorType::UNKNOWN
+   - Progress callback wrapped in try-catch to prevent callback exceptions from crashing runs
+   - buildResult() sets error_type = NONE for successful runs
+
+4. **Updated Tests** (`src/main/tests/orchestration/test_run_orchestrator.cpp`):
+   - All tests now check `error_type` field in addition to `error_message`
+   - Invalid input test verifies error_type == INVALID_INPUT
+   - Success tests verify error_type == NONE
+   - All 14 tests passing
+
+5. **Cleaned Up Result Collector** (`include/minimizer/orchestration/result_collector.h`):
+   - Removed duplicate HostVector definition (uses types.h)
+   - Removed duplicate RunResult definition (uses types.h)
+
+6. **Cleaned Up Checkpoint Manager** (`include/minimizer/management/checkpoint_manager.h`):
+   - Removed duplicate HostVector definition (uses types.h)
+   - Now includes types.h for canonical definition
+
+**Test Results:**
+- RunOrchestrator: 14/14 tests passing ✅
+- ConcurrentQueue: 14/14 tests passing ✅
+- ResultCollector: 22/22 tests passing ✅
+- ResourceMonitor: 19/19 tests passing ✅
+- DevicePool: 35/36 tests passing (1 skipped - no CUDA) ✅
+
+**Design Principles Followed:**
+- **DRY (Don't Repeat Yourself):** Single canonical definition for shared types
+- **RAII:** All resources properly owned and managed via smart pointers
+- **Dependency Injection:** Device and config injected, not owned
+- **Separation of Concerns:** Types separate from behavior, clear ownership model
+- **Exception Safety:** All exceptions caught and categorized, no resource leaks
+- **Thread Safety:** Progress callbacks documented as running on worker thread
+
+**Known Limitations:**
+- Checkpoint functionality disabled (requires json.hpp dependency - future work)
+- Error categorization uses string matching (fragile but acceptable for now)
+- No timeout mechanism (RunErrorType::TIMEOUT reserved for future)
+
+**Next Steps:**
+- Ready to implement **Phase 3 Step 3.2: WorkerThreadPool**
+- All shared types (HostVector, RunTask, RunResult, RunErrorType) now available
+- RunOrchestrator fully tested and ready to be used by worker threads
+- Consider implementing Null Object Pattern for CheckpointManager (deferred to future work)
 
 ---
 

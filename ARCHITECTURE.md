@@ -66,6 +66,7 @@ Core Components (used by RunOrchestrator)
     └── CheckpointManager (I/O and state persistence)
 
 Strategy Layer
+    ├── StrategyFactory (memory-aware strategy selection)
     ├── MinimizationStrategy (stateless algorithm implementation, owns workspace buffers)
     └── PredictionStrategy (forecasting models)
 
@@ -254,7 +255,6 @@ private:
     
     // Strategy (owns algorithm-specific buffers)
     std::unique_ptr<MinimizationStrategy> strategy_;
-    std::unique_ptr<StrategyFactory> strategy_factory_;
     
     // Non-owning references
     IDevice& device_;
@@ -362,7 +362,107 @@ RunResult RunOrchestrator::runToConvergence() {
 
 ---
 
-### MinimizationStrategy (Refactored Interface)
+### 4. StrategyFactory
+
+**Responsibility**: Memory-aware strategy selection and instantiation
+
+**Problem**: Kraus operators for large quantum systems require massive GPU memory. Strategy selection must account for:
+- Device backend (CUDA vs CPU)
+- Available GPU memory
+- Estimated workspace requirements
+- Performance trade-offs
+
+**Solution**: Factory pattern with AUTO/GENERIC/CUDA modes.
+
+**Interface:**
+```cpp
+enum class StrategyType {
+    AUTO,     // Auto-select based on device + memory
+    GENERIC,  // Force GenericMinimizationStrategy
+    CUDA      // Force CudaMinimizationStrategy (CUDA only)
+};
+
+class StrategyFactory {
+public:
+    // Create with AUTO selection
+    static std::unique_ptr<IMinimizationStrategy> create(
+        IComputeDevice& device,
+        int kraus_count, int input_dim, int output_dim,
+        PrecisionType precision, int num_streams = 4
+    );
+    
+    // Create with explicit type
+    static std::unique_ptr<IMinimizationStrategy> create(
+        StrategyType type, IComputeDevice& device,
+        int kraus_count, int input_dim, int output_dim,
+        PrecisionType precision, int num_streams = 4
+    );
+    
+    // Memory estimation (before allocation)
+    static size_t estimateWorkspaceSize(
+        int kraus_count, int input_dim, int output_dim,
+        PrecisionType precision
+    );
+    
+    // Check available device memory
+    static size_t getAvailableMemory(IComputeDevice& device);
+};
+```
+
+**AUTO Selection Logic:**
+1. Check device backend via `device.getBackend()`
+2. If CUDA:
+   - Estimate workspace: `size = estimateWorkspaceSize(d, N, M, precision)`
+   - Query GPU memory: `cudaMemGetInfo(&free, &total)`
+   - If `free >= 1.3 × size`: Return `CudaMinimizationStrategy` (30% buffer)
+   - Else: Return `GenericMinimizationStrategy` (fallback)
+3. If CPU: Return `GenericMinimizationStrategy`
+
+**Memory Estimation Formula:**
+```
+complex_size = sizeof(std::complex<T>)  // 8 (float) or 16 (double)
+real_size = sizeof(T)                    // 4 (float) or 8 (double)
+
+vecs1 = d × M × complex_size             // {K_i|ψ⟩}
+sing1 = d × M × complex_size             // SVD U vectors
+vecs2 = d² × N × complex_size            // {K_j^H|φ_i⟩}
+sing2 = N × complex_size                 // SVD U (rank 1)
+sv1 = d × real_size                      // Singular values
+sv2 = d² × real_size                     // Singular values
+svd1_workspace ≈ M × d × complex_size    // cuSOLVER (QR)
+svd2_workspace ≈ N × d² × complex_size   // cuSOLVER (randomized)
+
+Total ≈ 3×d×M×c + 2×d²×N×c + N×c + (d+d²)×r
+```
+
+**Safety Margins:**
+- AUTO: 30% buffer (1.3×) for safe operation
+- Explicit CUDA: 20% buffer (1.2×) validation
+- GENERIC: No check (fallback, works everywhere)
+
+**Key Design Points:**
+- **Stateless**: Pure functions, no global state
+- **RAII-Compliant**: Returns `unique_ptr` for automatic cleanup
+- **Fail-Safe**: AUTO never throws, always falls back to Generic
+- **Explicit Control**: Power users can force specific strategy
+- **Memory-First**: Estimates before allocating (critical for large systems)
+
+**Usage Example:**
+```cpp
+// In RunOrchestrator constructor:
+auto strategy = StrategyFactory::create(
+    device_,
+    kraus_ops.kraus_count,
+    kraus_ops.input_dim,
+    kraus_ops.output_dim,
+    config.algorithm.precision
+);
+algorithm_mgr_->setStrategy(std::move(strategy));
+```
+
+---
+
+### 5. MinimizationStrategy (Refactored Interface)
 
 **Responsibility**: Stateless algorithm implementation with RAII workspace management
 

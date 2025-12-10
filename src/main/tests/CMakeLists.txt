@@ -610,3 +610,140 @@ add_custom_target(run_device_pool_tests
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running DevicePool tests..."
 )
+
+# ============================================================================
+# Orchestration Layer Tests - RunOrchestrator (requires all minimizer components)
+# ============================================================================
+
+add_executable(run_orchestrator_tests
+    orchestration/test_run_orchestrator.cpp
+)
+
+# Compile all required sources
+target_sources(run_orchestrator_tests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/run_orchestrator.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/algorithm_manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/strategy_factory.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/generic_minimization_strategy.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/cuda_minimization_strategy.cu
+    ${CMAKE_SOURCE_DIR}/src/minimizer/state/entropy_manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/state/entropy_predictor.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/conditions_checker.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/max_iterations_condition.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/convergence_condition.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/numerical_instability_condition.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/target_entropy_condition.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/stopping/stop_reason.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/prediction/exponential_fitting_strategy.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/prediction/linear_extrapolation_strategy.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/management/checkpoint_manager.cpp
+    ${CMAKE_SOURCE_DIR}/src/utilities/serializer/serializer.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaMemory.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaRandom.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaLinearAlgebra.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaSolver.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaSVDSolver.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaDevice.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuMemory.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuRandom.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuLinearAlgebra.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuSolver.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuDevice.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuSVDSolver.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/device/DeviceFactory.cu
+)
+
+target_link_libraries(run_orchestrator_tests PRIVATE
+    GTest::gtest
+    GTest::gtest_main
+    CUDA::cudart
+    CUDA::curand
+    CUDA::cublas
+    CUDA::cusolver
+    ${LAPACK_LIBRARIES}
+    yaml-cpp
+    Threads::Threads
+)
+
+# Add nlohmann/json include directory for CheckpointManager
+target_include_directories(run_orchestrator_tests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/external
+)
+
+set_target_properties(run_orchestrator_tests PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+)
+
+target_compile_features(run_orchestrator_tests PRIVATE cxx_std_17)
+
+# Register run orchestrator tests with CTest
+gtest_discover_tests(run_orchestrator_tests)
+
+# Add to run_tests target
+add_custom_target(run_run_orchestrator_tests
+    COMMAND run_orchestrator_tests --gtest_color=yes
+    DEPENDS run_orchestrator_tests
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Running RunOrchestrator tests..."
+)
+
+# ============================================================================
+# StrategyFactory Tests
+# ============================================================================
+
+add_executable(strategy_factory_tests
+    test_strategy_factory.cpp
+)
+
+# Compile all required sources
+target_sources(strategy_factory_tests PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/strategy_factory.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/generic_minimization_strategy.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/cuda_minimization_strategy.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaMemory.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaRandom.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaLinearAlgebra.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaSolver.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaSVDSolver.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaDevice.cu
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuMemory.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuStream.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuRandom.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuLinearAlgebra.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuSolver.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuDevice.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/backends/cpu/CpuSVDSolver.cpp
+    ${CMAKE_SOURCE_DIR}/src/compute/device/DeviceFactory.cu
+)
+
+target_link_libraries(strategy_factory_tests PRIVATE
+    GTest::gtest
+    GTest::gtest_main
+    CUDA::cudart
+    CUDA::curand
+    CUDA::cublas
+    CUDA::cusolver
+    ${LAPACK_LIBRARIES}
+)
+
+set_target_properties(strategy_factory_tests PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+    CUDA_RESOLVE_DEVICE_SYMBOLS ON
+)
+
+target_compile_features(strategy_factory_tests PRIVATE cxx_std_17)
+
+# Register strategy factory tests with CTest
+gtest_discover_tests(strategy_factory_tests)
+
+# Add to run_tests target
+add_custom_target(run_strategy_factory_tests
+    COMMAND strategy_factory_tests --gtest_color=yes
+    DEPENDS strategy_factory_tests
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Running StrategyFactory tests..."
+)

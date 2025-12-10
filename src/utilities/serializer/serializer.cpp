@@ -1,5 +1,5 @@
 #include "utilities/serializer/serializer.h"
-#include "json.hpp"
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 namespace entropy {

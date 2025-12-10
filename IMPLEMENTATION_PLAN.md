@@ -276,7 +276,86 @@ private:
 
 ---
 
-## Phase 3: Implement RunOrchestrator
+## Phase 3: Implement RunOrchestrator & StrategyFactory
+
+**Status**: RunOrchestrator ✅ COMPLETED, StrategyFactory 🔄 IN PROGRESS
+
+**Goal**: Complete single-run execution with memory-aware strategy selection
+
+### Task 3.1: Implement StrategyFactory (Memory-Aware Selection)
+
+**See:** `ORCHESTRATION_IMPLEMENTATION_PLAN.md` Phase 3 Step 3.1.1-3.1.4
+
+**Summary:**
+- Create `StrategyFactory` with AUTO/GENERIC/CUDA modes
+- Implement workspace memory estimation (before allocation)
+- Query GPU memory via `cudaMemGetInfo()`
+- AUTO logic: Check backend → estimate → validate → select optimal strategy
+- Update RunOrchestrator to use factory instead of hard-coded GenericMinimizationStrategy
+
+**Files:**
+- `include/minimizer/algorithm/strategy_factory.h`
+- `src/minimizer/algorithm/strategy_factory.cpp`
+- `src/main/tests/test_strategy_factory.cpp`
+
+**Status**: Implementation in progress
+
+**Estimated Time**: 6 hours
+
+---
+
+### Task 3.2: Implement CheckpointManager
+
+**See:** `ORCHESTRATION_IMPLEMENTATION_PLAN.md` Phase 3 Step 3.1.6
+
+**Goal**: Enable checkpoint save/restore in RunOrchestrator
+
+**Current Status**: Stubbed out (missing json.hpp integration)
+
+**Tasks:**
+1. Integrate nlohmann/json library
+2. Implement `CheckpointManager::save()` - JSON serialization
+3. Implement `CheckpointManager::load()` - JSON deserialization
+4. Add compression support (optional)
+5. Implement checkpoint cleanup (keep last N)
+6. Enable in RunOrchestrator
+7. Comprehensive tests
+
+**Files:**
+- `include/minimizer/orchestration/checkpoint_manager.h` (exists)
+- `src/minimizer/orchestration/checkpoint_manager.cpp` (stub)
+- `src/main/tests/orchestration/test_checkpoint_manager.cpp`
+
+**Status**: Deferred to future work
+
+**Estimated Time**: 4 hours
+
+---
+
+### Task 3.3: RunOrchestrator Implementation ✅ COMPLETED
+
+**Files:**
+- `include/minimizer/orchestration/types.h` - Shared types
+- `include/minimizer/orchestration/run_orchestrator.h`
+- `src/minimizer/orchestration/run_orchestrator.cpp`
+- `src/main/tests/orchestration/test_run_orchestrator.cpp`
+
+**Status**: Fully implemented and tested (14/14 tests passing)
+
+**Key Features:**
+- Single-run execution with iteration loop
+- Component coordination (AlgorithmManager, ConditionsChecker, EntropyPredictor)
+- Progress callbacks (thread-safe)
+- Structured error handling (RunErrorType enum)
+- Shared types (HostVector, RunTask, RunResult)
+
+**Known Limitations:**
+- Checkpoint disabled (pending Task 3.2)
+- Hard-coded GenericMinimizationStrategy (pending Task 3.1)
+
+---
+
+## Phase 4: Implement RunOrchestrator (LEGACY - NOW Phase 3 Task 3.3)
 
 **Goal**: Create single-run iteration loop with circular buffer and conditions
 

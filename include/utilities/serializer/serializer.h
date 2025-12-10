@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <fstream>
 
-#include "json.hpp"
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 namespace entropy {

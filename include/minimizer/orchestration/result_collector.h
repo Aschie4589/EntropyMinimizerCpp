@@ -1,81 +1,15 @@
 #ifndef RESULT_COLLECTOR_H_
 #define RESULT_COLLECTOR_H_
 
+#include "minimizer/orchestration/types.h"
 #include <vector>
 #include <string>
-#include <complex>
 #include <mutex>
 #include <limits>
 #include <cmath>
 #include <stdexcept>
 
 namespace entropy {
-
-/**
- * @brief Simple wrapper for host-side complex vectors
- * Used for storing final quantum state vectors (device-agnostic)
- */
-struct HostVector {
-    std::vector<std::complex<double>> data;
-    int dimension;
-    
-    HostVector() : dimension(0) {}
-    explicit HostVector(const std::vector<std::complex<double>>& vec) 
-        : data(vec), dimension(static_cast<int>(vec.size())) {}
-};
-
-/**
- * @brief Result of a single minimization run
- * 
- * Stores outcome of one minimization attempt, including
- * the final quantum state, entropy value, and performance metrics.
- * Error messages indicate failures.
- */
-struct RunResult {
-    int run_id;                      ///< Unique identifier for this run
-    double final_entropy;            ///< Final entropy value achieved
-    HostVector final_vector;         ///< Final quantum state vector
-    int iterations_taken;            ///< Number of iterations performed
-    double runtime_seconds;          ///< Wall-clock time in seconds
-    std::string error_message;       ///< Empty if successful, error description otherwise
-    
-    /**
-     * @brief Check if this run succeeded
-     * @return true if no error occurred
-     */
-    bool isSuccess() const {
-        return error_message.empty();
-    }
-    
-    /**
-     * @brief Default constructor - creates invalid result
-     */
-    RunResult() 
-        : run_id(-1), 
-          final_entropy(std::numeric_limits<double>::infinity()),
-          iterations_taken(0),
-          runtime_seconds(0.0) {}
-    
-    /**
-     * @brief Construct successful result
-     */
-    RunResult(int id, double entropy, const HostVector& vec, int iters, double runtime)
-        : run_id(id),
-          final_entropy(entropy),
-          final_vector(vec),
-          iterations_taken(iters),
-          runtime_seconds(runtime) {}
-    
-    /**
-     * @brief Construct error result
-     */
-    RunResult(int id, const std::string& error)
-        : run_id(id),
-          final_entropy(std::numeric_limits<double>::infinity()),
-          iterations_taken(0),
-          runtime_seconds(0.0),
-          error_message(error) {}
-};
 
 /**
  * @brief Thread-safe collector for minimization run results
