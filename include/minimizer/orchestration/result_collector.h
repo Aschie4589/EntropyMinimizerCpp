@@ -90,7 +90,11 @@ public:
      */
     void addError(int run_id, const std::string& error) {
         std::lock_guard<std::mutex> lock(mutex_);
-        errors_.emplace_back(run_id, error);
+        RunResult error_result;
+        error_result.run_id = run_id;
+        error_result.error_type = RunErrorType::UNKNOWN;
+        error_result.error_message = error;
+        errors_.push_back(error_result);
     }
     
     /**

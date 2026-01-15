@@ -1,7 +1,8 @@
 #include "channel/generator/cg_generator.h"
 
+namespace channel {
 
-int CGGenerator::generate(std::vector<std::complex<double>>* kraus) {
+int CGGenerator::generate(::std::vector<::std::complex<double>>* kraus) {
     /*
     Returns a vector of Kraus operators, each represented as a flat vector in column-major order
     Updates the input pointer kraus in place! Requires that the pointer is not null.
@@ -52,3 +53,4 @@ int CGGenerator::generate(std::vector<std::complex<double>>* kraus) {
     return 0;
 
 }
+} // namespace channel

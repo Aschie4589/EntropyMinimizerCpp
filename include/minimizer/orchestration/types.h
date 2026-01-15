@@ -122,7 +122,7 @@ struct RunResult {
     /**
      * @brief Default constructor - successful result
      */
-    RunResult() : run_id(-1), final_entropy(0.0), iterations_taken(0), 
+    RunResult() : run_id(-1), final_entropy(std::numeric_limits<double>::infinity()), iterations_taken(0), 
                   runtime_seconds(0.0), error_type(RunErrorType::NONE) {}
     
     /**

@@ -9,10 +9,11 @@
 #include <filesystem>
 #include <functional>
 
-namespace entropy {
+namespace utils {
+    class VectorSerializer;
+}
 
-// Forward declaration
-class VectorSerializer;
+namespace entropy {
 
 /**
  * @brief Metadata stored with each checkpoint
@@ -53,7 +54,7 @@ public:
      */
     CheckpointManager(
         const CheckpointConfig& config,
-        std::unique_ptr<VectorSerializer> serializer
+        std::unique_ptr<utils::VectorSerializer> serializer
     );
     
     ~CheckpointManager();
@@ -159,7 +160,7 @@ private:
     int extractIterationFromPath(const std::filesystem::path& path) const;
     
     CheckpointConfig config_;
-    std::unique_ptr<VectorSerializer> serializer_;
+    std::unique_ptr<utils::VectorSerializer> serializer_;
     bool directory_checked_;  // Cache flag to avoid repeated checks
 };
 

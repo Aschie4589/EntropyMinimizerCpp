@@ -1,6 +1,6 @@
 #include "utilities/messaging/message_handler.h"
 
-namespace entropy {
+namespace utils {
 
 void MessageHandler::addSink(std::unique_ptr<MessageSink> sink) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -24,4 +24,4 @@ size_t MessageHandler::getSinkCount() {
     return sinks_.size();
 }
 
-} // namespace entropy
+} // namespace utils

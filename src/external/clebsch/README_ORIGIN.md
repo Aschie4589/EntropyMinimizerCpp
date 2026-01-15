@@ -1,4 +1,4 @@
-## Clebsch-Gordan Coefficients
+∏## Clebsch-Gordan Coefficients
 
 Source: https://homepages.physik.uni-muenchen.de/~vondelft/Papers/ClebschGordan/ClebschGordan.cpp
 Author: Arne Alex

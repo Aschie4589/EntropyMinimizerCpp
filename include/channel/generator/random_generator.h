@@ -7,6 +7,8 @@
 #include "channel/generator/generator.h"
 #include "utilities/messaging/message_handler.h"
 
+namespace channel {
+
 // Configuration struct - pure data, no dependencies
 struct RandomGeneratorConfig {
     int kraus_number; // Number of Kraus operators to generate
@@ -17,14 +19,16 @@ struct RandomGeneratorConfig {
 // Random Generator class
 class RandomGenerator : public Generator<RandomGeneratorConfig> {
 private:
-    MessageHandler& msg_handler_; // Non-owning reference to message handler
+    utils::MessageHandler& msg_handler_; // Non-owning reference to message handler
 
 public:
     // Constructor takes config and dependency separately
-    RandomGenerator(const RandomGeneratorConfig& cfg, MessageHandler& msg_handler)
+    RandomGenerator(const RandomGeneratorConfig& cfg, utils::MessageHandler& msg_handler)
         : Generator<RandomGeneratorConfig>(cfg), msg_handler_(msg_handler) {}
 
     int generate(std::vector<std::complex<double>>* kraus) override;
 };
+
+} // namespace channel
 
 #endif

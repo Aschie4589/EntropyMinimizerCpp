@@ -18,7 +18,7 @@ namespace entropy {
 
 CheckpointManager::CheckpointManager(
     const CheckpointConfig& config,
-    std::unique_ptr<VectorSerializer> serializer
+    std::unique_ptr<utils::VectorSerializer> serializer
 )
     : config_(config),
       serializer_(std::move(serializer)),
@@ -80,7 +80,7 @@ void CheckpointManager::saveCheckpoint(
     // Use atomic write pattern (write to temp, then rename)
     atomicWrite(checkpoint_path, [&](const std::string& temp_path) {
         // Serialize vector with metadata
-        VectorSerializer::serialize(
+        utils::VectorSerializer::serialize(
             "vector",                   // type (lowercase as expected by serializer)
             temp_path,                  // filename
             vector.data,                // vector data
@@ -106,7 +106,7 @@ std::pair<HostVector, CheckpointMetadata> CheckpointManager::loadCheckpoint(
     }
     
     // Use serializer to load data
-    DeserializedData data = serializer_->deserialize(checkpoint_path);
+    utils::DeserializedData data = serializer_->deserialize(checkpoint_path);
     
     // Create HostVector
     HostVector vector;

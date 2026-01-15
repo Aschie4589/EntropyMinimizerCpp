@@ -164,51 +164,140 @@ endfunction()
 # =============================================================================
 # TARGET: moe (Main Optimization Engine)
 # =============================================================================
-
-create_executable(moe "${SRC_DIR}/main/moe")
+# TEMPORARILY DISABLED - needs update to new API
+# create_executable(moe "${SRC_DIR}/main/moe")
 
 # Link libraries for moe
-target_link_libraries(moe PRIVATE
+# target_link_libraries(moe PRIVATE
     # Minimizer libraries
-    minimizer_algorithm
-    minimizer_core
-    minimizer_config
-    minimizer_analysis
-    minimizer_utilities
+#     minimizer_algorithm
+#     minimizer_core
+#     minimizer_config
+#     minimizer_analysis
+#     minimizer_utilities
     
     # Channel libraries
-    kraus_generators
-    channel_utils
+#     kraus_generators
+#     channel_utils
     
     # Utility libraries
-    messaging
-    serializer
-    uuid
+#     messaging
+#     serializer
+#     uuid
     
     # CUDA libraries
-    CUDA::cudart
-    CUDA::cublas
-    CUDA::cusolver
-    CUDA::curand
+#     CUDA::cudart
+#     CUDA::cublas
+#     CUDA::cusolver
+#     CUDA::curand
     
     # Profiling
-    nvtx3-cpp
+#     nvtx3-cpp
     
     # Parallelization
-    OpenMP::OpenMP_CXX
+#     OpenMP::OpenMP_CXX
     
     # LAPACK backend
-    ${LAPACK_LIBRARIES}
-)
+#     ${LAPACK_LIBRARIES}
+# )
 
 # =============================================================================
 # TARGET: phase1_parallel (Parallel Phase 1 with Task Queue)
 # =============================================================================
-add_executable(phase1_parallel
-    "${SRC_DIR}/main/phase1/phase1_parallel.cu"
-)
+# TEMPORARILY DISABLED - needs update to new API (missing tensor_entropy.h)
+# add_executable(phase1_parallel
+#     "${SRC_DIR}/main/phase1/phase1_parallel.cu"
+# )
 
-target_link_libraries(phase1_parallel PRIVATE
+# target_link_libraries(phase1_parallel PRIVATE
+    # Channel libraries
+#     kraus_generators
+#     channel_utils
+    
+    # Utility libraries
+#     messaging
+#     gpu_utilities
+    
+    # Minimizer libraries
+#     minimizer_analysis
+    
+    # Configuration
+#     yaml-cpp::yaml-cpp
+    
+    # CUDA libraries
+#     CUDA::cudart
+#     CUDA::cublas
+#     CUDA::cusolver
+#     CUDA::curand
+    
+    # Profiling
+#     nvtx3-cpp
+    
+    # LAPACK backend
+#     ${LAPACK_LIBRARIES}
+# )
+
+# set_target_properties(phase1_parallel PROPERTIES
+#     CUDA_SEPARABLE_COMPILATION OFF
+# )
+
+
+# =============================================================================
+# TARGET: phase1 (Main Phase 1 Application)
+# =============================================================================
+# TEMPORARILY DISABLED - needs update to new API (missing tensor_entropy.h)
+# add_executable(phase1
+#     "${SRC_DIR}/main/phase1/phase1.cu"
+# )
+
+# target_link_libraries(phase1 PRIVATE
+    # Channel libraries
+#     kraus_generators
+#     channel_utils
+    
+    # Utility libraries
+#     messaging
+    
+    # Minimizer libraries
+#     minimizer_analysis
+    
+    # Configuration
+#     yaml-cpp::yaml-cpp
+    
+    # CUDA libraries
+#     CUDA::cudart
+#     CUDA::cublas
+#     CUDA::cusolver
+#     CUDA::curand
+    
+    # Profiling
+#     nvtx3-cpp
+    
+    # Parallelization
+#     OpenMP::OpenMP_CXX
+    
+    # LAPACK backend
+#     ${LAPACK_LIBRARIES}
+# )
+
+# set_target_properties(phase1 PROPERTIES
+#     CUDA_SEPARABLE_COMPILATION OFF
+# )
+
+# =============================================================================
+# TARGET: my_tests (Main Tests Application)
+# =============================================================================
+
+create_executable(my_tests "${SRC_DIR}/main/my_tests")
+
+target_link_libraries(my_tests PRIVATE
+    # Minimizer libraries (orchestration brings in most dependencies transitively)
+    minimizer_orchestration
+    
+    # Compute libraries
+    compute_cuda
+    compute_cpu
+    
     # Channel libraries
     kraus_generators
     channel_utils
@@ -217,51 +306,6 @@ target_link_libraries(phase1_parallel PRIVATE
     messaging
     gpu_utilities
     
-    # Minimizer libraries
-    minimizer_analysis
-    
-    # Configuration
-    yaml-cpp::yaml-cpp
-    
-    # CUDA libraries
-    CUDA::cudart
-    CUDA::cublas
-    CUDA::cusolver
-    CUDA::curand
-    
-    # Profiling
-    nvtx3-cpp
-    
-    # LAPACK backend
-    ${LAPACK_LIBRARIES}
-)
-
-set_target_properties(phase1_parallel PROPERTIES
-    CUDA_SEPARABLE_COMPILATION OFF
-)
-
-
-# =============================================================================
-# TARGET: phase1 (Main Phase 1 Application)
-# =============================================================================
-add_executable(phase1
-    "${SRC_DIR}/main/phase1/phase1.cu"
-)
-
-target_link_libraries(phase1 PRIVATE
-    # Channel libraries
-    kraus_generators
-    channel_utils
-    
-    # Utility libraries
-    messaging
-    
-    # Minimizer libraries
-    minimizer_analysis
-    
-    # Configuration
-    yaml-cpp::yaml-cpp
-    
     # CUDA libraries
     CUDA::cudart
     CUDA::cublas
@@ -278,9 +322,7 @@ target_link_libraries(phase1 PRIVATE
     ${LAPACK_LIBRARIES}
 )
 
-set_target_properties(phase1 PROPERTIES
-    CUDA_SEPARABLE_COMPILATION OFF
-)
+
 
 # =============================================================================
 # TARGET: stage1 (Placeholder for your next executable)

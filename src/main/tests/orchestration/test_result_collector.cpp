@@ -18,7 +18,15 @@ HostVector makeTestVector(int dimension, double value = 1.0) {
 }
 
 RunResult makeSuccessResult(int run_id, double entropy, int iterations = 1000, double runtime = 1.5) {
-    return RunResult(run_id, entropy, makeTestVector(5, entropy), iterations, runtime);
+    RunResult result;
+    result.run_id = run_id;
+    result.final_entropy = entropy;
+    result.final_vector = makeTestVector(5, entropy);
+    result.iterations_taken = iterations;
+    result.runtime_seconds = runtime;
+    result.error_type = RunErrorType::NONE;
+    result.error_message = "";
+    return result;
 }
 
 // ============================================================================
@@ -256,7 +264,12 @@ TEST(ResultCollectorTest, Clear) {
 
 TEST(RunResultTest, SuccessResult) {
     auto vec = makeTestVector(5);
-    RunResult result(1, 0.5, vec, 1000, 1.5);
+    RunResult result;
+    result.run_id = 1;
+    result.final_entropy = 0.5;
+    result.final_vector = vec;
+    result.iterations_taken = 1000;
+    result.runtime_seconds = 1.5;
     
     EXPECT_TRUE(result.isSuccess());
     EXPECT_EQ(result.run_id, 1);
@@ -267,7 +280,10 @@ TEST(RunResultTest, SuccessResult) {
 }
 
 TEST(RunResultTest, ErrorResult) {
-    RunResult result(2, "Device failure");
+    RunResult result;
+    result.run_id = 2;
+    result.error_type = RunErrorType::DEVICE_ERROR;
+    result.error_message = "Device failure";
     
     EXPECT_FALSE(result.isSuccess());
     EXPECT_EQ(result.run_id, 2);

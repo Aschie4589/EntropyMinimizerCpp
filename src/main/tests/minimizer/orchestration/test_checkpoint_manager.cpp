@@ -61,7 +61,7 @@ protected:
     std::unique_ptr<CheckpointManager> createManager() {
         return std::make_unique<CheckpointManager>(
             config_,
-            std::make_unique<VectorSerializer>()
+            std::make_unique<utils::VectorSerializer>()
         );
     }
     

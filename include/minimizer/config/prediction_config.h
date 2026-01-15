@@ -27,7 +27,7 @@ struct PredictionConfig {
     bool enabled = true;
     
     // Strategy to use for prediction
-    PredictionStrategyType strategy_type = PredictionStrategyType::EXPONENTIAL;
+    PredictionStrategyType strategy_type = PredictionStrategyType::AUTO;
     
     // Number of recent entropy values to use for prediction
     size_t window_size = 200;

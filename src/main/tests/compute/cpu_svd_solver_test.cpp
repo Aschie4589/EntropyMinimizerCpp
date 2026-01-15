@@ -37,7 +37,7 @@ protected:
 // ==================== Construction Tests ====================
 
 TEST_F(CpuSVDSolverTest, Construction_ValidDimensions_Float) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     
     CpuSVDSolver solver(device_.get(), 100, 50, spec, PrecisionType::FLOAT);
     
@@ -49,7 +49,7 @@ TEST_F(CpuSVDSolverTest, Construction_ValidDimensions_Float) {
 }
 
 TEST_F(CpuSVDSolverTest, Construction_ValidDimensions_Double) {
-    SVDSpec spec{SVDVectors::ALL, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::ALL, SVDVectors::ALL, SVDAlgorithm::QR};
     
     EXPECT_NO_THROW({
         CpuSVDSolver solver(device_.get(), 50, 100, spec, PrecisionType::DOUBLE);
@@ -58,7 +58,7 @@ TEST_F(CpuSVDSolverTest, Construction_ValidDimensions_Double) {
 }
 
 TEST_F(CpuSVDSolverTest, Construction_InvalidDimensions) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     
     // Zero rows
     EXPECT_THROW({
@@ -74,7 +74,7 @@ TEST_F(CpuSVDSolverTest, Construction_InvalidDimensions) {
 // ==================== Workspace Query Tests ====================
 
 TEST_F(CpuSVDSolverTest, WorkspaceQuery_AllVectors) {
-    SVDSpec spec{SVDVectors::ALL, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::ALL, SVDVectors::ALL, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 100, 50, spec, PrecisionType::DOUBLE);
     
     size_t device_bytes, host_bytes;
@@ -85,7 +85,7 @@ TEST_F(CpuSVDSolverTest, WorkspaceQuery_AllVectors) {
 }
 
 TEST_F(CpuSVDSolverTest, WorkspaceQuery_NoVectors) {
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 80, 60, spec, PrecisionType::FLOAT);
     
     size_t device_bytes, host_bytes;
@@ -118,7 +118,7 @@ TEST_F(CpuSVDSolverTest, Compute_DiagonalMatrix_Float) {
     std::complex<float>* A = createTestMatrix<std::complex<float>>(3, 3, A_data);
     float* S = new float[3];
     
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 3, 3, spec, PrecisionType::FLOAT);
     
     EXPECT_NO_THROW({
@@ -157,7 +157,7 @@ TEST_F(CpuSVDSolverTest, Compute_RankDeficientMatrix_Double) {
     std::complex<double>* A = createTestMatrix<std::complex<double>>(4, 3, A_data);
     double* S = new double[3];
     
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 4, 3, spec, PrecisionType::DOUBLE);
     
     solver.compute(A, S, nullptr, nullptr, nullptr);
@@ -174,14 +174,14 @@ TEST_F(CpuSVDSolverTest, Compute_RankDeficientMatrix_Double) {
 // ==================== Spec Modification Tests ====================
 
 TEST_F(CpuSVDSolverTest, SetSpec_UpdatesWorkspace) {
-    SVDSpec spec1{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec1{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 100, 50, spec1, PrecisionType::FLOAT);
     
     size_t dev1, host1;
     solver.getWorkspaceSizes(dev1, host1);
     
     // Change to request vectors
-    SVDSpec spec2{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec2{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     solver.setSpec(spec2);
     
     size_t dev2, host2;
@@ -191,17 +191,18 @@ TEST_F(CpuSVDSolverTest, SetSpec_UpdatesWorkspace) {
     EXPECT_GT(dev2, 0);
     EXPECT_EQ(host2, 0);
     
-    EXPECT_EQ(solver.getSpec().vectors, SVDVectors::THIN);
+    EXPECT_EQ(solver.getSpec().lvectors, SVDVectors::THIN);
+    EXPECT_EQ(solver.getSpec().rvectors, SVDVectors::THIN);
 }
 
 TEST_F(CpuSVDSolverTest, SetSpec_ChangeAlgorithm) {
-    SVDSpec spec_qr{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec_qr{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 100, 50, spec_qr, PrecisionType::DOUBLE);
     
     EXPECT_EQ(solver.getSpec().algorithm, SVDAlgorithm::QR);
     
     // POLAR maps to same LAPACK implementation on CPU
-    SVDSpec spec_polar{SVDVectors::THIN, SVDAlgorithm::POLAR};
+    SVDSpec spec_polar{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::POLAR};
     solver.setSpec(spec_polar);
     
     EXPECT_EQ(solver.getSpec().algorithm, SVDAlgorithm::POLAR);
@@ -223,7 +224,7 @@ TEST_F(CpuSVDSolverTest, Reuse_MultipleSolves_SameSize) {
     std::complex<float>* A = createTestMatrix<std::complex<float>>(2, 2, A1_data);
     float* S = new float[2];
     
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 2, 2, spec, PrecisionType::FLOAT);
     
     // First solve
@@ -242,14 +243,14 @@ TEST_F(CpuSVDSolverTest, Reuse_MultipleSolves_SameSize) {
 // ==================== Utility Tests ====================
 
 TEST_F(CpuSVDSolverTest, GetBackend_ReturnsCPU) {
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 10, 10, spec, PrecisionType::FLOAT);
     
     EXPECT_EQ(solver.getBackend(), DeviceBackend::CPU);
 }
 
 TEST_F(CpuSVDSolverTest, GetDimensions_Immutable) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     CpuSVDSolver solver(device_.get(), 123, 456, spec, PrecisionType::DOUBLE);
     
     int m, n;

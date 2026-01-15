@@ -10,6 +10,10 @@
 #include <functional>
 #include <memory>
 #include <chrono>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
 
 namespace entropy {
 

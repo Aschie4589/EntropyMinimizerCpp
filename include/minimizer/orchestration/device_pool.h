@@ -3,6 +3,7 @@
 
 #include "compute/device/IComputeDevice.h"
 #include "compute/device/DeviceFactory.h"
+#include "minimizer/config/resource_config.h"
 #include <vector>
 #include <memory>
 #include <mutex>
@@ -10,8 +11,8 @@
 
 namespace entropy {
 
-// Forward declaration
-struct ResourceLimits;
+// Forward declarations
+class DeviceRegistry;
 
 /**
  * @brief Device type classification
@@ -70,16 +71,15 @@ struct DeviceInfo {
 class DevicePool {
 public:
     /**
-     * @brief Construct device pool from resource limits
+     * @brief Construct device pool from resource configuration
      * 
-     * Initializes max_gpus GPU devices and max_cpus CPU devices.
-     * GPUs are initialized first, then CPUs.
+     * Initializes device pool but does NOT create devices yet.
+     * Call initializeFromRegistry() to create devices dynamically.
      * 
-     * @param limits Resource limits specifying device counts
-     * @throws std::invalid_argument if limits invalid (negative counts)
-     * @throws std::runtime_error if GPU initialization fails when requested
+     * @param config Resource configuration
+     * @throws std::invalid_argument if config invalid
      */
-    explicit DevicePool(const ResourceLimits& limits);
+    explicit DevicePool(const ResourceConfig& config);
     
     /**
      * @brief Destructor - releases all devices
@@ -145,62 +145,84 @@ public:
     }
     
     // ========================================================================
-    // Dynamic Resizing (Phase 2 Step 2.2)
+    // New Dynamic Device Management (Phase 2)
     // ========================================================================
     
     /**
-     * @brief Resize the device pool to new GPU/CPU counts
+     * @brief Initialize devices from DeviceRegistry based on ResourceConfig
      * 
-     * Handles both scaling up (adding devices) and scaling down (marking
-     * devices for removal). When scaling down, devices are marked but not
-     * immediately removed - workers must check shouldShutdown() and exit,
-     * then finalizeRemovals() cleans up.
+     * Uses DeviceRegistry to select best available GPUs.
+     * Creates CPU devices as specified in config.
      * 
-     * Scale-up: New devices are appended to the pool immediately.
-     * Scale-down: Excess devices are marked for removal, workers notified.
-     * 
-     * @param new_max_gpus New GPU count (>= 0)
-     * @param new_max_cpus New CPU count (>= 0)
-     * @throws std::invalid_argument if new counts invalid (negative or both zero)
-     * @throws std::runtime_error if CUDA unavailable but GPUs requested
+     * @param registry DeviceRegistry instance to query for GPUs
+     * @throws std::runtime_error if no devices available and no fallback
      */
-    void resize(int new_max_gpus, int new_max_cpus);
+    void initializeFromRegistry(DeviceRegistry& registry);
     
     /**
-     * @brief Check if worker should shutdown due to device removal
+     * @brief Add specific GPU to the pool
      * 
-     * Workers should call this periodically. Returns true if the worker's
-     * assigned device has been marked for removal.
+     * Creates a GPU device for the given CUDA device ID.
      * 
-     * @param worker_id Worker thread identifier
-     * @return true if worker should exit, false otherwise
+     * @param device_id CUDA device ID
+     * @throws std::runtime_error if device creation fails
      */
-    bool shouldShutdown(int worker_id) const;
+    void addGPU(int device_id);
     
     /**
-     * @brief Mark worker's device for removal
+     * @brief Remove specific GPU from the pool
      * 
-     * Called by workers during graceful shutdown to signal they've
-     * released the device.
+     * Marks the GPU device for removal. Workers using this device
+     * should be terminated by WorkerThreadPool.
      * 
-     * @param worker_id Worker thread identifier
+     * @param device_id CUDA device ID
      */
-    void markDeviceForRemoval(int worker_id);
+    void removeGPU(int device_id);
     
     /**
-     * @brief Finalize removal of marked devices
+     * @brief Adjust pool to match enabled GPUs from registry
      * 
-     * Should be called after workers have exited. Removes all devices
-     * marked for removal from the pool.
+     * Compares current GPUs with enabled list:
+     * - Removes GPUs that are no longer enabled
+     * - Does NOT automatically add new GPUs (requires explicit request)
+     * 
+     * @param enabled_gpu_ids List of enabled GPU device IDs
      */
-    void finalizeRemovals();
+    void adjustToEnabledGPUs(const std::vector<int>& enabled_gpu_ids);
     
     /**
-     * @brief Get count of active (not marked for removal) devices
-     * 
-     * @return Number of devices currently active
+     * @brief Device status for monitoring
      */
-    size_t activeDeviceCount() const;
+    struct DeviceStatus {
+        int pool_index;              ///< Index in pool
+        int physical_device_id;      ///< CUDA device ID (GPU) or -1 (CPU)
+        DeviceType type;             ///< GPU or CPU
+        bool available;              ///< Not marked for removal
+        size_t free_memory;          ///< Free memory if queryable, else 0
+    };
+    
+    /**
+     * @brief Get status of all devices in pool
+     * 
+     * @return Vector of device status information
+     */
+    std::vector<DeviceStatus> getDeviceStatus() const;
+    
+    /**
+     * @brief Get number of active GPU devices
+     * 
+     * @return Count of GPU devices not marked for removal
+     */
+    size_t numActiveGPUs() const;
+    
+    /**
+     * @brief Get number of active CPU devices
+     * 
+     * @return Count of CPU devices not marked for removal
+     */
+    size_t numActiveCPUs() const;
+    
+
 
 private:
     /**
@@ -215,59 +237,33 @@ private:
             : device(std::move(dev)), info(inf), marked_for_removal(false) {}
     };
     
-    /**
-     * @brief Initialize GPU devices
-     * 
-     * @param count Number of GPUs to initialize (0 to CUDA device count)
-     * @throws std::runtime_error if CUDA unavailable but count > 0
-     */
-    void initializeGPUs(int count);
+
     
     /**
-     * @brief Initialize CPU devices
+     * @brief Create a single GPU device
      * 
-     * @param count Number of CPU devices to initialize
+     * @param device_id CUDA device ID
      */
-    void initializeCPUs(int count);
+    void createGPU(int device_id);
     
     /**
-     * @brief Add GPU devices to pool (for scale-up)
-     * 
-     * @param count Number of GPUs to add
-     * @throws std::runtime_error if CUDA unavailable or initialization fails
+     * @brief Create a single CPU device
      */
-    void addGPUs(int count);
+    void createCPU();
     
-    /**
-     * @brief Add CPU devices to pool (for scale-up)
-     * 
-     * @param count Number of CPUs to add
-     */
-    void addCPUs(int count);
-    
-    /**
-     * @brief Mark GPU devices for removal (for scale-down)
-     * 
-     * Marks the last 'count' GPU devices for removal. Workers using these
-     * devices will be notified via shouldShutdown().
-     * 
-     * @param count Number of GPUs to mark for removal
-     */
-    void removeGPUs(int count);
-    
-    /**
-     * @brief Mark CPU devices for removal (for scale-down)
-     * 
-     * Marks the last 'count' CPU devices for removal.
-     * 
-     * @param count Number of CPUs to mark for removal
-     */
-    void removeCPUs(int count);
+
     
     std::vector<DeviceSlot> devices_;  ///< Owned devices in assignment order
     size_t num_gpus_;                  ///< Count of GPU devices
     size_t num_cpus_;                  ///< Count of CPU devices
     mutable std::mutex mutex_;         ///< Protects device access
+    
+    // Configuration (for ResourceConfig constructor)
+    bool use_resource_config_ = false;  ///< Using new ResourceConfig path
+    int desired_gpus_ = 0;              ///< Desired GPU count
+    int desired_cpus_ = 0;              ///< Desired CPU count
+    size_t min_gpu_memory_ = 0;         ///< Minimum GPU memory requirement
+    bool fallback_to_cpu_ = true;       ///< Fallback to CPU if no GPUs
 };
 
 } // namespace entropy

@@ -4,9 +4,11 @@
 #include <vector>
 #include <complex>
 
-#include "channel/generator/generator.h"
 #include "sud_cg.h"
+#include "channel/generator/generator.h"
 #include "utilities/messaging/message_handler.h"
+
+namespace channel {
 
 // Configuration struct - pure data, no dependencies
 struct CGGeneratorConfig {
@@ -26,14 +28,16 @@ struct CGGeneratorConfig {
 // CG Generator class
 class CGGenerator : public Generator<CGGeneratorConfig> {
 private:
-    MessageHandler& msg_handler_; // Non-owning reference to message handler
+    utils::MessageHandler& msg_handler_; // Non-owning reference to message handler
 
 public:
     // Constructor takes config and dependency separately
-    CGGenerator(const CGGeneratorConfig& cfg, MessageHandler& msg_handler) 
+    CGGenerator(const CGGeneratorConfig& cfg, utils::MessageHandler& msg_handler) 
         : Generator<CGGeneratorConfig>(cfg), msg_handler_(msg_handler) {}
 
     int generate(std::vector<std::complex<double>>* kraus) override;
 };
+
+} // namespace channel
 
 #endif

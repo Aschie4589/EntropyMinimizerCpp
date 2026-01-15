@@ -4,6 +4,9 @@
 #include <stdexcept>
 #include <sstream>
 
+// DEBUG LOGGING
+#include "utilities/messaging/DEBUG_LOGGER.h"
+
 namespace entropy {
 
 AlgorithmManager::AlgorithmManager(
@@ -23,6 +26,7 @@ AlgorithmManager::AlgorithmManager(
     , host_kraus_(kraus)
     , initialized_(false)
 {
+    DEBUG_LOG("Constructing AlgorithmManager", "algorithm_manager_log.txt");
     // Validate epsilon
     if (epsilon <= 0.0 || epsilon >= 1.0) {
         throw std::invalid_argument("Epsilon must be in range (0, 1)");
@@ -50,13 +54,16 @@ AlgorithmManager::AlgorithmManager(
             << " bytes, got " << kraus.data.size();
         throw std::invalid_argument(oss.str());
     }
+    DEBUG_LOG("AlgorithmManager constructed successfully", "algorithm_manager_log.txt");
 }
 
 void AlgorithmManager::initialize(const std::vector<std::complex<double>>& initial_vector) {
+    DEBUG_LOG("AlgorithmManager: Initializing AlgorithmManager", "algorithm_manager_log.txt");
     if (!strategy_) {
         throw std::runtime_error("Strategy must be set before initialization");
     }
     
+    DEBUG_LOG("AlgorithmManager: Validating initial vector size", "algorithm_manager_log.txt");
     // Validate vector size
     if (static_cast<int>(initial_vector.size()) != input_dim_) {
         std::ostringstream oss;
@@ -65,6 +72,7 @@ void AlgorithmManager::initialize(const std::vector<std::complex<double>>& initi
         throw std::invalid_argument(oss.str());
     }
     
+    DEBUG_LOG("AlgorithmManager: Allocating and uploading Kraus operators to device", "algorithm_manager_log.txt");
     // Allocate and upload Kraus operators
     size_t kraus_bytes = kraus_count_ * input_dim_ * output_dim_;
     if (precision_ == PrecisionType::FLOAT) {
@@ -72,10 +80,20 @@ void AlgorithmManager::initialize(const std::vector<std::complex<double>>& initi
     } else {
         kraus_bytes *= sizeof(std::complex<double>);
     }
-    
+    DEBUG_LOG("AlgorithmManager: Calculated Kraus operators byte size: " + std::to_string(kraus_bytes), "algorithm_manager_log.txt");
+
+    // Debug info about the device
+    DEBUG_LOG("Device Name: " + device_.getName(), "algorithm_manager_log.txt");
+    DEBUG_LOG("Device Backend: " + std::to_string(static_cast<int>(device_.getBackend())), "algorithm_manager_log.txt");
+    DEBUG_LOG("Device ID: " + std::to_string(device_.getDeviceID()), "algorithm_manager_log.txt");
     d_kraus_ = device_.allocate(kraus_bytes);
+    DEBUG_LOG("AlgorithmManager: Allocated device memory for Kraus operators", "algorithm_manager_log.txt");
     d_kraus_->copyFromHost(host_kraus_.data.data(), kraus_bytes);
+    DEBUG_LOG("AlgorithmManager: Uploaded Kraus operators to device", "algorithm_manager_log.txt");
+
+    DEBUG_LOG("AlgorithmManager: Allocated and uploaded Kraus operators", "algorithm_manager_log.txt");
     
+    DEBUG_LOG("AlgorithmManager: Allocating and uploading current vector", "algorithm_manager_log.txt");
     // Allocate and upload current vector
     size_t vector_bytes;
     if (precision_ == PrecisionType::FLOAT) {
@@ -96,10 +114,15 @@ void AlgorithmManager::initialize(const std::vector<std::complex<double>>& initi
         d_current_vector_->copyFromHost(initial_vector.data(), vector_bytes);
     }
     
+    DEBUG_LOG("AlgorithmManager: Allocated and uploaded current vector", "algorithm_manager_log.txt");
+
+    DEBUG_LOG("AlgorithmManager: Initializing strategy", "algorithm_manager_log.txt");
     // Initialize strategy with dimensions
     strategy_->initialize(kraus_count_, input_dim_, output_dim_, epsilon_, precision_);
-    
+    DEBUG_LOG("AlgorithmManager: Strategy initialized", "algorithm_manager_log.txt");
     initialized_ = true;
+
+    DEBUG_LOG("AlgorithmManager: Initialization complete", "algorithm_manager_log.txt");
 }
 
 void AlgorithmManager::initializeRandom() {

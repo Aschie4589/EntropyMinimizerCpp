@@ -51,12 +51,14 @@ __global__ void dummyKernel() {
     // Empty kernel for occupancy calculation
 }
 
+namespace channel {
+
 cudaError_t generateHaarRandomUnitaries(
     cuDoubleComplex *d_A, 
     int N, 
     int num_matrices, 
     int num_streams,
-    MessageHandler* msg_handler
+    utils::MessageHandler* msg_handler
 ) {
     /*
     Generates Haar random unitary matrices on the GPU.
@@ -263,3 +265,5 @@ cudaError_t generateHaarRandomUnitaries(
         return cudaErrorUnknown;
     }
 }
+
+} // namespace channel

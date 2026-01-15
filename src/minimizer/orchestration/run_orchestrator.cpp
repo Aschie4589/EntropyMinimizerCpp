@@ -14,10 +14,17 @@
 #include <sstream>
 #include <memory>
 
+#include <iostream>
+
+//DEBUG LOGGING
+#include "utilities/messaging/DEBUG_LOGGER.h"
+
 namespace entropy {
 
 RunOrchestrator::~RunOrchestrator() = default;
 
+
+// Construct RunOrchestrator
 RunOrchestrator::RunOrchestrator(
     const MinimizerConfig& config,
     const HostKrausOperators& kraus_ops,
@@ -131,7 +138,7 @@ RunOrchestrator::RunOrchestrator(
     
     // Create CheckpointManager if enabled
     if (config.checkpoint.enabled) {
-        auto serializer = std::make_unique<VectorSerializer>();
+        auto serializer = std::make_unique<utils::VectorSerializer>();
         checkpoint_mgr_ = std::make_unique<CheckpointManager>(
             config.checkpoint,
             std::move(serializer)
@@ -142,36 +149,59 @@ RunOrchestrator::RunOrchestrator(
 RunResult RunOrchestrator::execute(int run_id, const HostVector& initial_vector) {
     // Start timing
     auto start_time = std::chrono::high_resolution_clock::now();
+
+    DEBUG_LOG("RunOrchestrator: Starting execution of run_id=" + std::to_string(run_id), "run_orchestrator_log.txt");
+    
+    // Open log file for this run
+    DEBUG_LOG("=== RUN START ===", "run_orchestrator_log.txt");
+    DEBUG_LOG("Run ID: " + std::to_string(run_id), "run_orchestrator_log.txt");
+    DEBUG_LOG("Initial vector dimension: " + std::to_string(initial_vector.dimension), "run_orchestrator_log.txt");
+    DEBUG_LOG("Config: epsilon=" + std::to_string(config_.algorithm.epsilon) + 
+              ", max_iterations=" + std::to_string(config_.stopping.max_iterations) +
+              ", precision=" + std::string(config_.algorithm.precision == PrecisionType::DOUBLE ? "DOUBLE" : "FLOAT"), "run_orchestrator_log.txt");
     
     try {
         // Validate initial vector
+        DEBUG_LOG("Validating initial vector...", "run_orchestrator_log.txt");
         if (initial_vector.data.size() != static_cast<size_t>(input_dim_)) {
-            throw std::invalid_argument(
-                "Initial vector dimension mismatch: got " +
+            std::string error_msg = "Initial vector dimension mismatch: got " +
                 std::to_string(initial_vector.data.size()) +
-                ", expected " + std::to_string(input_dim_)
-            );
+                ", expected " + std::to_string(input_dim_);
+            DEBUG_LOG("ERROR: " + error_msg, "run_orchestrator_log.txt");
+            throw std::invalid_argument(error_msg);
         }
+        DEBUG_LOG("Initial vector validation passed", "run_orchestrator_log.txt");
         
         // Reset state for new run
+        DEBUG_LOG("Resetting run state...", "run_orchestrator_log.txt");
         current_iteration_ = 0;
         min_entropy_seen_ = std::numeric_limits<double>::infinity();
         conditions_->reset();
         if (predictor_) {
             predictor_->reset();
         }
+        DEBUG_LOG("Run state reset complete", "run_orchestrator_log.txt");
         
         // Initialize algorithm with starting vector
+        DEBUG_LOG("Initializing algorithm manager...", "run_orchestrator_log.txt");
         algorithm_mgr_->initialize(initial_vector.data);
-        
+        DEBUG_LOG("Algorithm manager initialized", "run_orchestrator_log.txt");
+   
+
         // Execute main minimization loop
+        DEBUG_LOG("Starting main minimization loop...", "run_orchestrator_log.txt");
         double final_entropy = mainLoop(run_id);
+        DEBUG_LOG("Main loop completed with final_entropy=" + std::to_string(final_entropy), "run_orchestrator_log.txt");
         
         // Calculate runtime
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end_time - start_time;
+        DEBUG_LOG("Total runtime: " + std::to_string(elapsed.count()) + " seconds", "run_orchestrator_log.txt");
+        DEBUG_LOG("Total iterations: " + std::to_string(current_iteration_), "run_orchestrator_log.txt");
+        DEBUG_LOG("Minimum entropy achieved: " + std::to_string(min_entropy_seen_), "run_orchestrator_log.txt");
         
         // Build and return result
+        DEBUG_LOG("=== RUN SUCCESS ===", "run_orchestrator_log.txt");
         return buildResult(run_id, final_entropy, current_iteration_, elapsed.count());
         
     } catch (const std::invalid_argument& e) {
@@ -179,13 +209,20 @@ RunResult RunOrchestrator::execute(int run_id, const HostVector& initial_vector)
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end_time - start_time;
         
+        std::string error_msg = "Input validation failed: " + std::string(e.what());
+        DEBUG_LOG("=== RUN FAILED ===", "run_orchestrator_log.txt");
+        DEBUG_LOG("Error Type: INVALID_INPUT", "run_orchestrator_log.txt");
+        DEBUG_LOG("Error: " + error_msg, "run_orchestrator_log.txt");
+        DEBUG_LOG("Iterations completed: " + std::to_string(current_iteration_), "run_orchestrator_log.txt");
+        DEBUG_LOG("Runtime: " + std::to_string(elapsed.count()) + " seconds", "run_orchestrator_log.txt");
+        
         RunResult error_result;
         error_result.run_id = run_id;
         error_result.final_entropy = min_entropy_seen_;
         error_result.iterations_taken = current_iteration_;
         error_result.runtime_seconds = elapsed.count();
         error_result.error_type = RunErrorType::INVALID_INPUT;
-        error_result.error_message = std::string("Input validation failed: ") + e.what();
+        error_result.error_message = error_msg;
         
         return error_result;
         
@@ -194,24 +231,32 @@ RunResult RunOrchestrator::execute(int run_id, const HostVector& initial_vector)
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end_time - start_time;
         
+        std::string msg = e.what();
+        RunErrorType error_type = RunErrorType::ALGORITHM_FAILURE;
+        
+        // Try to categorize runtime errors
+        if (msg.find("device") != std::string::npos || 
+            msg.find("CUDA") != std::string::npos ||
+            msg.find("GPU") != std::string::npos) {
+            error_type = RunErrorType::DEVICE_ERROR;
+        } else if (msg.find("checkpoint") != std::string::npos) {
+            error_type = RunErrorType::CHECKPOINT_FAILURE;
+        }
+        
+        std::string error_msg = "Runtime error: " + msg;
+        DEBUG_LOG("=== RUN FAILED ===", "run_orchestrator_log.txt");
+        DEBUG_LOG("Error Type: " + std::to_string(static_cast<int>(error_type)), "run_orchestrator_log.txt");
+        DEBUG_LOG("Error: " + error_msg, "run_orchestrator_log.txt");
+        DEBUG_LOG("Iterations completed: " + std::to_string(current_iteration_), "run_orchestrator_log.txt");
+        DEBUG_LOG("Runtime: " + std::to_string(elapsed.count()) + " seconds", "run_orchestrator_log.txt");
+        
         RunResult error_result;
         error_result.run_id = run_id;
         error_result.final_entropy = min_entropy_seen_;
         error_result.iterations_taken = current_iteration_;
         error_result.runtime_seconds = elapsed.count();
-        
-        // Try to categorize runtime errors
-        std::string msg = e.what();
-        if (msg.find("device") != std::string::npos || 
-            msg.find("CUDA") != std::string::npos ||
-            msg.find("GPU") != std::string::npos) {
-            error_result.error_type = RunErrorType::DEVICE_ERROR;
-        } else if (msg.find("checkpoint") != std::string::npos) {
-            error_result.error_type = RunErrorType::CHECKPOINT_FAILURE;
-        } else {
-            error_result.error_type = RunErrorType::ALGORITHM_FAILURE;
-        }
-        error_result.error_message = std::string("Runtime error: ") + e.what();
+        error_result.error_type = error_type;
+        error_result.error_message = error_msg;
         
         return error_result;
         
@@ -220,13 +265,20 @@ RunResult RunOrchestrator::execute(int run_id, const HostVector& initial_vector)
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end_time - start_time;
         
+        std::string error_msg = "Exception during execution: " + std::string(e.what());
+        DEBUG_LOG("=== RUN FAILED ===", "run_orchestrator_log.txt");
+        DEBUG_LOG("Error Type: EXCEPTION", "run_orchestrator_log.txt");
+        DEBUG_LOG("Error: " + error_msg, "run_orchestrator_log.txt");
+        DEBUG_LOG("Iterations completed: " + std::to_string(current_iteration_), "run_orchestrator_log.txt");
+        DEBUG_LOG("Runtime: " + std::to_string(elapsed.count()) + " seconds", "run_orchestrator_log.txt");
+        
         RunResult error_result;
         error_result.run_id = run_id;
         error_result.final_entropy = min_entropy_seen_;
         error_result.iterations_taken = current_iteration_;
         error_result.runtime_seconds = elapsed.count();
         error_result.error_type = RunErrorType::UNKNOWN;
-        error_result.error_message = std::string("Exception during execution: ") + e.what();
+        error_result.error_message = error_msg;
         
         return error_result;
         
@@ -234,6 +286,12 @@ RunResult RunOrchestrator::execute(int run_id, const HostVector& initial_vector)
         // Non-standard exception
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end_time - start_time;
+        
+        DEBUG_LOG("=== RUN FAILED ===", "run_orchestrator_log.txt");
+        DEBUG_LOG("Error Type: UNKNOWN_EXCEPTION", "run_orchestrator_log.txt");
+        DEBUG_LOG("Error: Unknown exception during execution", "run_orchestrator_log.txt");
+        DEBUG_LOG("Iterations completed: " + std::to_string(current_iteration_), "run_orchestrator_log.txt");
+        DEBUG_LOG("Runtime: " + std::to_string(elapsed.count()) + " seconds", "run_orchestrator_log.txt");
         
         RunResult error_result;
         error_result.run_id = run_id;
@@ -251,61 +309,105 @@ double RunOrchestrator::mainLoop(int run_id) {
     double current_entropy = std::numeric_limits<double>::infinity();
     double previous_entropy = std::numeric_limits<double>::infinity();
     
+    DEBUG_LOG("Main loop initialized: current_entropy=inf, previous_entropy=inf", "run_orchestrator_log.txt");
+    
     // Main iteration loop
     while (true) {
-        // Perform one minimization iteration
-        algorithm_mgr_->stepOnce();
+        DEBUG_LOG("--- Iteration " + std::to_string(current_iteration_) + " START ---", "run_orchestrator_log.txt");
         
-        // Get current entropy (use estimated entropy, not epsilon-perturbed)
-        previous_entropy = current_entropy;
-        current_entropy = algorithm_mgr_->getEstimatedEntropy();
-        
-        // Update minimum
-        if (current_entropy < min_entropy_seen_) {
-            min_entropy_seen_ = current_entropy;
-        }
-        
-        // Add to predictor if enabled
-        if (predictor_) {
-            predictor_->addDataPoint(current_entropy);
-        }
-        
-        // Check stopping conditions
-        StopReason reason = checkStoppingConditions(
-            current_iteration_,
-            current_entropy,
-            previous_entropy
-        );
-        
-        // Handle checkpoints
-        if (checkpoint_mgr_ && checkpoint_mgr_->shouldCheckpoint(current_iteration_)) {
-            handleCheckpoint(run_id, current_iteration_, current_entropy, min_entropy_seen_);
-        }
-        
-        // Invoke progress callback (with exception guard)
-        if (progress_cb_) {
-            try {
-                progress_cb_(run_id, current_iteration_, current_entropy);
-            } catch (const std::exception& e) {
-                // Log error but don't crash the run
-                // In production, would use proper logging framework
-                // For now, silently continue (callback errors shouldn't stop minimization)
-                (void)e;
-            } catch (...) {
-                // Catch all other exceptions (non-std types)
-                // Silently continue
+        try {
+            // Perform one minimization iteration
+            DEBUG_LOG("  Calling algorithm_mgr_->stepOnce()...", "run_orchestrator_log.txt");
+            algorithm_mgr_->stepOnce();
+            DEBUG_LOG("  stepOnce() completed", "run_orchestrator_log.txt");
+            
+            // Get current entropy (use estimated entropy, not epsilon-perturbed)
+            DEBUG_LOG("  Fetching estimated entropy...", "run_orchestrator_log.txt");
+            previous_entropy = current_entropy;
+            current_entropy = algorithm_mgr_->getEstimatedEntropy();
+            DEBUG_LOG("  Previous entropy: " + std::to_string(previous_entropy) +
+                     ", Current entropy: " + std::to_string(current_entropy), "run_orchestrator_log.txt");
+            
+            // Update minimum
+            if (current_entropy < min_entropy_seen_) {
+                DEBUG_LOG("  New minimum entropy: " + std::to_string(current_entropy), "run_orchestrator_log.txt");
+                min_entropy_seen_ = current_entropy;
             }
-        }
-        
-        // Increment iteration counter
-        current_iteration_++;
-        
-        // Check if we should stop
-        if (reason != StopReason::CONTINUE) {
-            break;
+            
+            // Add to predictor if enabled
+            if (predictor_) {
+                DEBUG_LOG("  Adding data point to predictor...", "run_orchestrator_log.txt");
+                predictor_->addDataPoint(current_entropy);
+                DEBUG_LOG("  Data point added to predictor", "run_orchestrator_log.txt");
+            }
+            
+            // Check stopping conditions
+            DEBUG_LOG("  Checking stopping conditions...", "run_orchestrator_log.txt");
+            StopReason reason = checkStoppingConditions(
+                current_iteration_,
+                current_entropy,
+                previous_entropy
+            );
+            DEBUG_LOG("  Stopping condition result: " + std::to_string(static_cast<int>(reason)), "run_orchestrator_log.txt");
+            
+            // Handle checkpoints
+            if (checkpoint_mgr_) {
+                if (checkpoint_mgr_->shouldCheckpoint(current_iteration_)) {
+                    DEBUG_LOG("  Checkpoint condition met, saving checkpoint...", "run_orchestrator_log.txt");
+                    handleCheckpoint(run_id, current_iteration_, current_entropy, min_entropy_seen_);
+                    DEBUG_LOG("  Checkpoint saved", "run_orchestrator_log.txt");
+                } else {
+                    DEBUG_LOG("  No checkpoint needed (interval not met)", "run_orchestrator_log.txt");
+                }
+            }
+            
+            // Invoke progress callback (with exception guard)
+            if (progress_cb_) {
+                DEBUG_LOG("  Invoking progress callback...", "run_orchestrator_log.txt");
+                try {
+                    progress_cb_(run_id, current_iteration_, current_entropy);
+                    DEBUG_LOG("  Progress callback completed", "run_orchestrator_log.txt");
+                } catch (const std::exception& e) {
+                    // Log error but don't crash the run
+                    DEBUG_LOG("  WARNING: Progress callback threw exception: " + std::string(e.what()), "run_orchestrator_log.txt");
+                    (void)e;
+                } catch (...) {
+                    // Catch all other exceptions (non-std types)
+                    // Silently continue
+                    DEBUG_LOG("  WARNING: Progress callback threw unknown exception", "run_orchestrator_log.txt");
+                }
+            }
+            
+            // Increment iteration counter
+            current_iteration_++;
+            
+            // Check if we should stop
+            if (reason != StopReason::CONTINUE) {
+                DEBUG_LOG("--- Iteration " + std::to_string(current_iteration_ - 1) + " END (STOP REASON: " + 
+                         std::to_string(static_cast<int>(reason)) + ") ---", "run_orchestrator_log.txt");
+                std::cout << "Stopping minimization at iteration " 
+                          << current_iteration_ 
+                          << " due to reason: " 
+                          << static_cast<int>(reason) 
+                          << std::endl;
+                break;
+            }
+            
+            DEBUG_LOG("--- Iteration " + std::to_string(current_iteration_ - 1) + " END (CONTINUE) ---", "run_orchestrator_log.txt");
+            
+        } catch (const std::exception& e) {
+            DEBUG_LOG("ERROR during iteration " + std::to_string(current_iteration_) + ": " + 
+                     std::string(e.what()), "run_orchestrator_log.txt");
+            DEBUG_LOG("--- Iteration " + std::to_string(current_iteration_) + " END (EXCEPTION) ---", "run_orchestrator_log.txt");
+            throw;  // Re-throw to be caught by execute()
+        } catch (...) {
+            DEBUG_LOG("ERROR during iteration " + std::to_string(current_iteration_) + ": Unknown exception", "run_orchestrator_log.txt");
+            DEBUG_LOG("--- Iteration " + std::to_string(current_iteration_) + " END (UNKNOWN EXCEPTION) ---", "run_orchestrator_log.txt");
+            throw;  // Re-throw to be caught by execute()
         }
     }
     
+    DEBUG_LOG("Main loop exited normally", "run_orchestrator_log.txt");
     return current_entropy;
 }
 

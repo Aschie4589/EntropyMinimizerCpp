@@ -7,14 +7,20 @@
 #include <cuComplex.h>
 
 // Forward declaration
-class MessageHandler;
+namespace utils {
+    class MessageHandler;
+}
+
+namespace channel {
 
 cudaError_t generateHaarRandomUnitaries(
     cuDoubleComplex *d_A, 
     int N, 
     int num_matrices, 
     int num_streams,
-    MessageHandler* msg_handler = nullptr
+    utils::MessageHandler* msg_handler = nullptr
 );
+
+} // namespace channel
 
 #endif // GENERATE_HAAR_UNITARY_H

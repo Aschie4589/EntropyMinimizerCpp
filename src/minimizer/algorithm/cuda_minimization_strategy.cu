@@ -8,6 +8,9 @@
 #include <cmath>
 #include <algorithm>
 
+// Debug: IO
+#include <iostream>
+
 // ============================================================================
 // CUDA Kernel for Logarithmic Rescaling
 // ============================================================================
@@ -15,14 +18,14 @@
 /**
  * @brief Rescale vectors by logarithmic factor from singular values
  * 
- * Each vector |φ_i⟩ is scaled by: sqrt(log((1-ε)λ_i² + ε) - log(ε))
- * This transforms the spectrum of Φ(ρ) to log(Φ_ε(ρ)) - log(ε)·I
+ * Each vector |φ_i⟩ is scaled by: sqrt(log((1-ε)λ_i² + ε/dim) - log(ε/dim))
+ * This transforms the spectrum of Φ(ρ) to log(Φ_ε(ρ)) - log(ε/dim)·I
  * 
  * @param vecs Input/output vectors (num_vecs × vec_size, column-major)
  * @param lambdas Singular values λ_i (length num_vecs)
- * @param epsilon Perturbation parameter
+ * @param epsilon Perturbation parameter (epsilon)
  * @param num_vecs Number of vectors (d)
- * @param vec_size Size of each vector (M for step1, N for step2)
+ * @param vec_size Size of each vector
  */
 template<typename CudaComplex, typename Real>
 __global__ void rescaleVectorsKernel(
@@ -44,9 +47,9 @@ __global__ void rescaleVectorsKernel(
     // Get singular value for this vector
     Real lambda = lambdas[vec_idx];
     
-    // Compute rescaling factor: sqrt(log((1-ε)λ² + ε) - log(ε))
-    Real log_arg = (Real(1.0) - epsilon) * lambda * lambda + epsilon;
-    Real rescale = sqrt(log(log_arg) - log(epsilon));
+    // Compute rescaling factor: sqrt(log((1-ε)λ² + ε/dim) - log(ε/dim))
+    Real log_arg = (Real(1.0) - epsilon) * lambda * lambda + epsilon / Real(vec_size);
+    Real rescale = sqrt(log(log_arg) - log(epsilon / Real(vec_size)));
     
     // Apply scaling
     vecs[idx].x *= rescale;
@@ -211,7 +214,7 @@ void CudaMinimizationStrategy::initializeImpl(
     d_vecs_1_ = device_.allocate(d * M * sizeof(Complex));
     d_sing_1_ = device_.allocate(d * M * sizeof(Complex));
     d_vecs_2_ = device_.allocate(d * d * N * sizeof(Complex));
-    d_sing_2_ = device_.allocate(N * sizeof(Complex));
+    d_sing_2_ = device_.allocate(d * d * N * sizeof(Complex));
     d_sv_1_ = device_.allocate(d * sizeof(Real));
     d_sv_2_ = device_.allocate(d * d * sizeof(Real));
     
@@ -225,7 +228,7 @@ void CudaMinimizationStrategy::initializeImpl(
     SVDSpec spec1{SVDVectors::THIN, SVDVectors::NONE, SVDAlgorithm::QR};
     svd_solver_1_ = device_.createSVDSolver(M, d, spec1, precision_);
     
-    SVDSpec spec2{SVDVectors::THIN, SVDVectors::NONE, SVDAlgorithm::RANDOMIZED};
+    SVDSpec spec2{SVDVectors::THIN, SVDVectors::NONE, SVDAlgorithm::QR}; // This is SLOW, but at the moment the probabilistic approach is unstable...
     spec2.rank = 1;
     svd_solver_2_ = device_.createSVDSolver(N, d * d, spec2, precision_);
     
@@ -312,7 +315,7 @@ void CudaMinimizationStrategy::step1Impl(
     rescaleVectorsKernel<CudaComplex, Real><<<blocks, threads>>>(
         vecs_ptr,
         sv_ptr,
-        static_cast<Real>(epsilon_ / Real(M)),
+        epsilon_,
         d,
         M
     );
@@ -412,11 +415,12 @@ double CudaMinimizationStrategy::computeEntropyImpl() {
     for (int i = 0; i < d; ++i) {
         normalization += sv_host[i] * sv_host[i];
     }
-    
     for (int i = 0; i < d; ++i) {
         Real p = (sv_host[i] * sv_host[i]) / normalization;
         if (p > 1e-12) {  // Avoid log(0)
             entropy -= p * std::log(p);
+        } else {
+            std::cout << "Skipping small eigenvalue: " << p << std::endl;
         }
     }
     

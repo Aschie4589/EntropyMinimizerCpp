@@ -59,7 +59,7 @@ protected:
 // ==================== Construction Tests ====================
 
 TEST_F(CudaSVDSolverTest, Construction_ValidDimensions_Float) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     
     CudaSVDSolver solver(device_.get(), 100, 50, spec, PrecisionType::FLOAT);
     
@@ -71,7 +71,7 @@ TEST_F(CudaSVDSolverTest, Construction_ValidDimensions_Float) {
 }
 
 TEST_F(CudaSVDSolverTest, Construction_ValidDimensions_Double) {
-    SVDSpec spec{SVDVectors::ALL, SVDAlgorithm::POLAR};
+    SVDSpec spec{SVDVectors::ALL, SVDVectors::ALL, SVDAlgorithm::POLAR};
     
     EXPECT_NO_THROW({
         CudaSVDSolver solver(device_.get(), 50, 100, spec, PrecisionType::DOUBLE);
@@ -81,7 +81,7 @@ TEST_F(CudaSVDSolverTest, Construction_ValidDimensions_Double) {
 }
 
 TEST_F(CudaSVDSolverTest, Construction_InvalidDimensions) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     
     // Zero rows
     EXPECT_THROW({
@@ -97,7 +97,7 @@ TEST_F(CudaSVDSolverTest, Construction_InvalidDimensions) {
 // ==================== Workspace Query Tests ====================
 
 TEST_F(CudaSVDSolverTest, WorkspaceQuery_QRAlgorithm_TallMatrix) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     CudaSVDSolver solver(device_.get(), 100, 50, spec, PrecisionType::FLOAT);
     
     size_t dev_bytes, host_bytes;
@@ -109,7 +109,7 @@ TEST_F(CudaSVDSolverTest, WorkspaceQuery_QRAlgorithm_TallMatrix) {
 }
 
 TEST_F(CudaSVDSolverTest, WorkspaceQuery_QRAlgorithm_WideMatrix_FallbackToPolar) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     
     // Wide matrix (m < n) should trigger fallback to POLAR
     CudaSVDSolver solver(device_.get(), 50, 100, spec, PrecisionType::FLOAT);
@@ -123,7 +123,7 @@ TEST_F(CudaSVDSolverTest, WorkspaceQuery_QRAlgorithm_WideMatrix_FallbackToPolar)
 }
 
 TEST_F(CudaSVDSolverTest, WorkspaceQuery_PolarAlgorithm) {
-    SVDSpec spec{SVDVectors::ALL, SVDAlgorithm::POLAR};
+    SVDSpec spec{SVDVectors::ALL, SVDVectors::ALL, SVDAlgorithm::POLAR};
     CudaSVDSolver solver(device_.get(), 100, 50, spec, PrecisionType::DOUBLE);
     
     size_t dev_bytes, host_bytes;
@@ -135,7 +135,8 @@ TEST_F(CudaSVDSolverTest, WorkspaceQuery_PolarAlgorithm) {
 
 TEST_F(CudaSVDSolverTest, WorkspaceQuery_RandomizedAlgorithm) {
     SVDSpec spec;
-    spec.vectors = SVDVectors::THIN;
+    spec.lvectors = SVDVectors::THIN;
+    spec.rvectors = SVDVectors::THIN;
     spec.algorithm = SVDAlgorithm::RANDOMIZED;
     spec.rank = 10;
     spec.oversampling = 5;
@@ -149,7 +150,7 @@ TEST_F(CudaSVDSolverTest, WorkspaceQuery_RandomizedAlgorithm) {
 }
 
 TEST_F(CudaSVDSolverTest, WorkspaceQuery_NoVectors) {
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CudaSVDSolver solver(device_.get(), 100, 50, spec, PrecisionType::FLOAT);
     
     size_t dev_bytes, host_bytes;
@@ -184,7 +185,7 @@ TEST_F(CudaSVDSolverTest, Compute_DiagonalMatrix_Float) {
     float* d_S;
     cudaMalloc(&d_S, 3 * sizeof(float));
     
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CudaSVDSolver solver(device_.get(), 3, 3, spec, PrecisionType::FLOAT);
     
     EXPECT_NO_THROW({
@@ -224,7 +225,7 @@ TEST_F(CudaSVDSolverTest, Compute_RankDeficientMatrix_Double) {
     double* d_S;
     cudaMalloc(&d_S, 3 * sizeof(double));
     
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::POLAR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::POLAR};
     CudaSVDSolver solver(device_.get(), 4, 3, spec, PrecisionType::DOUBLE);
     
     solver.compute(d_A, d_S, nullptr, nullptr, 0);
@@ -244,14 +245,14 @@ TEST_F(CudaSVDSolverTest, Compute_RankDeficientMatrix_Double) {
 // ==================== Spec Modification Tests ====================
 
 TEST_F(CudaSVDSolverTest, SetSpec_UpdatesWorkspace) {
-    SVDSpec spec1{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec1{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CudaSVDSolver solver(device_.get(), 100, 50, spec1, PrecisionType::FLOAT);
     
     size_t dev1, host1;
     solver.getWorkspaceSizes(dev1, host1);
     
     // Change to request vectors
-    SVDSpec spec2{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec2{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     solver.setSpec(spec2);
     
     size_t dev2, host2;
@@ -263,16 +264,17 @@ TEST_F(CudaSVDSolverTest, SetSpec_UpdatesWorkspace) {
     // Host workspace is 0 for unified API (cusolverDnXgesvd)
     EXPECT_GE(host2, 0);
     
-    EXPECT_EQ(solver.getSpec().vectors, SVDVectors::THIN);
+    EXPECT_EQ(solver.getSpec().lvectors, SVDVectors::THIN);
+    EXPECT_EQ(solver.getSpec().rvectors, SVDVectors::THIN);
 }
 
 TEST_F(CudaSVDSolverTest, SetSpec_ChangeAlgorithm) {
-    SVDSpec spec_qr{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec_qr{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     CudaSVDSolver solver(device_.get(), 100, 50, spec_qr, PrecisionType::DOUBLE);
     
     EXPECT_EQ(solver.getSpec().algorithm, SVDAlgorithm::QR);
     
-    SVDSpec spec_polar{SVDVectors::THIN, SVDAlgorithm::POLAR};
+    SVDSpec spec_polar{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::POLAR};
     solver.setSpec(spec_polar);
     
     EXPECT_EQ(solver.getSpec().algorithm, SVDAlgorithm::POLAR);
@@ -304,7 +306,7 @@ TEST_F(CudaSVDSolverTest, Reuse_MultipleSolves_SameSize) {
     float* d_S;
     cudaMalloc(&d_S, 2 * sizeof(float));
     
-    SVDSpec spec{SVDVectors::NONE, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR};
     CudaSVDSolver solver(device_.get(), 2, 2, spec, PrecisionType::FLOAT);
     
     // First solve
@@ -321,14 +323,14 @@ TEST_F(CudaSVDSolverTest, Reuse_MultipleSolves_SameSize) {
 }
 
 TEST_F(CudaSVDSolverTest, GetBackend_ReturnsCUDA) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     CudaSVDSolver solver(device_.get(), 10, 10, spec, PrecisionType::FLOAT);
     
     EXPECT_EQ(solver.getBackend(), DeviceBackend::CUDA);
 }
 
 TEST_F(CudaSVDSolverTest, GetDimensions_Immutable) {
-    SVDSpec spec{SVDVectors::THIN, SVDAlgorithm::QR};
+    SVDSpec spec{SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR};
     CudaSVDSolver solver(device_.get(), 123, 456, spec, PrecisionType::DOUBLE);
     
     int m, n;
@@ -337,7 +339,7 @@ TEST_F(CudaSVDSolverTest, GetDimensions_Immutable) {
     EXPECT_EQ(n, 456);
     
     // Dimensions should remain unchanged after operations
-    SVDSpec new_spec{SVDVectors::ALL, SVDAlgorithm::POLAR};
+    SVDSpec new_spec{SVDVectors::ALL, SVDVectors::ALL, SVDAlgorithm::POLAR};
     solver.setSpec(new_spec);
     
     int m2, n2;

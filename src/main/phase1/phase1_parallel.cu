@@ -142,7 +142,7 @@ public:
 
 void stage_generate_channel(std::shared_ptr<ChannelTask> task, 
                             GPUResourceManager& gpu_mgr,
-                            MessageHandler* msg_handler) 
+                            utils::MessageHandler* msg_handler) 
 {
     auto start = std::chrono::high_resolution_clock::now();
     
@@ -161,13 +161,13 @@ void stage_generate_channel(std::shared_ptr<ChannelTask> task,
     std::filesystem::create_directories(task->save_folder);
     
     // Configure generator
-    RandomGeneratorConfig rg_config;
+    channel::RandomGeneratorConfig rg_config;
     rg_config.kraus_number = task->d;
     rg_config.kraus_in_dimension = task->N;
     rg_config.kraus_out_dimension = task->N;
     
     // Generate Kraus operators on GPU
-    RandomGenerator rg(rg_config, *msg_handler);
+    channel::RandomGenerator rg(rg_config, *msg_handler);
     rg.generate(&task->kraus_operators);
     
     // Release GPU early (file I/O doesn't need it)
@@ -195,7 +195,7 @@ void stage_generate_channel(std::shared_ptr<ChannelTask> task,
 
 void stage_compute_entropy(std::shared_ptr<ChannelTask> task,
                           GPUResourceManager& gpu_mgr,
-                          MessageHandler* msg_handler)
+                          utils::MessageHandler* msg_handler)
 {
     auto start = std::chrono::high_resolution_clock::now();
     
@@ -267,7 +267,7 @@ void worker_thread(int worker_id,
                   ThreadSafeQueue<std::shared_ptr<ChannelTask>>& gen_queue,
                   ThreadSafeQueue<std::shared_ptr<ChannelTask>>& entropy_queue,
                   GPUResourceManager& gpu_mgr,
-                  MessageHandler* msg_handler,
+                  utils::MessageHandler* msg_handler,
                   std::atomic<int>& tasks_completed)
 {
     std::cout << "Worker " << worker_id << " started" << std::endl;
@@ -351,8 +351,8 @@ int main(int argc, char** argv) {
     std::cout << "Spawning " << num_workers << " worker threads" << std::endl;
     
     // Create message handler
-    auto msg_handler = std::make_unique<MessageHandler>();
-    msg_handler->addSink(std::make_unique<Printer>(0, true));
+    auto msg_handler = std::make_unique<utils::MessageHandler>();
+    msg_handler->addSink(std::make_unique<utils::Printer>(0, true));
     
     // Create task queues
     ThreadSafeQueue<std::shared_ptr<ChannelTask>> generation_queue;

@@ -1,123 +1,23 @@
 #include "minimizer/orchestration/device_pool.h"
-#include "minimizer/orchestration/resource_monitor.h"
+#include "minimizer/orchestration/device_registry.h"
 #include <sstream>
+#include <algorithm>
+#include <set>
 
 namespace entropy {
 
-DevicePool::DevicePool(const ResourceLimits& limits)
-    : num_gpus_(0), num_cpus_(0) {
+// New constructor for ResourceConfig (Phase 2)
+DevicePool::DevicePool(const ResourceConfig& config)
+    : num_gpus_(0), num_cpus_(0),
+      use_resource_config_(true),
+      desired_gpus_(config.desired_gpus),
+      desired_cpus_(config.desired_cpus),
+      min_gpu_memory_(config.min_gpu_memory),
+      fallback_to_cpu_(config.fallback_to_cpu) {
     
-    // Validate limits
-    if (limits.max_gpus < 0) {
-        throw std::invalid_argument(
-            "Invalid max_gpus: " + std::to_string(limits.max_gpus) + " (must be >= 0)"
-        );
-    }
-    if (limits.max_cpus < 0) {
-        throw std::invalid_argument(
-            "Invalid max_cpus: " + std::to_string(limits.max_cpus) + " (must be >= 0)"
-        );
-    }
-    if (limits.max_gpus == 0 && limits.max_cpus == 0) {
-        throw std::invalid_argument(
-            "Invalid configuration: at least one GPU or CPU device required"
-        );
-    }
+    config.validate();
     
-    // Initialize devices in order: GPUs first, then CPUs
-    initializeGPUs(limits.max_gpus);
-    initializeCPUs(limits.max_cpus);
-}
-
-void DevicePool::initializeGPUs(int count) {
-    if (count == 0) {
-        return;
-    }
-    
-    // Check CUDA availability
-    if (!DeviceFactory::isCudaAvailable()) {
-        throw std::runtime_error(
-            "CUDA not available, but " + std::to_string(count) + " GPUs requested"
-        );
-    }
-    
-    int available_gpus = DeviceFactory::getCudaDeviceCount();
-    if (count > available_gpus) {
-        throw std::runtime_error(
-            "Requested " + std::to_string(count) + " GPUs, but only " +
-            std::to_string(available_gpus) + " available"
-        );
-    }
-    
-    // Create GPU devices
-    for (int i = 0; i < count; ++i) {
-        try {
-            auto device = DeviceFactory::create(
-                DeviceFactory::DeviceType::CUDA,
-                i,  // device_id
-                64 * 1024 * 1024,  // 64 MB device scratch
-                16 * 1024 * 1024   // 16 MB host scratch
-            );
-            
-            DeviceInfo info(i, DeviceType::GPU, false);
-            devices_.emplace_back(std::move(device), info);
-            num_gpus_++;
-            
-        } catch (const std::exception& e) {
-            throw std::runtime_error(
-                "Failed to initialize GPU " + std::to_string(i) + ": " + e.what()
-            );
-        }
-    }
-}
-
-void DevicePool::initializeCPUs(int count) {
-    if (count == 0) {
-        return;
-    }
-    
-    // Create CPU devices
-    for (int i = 0; i < count; ++i) {
-        try {
-            auto device = DeviceFactory::create(
-                DeviceFactory::DeviceType::CPU,
-                0,   // device_id (ignored for CPU)
-                0,   // no device scratch for CPU
-                16 * 1024 * 1024   // 16 MB host scratch
-            );
-            
-            DeviceInfo info(-1, DeviceType::CPU, false);
-            devices_.emplace_back(std::move(device), info);
-            num_cpus_++;
-            
-        } catch (const std::exception& e) {
-            throw std::runtime_error(
-                "Failed to initialize CPU device " + std::to_string(i) + ": " + e.what()
-            );
-        }
-    }
-}
-
-IComputeDevice& DevicePool::getDeviceForWorker(int worker_id) {
-    if (worker_id < 0) {
-        throw std::runtime_error(
-            "Invalid worker_id: " + std::to_string(worker_id) + " (must be >= 0)"
-        );
-    }
-    
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (devices_.empty()) {
-        throw std::runtime_error("DevicePool is empty, cannot assign device");
-    }
-    
-    // Round-robin assignment
-    size_t device_index = worker_id % devices_.size();
-    
-    // Mark as in use
-    devices_[device_index].info.in_use = true;
-    
-    return *devices_[device_index].device;
+    // Don't create devices here - wait for initializeFromRegistry()
 }
 
 std::vector<DeviceInfo> DevicePool::getDeviceInfo() const {
@@ -134,146 +34,96 @@ std::vector<DeviceInfo> DevicePool::getDeviceInfo() const {
 }
 
 // ============================================================================
-// Dynamic Resizing Implementation (Phase 2 Step 2.2)
+// New Dynamic Device Management Implementation (Phase 2)
 // ============================================================================
 
-void DevicePool::resize(int new_max_gpus, int new_max_cpus) {
-    // Validate new limits
-    if (new_max_gpus < 0) {
-        throw std::invalid_argument(
-            "Invalid new_max_gpus: " + std::to_string(new_max_gpus) + " (must be >= 0)"
-        );
-    }
-    if (new_max_cpus < 0) {
-        throw std::invalid_argument(
-            "Invalid new_max_cpus: " + std::to_string(new_max_cpus) + " (must be >= 0)"
-        );
-    }
-    if (new_max_gpus == 0 && new_max_cpus == 0) {
-        throw std::invalid_argument(
-            "Invalid resize: at least one GPU or CPU device required"
-        );
-    }
-    
+void DevicePool::initializeFromRegistry(DeviceRegistry& registry) {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // Handle GPU resize
-    int current_gpus = static_cast<int>(num_gpus_);
-    if (new_max_gpus > current_gpus) {
-        // Scale up: add GPUs
-        addGPUs(new_max_gpus - current_gpus);
-    } else if (new_max_gpus < current_gpus) {
-        // Scale down: mark GPUs for removal
-        removeGPUs(current_gpus - new_max_gpus);
+    // Get enabled GPUs from registry based on config
+    std::vector<int> selected_gpus;
+    
+    if (desired_gpus_ > 0) {
+        selected_gpus = registry.selectBestGPUs(desired_gpus_, min_gpu_memory_);
+        
+        // Mark GPUs as in use and create devices
+        for (int gpu_id : selected_gpus) {
+            registry.markGPUInUse(gpu_id, true);
+            createGPU(gpu_id);
+        }
     }
     
-    // Handle CPU resize
-    int current_cpus = static_cast<int>(num_cpus_);
-    if (new_max_cpus > current_cpus) {
-        // Scale up: add CPUs
-        addCPUs(new_max_cpus - current_cpus);
-    } else if (new_max_cpus < current_cpus) {
-        // Scale down: mark CPUs for removal
-        removeCPUs(current_cpus - new_max_cpus);
+    // Create CPU workers
+    for (int i = 0; i < desired_cpus_; ++i) {
+        createCPU();
+    }
+    
+    // Fallback if no devices created
+    if (devices_.empty() && fallback_to_cpu_) {
+        createCPU();
+    }
+    
+    if (devices_.empty()) {
+        throw std::runtime_error(
+            "DevicePool::initializeFromRegistry: No devices available and fallback disabled"
+        );
     }
 }
 
-void DevicePool::addGPUs(int count) {
-    if (count == 0) {
-        return;
+IComputeDevice& DevicePool::getDeviceForWorker(int worker_id) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if (devices_.empty()) {
+        throw std::runtime_error("DevicePool: No devices available");
     }
     
-    // Check CUDA availability
-    if (!DeviceFactory::isCudaAvailable()) {
-        throw std::runtime_error(
-            "CUDA not available, cannot add " + std::to_string(count) + " GPUs"
-        );
-    }
+    // Round-robin assignment: worker_id % num_devices
+    size_t device_index = worker_id % devices_.size();
+    return *devices_[device_index].device;
+}
+
+void DevicePool::addGPU(int device_id) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    createGPU(device_id);
+}
+
+void DevicePool::removeGPU(int device_id) {
+    std::lock_guard<std::mutex> lock(mutex_);
     
-    int available_gpus = DeviceFactory::getCudaDeviceCount();
-    int next_gpu_id = static_cast<int>(num_gpus_);
-    
-    if (next_gpu_id + count > available_gpus) {
-        throw std::runtime_error(
-            "Cannot add " + std::to_string(count) + " GPUs: only " +
-            std::to_string(available_gpus - next_gpu_id) + " available"
-        );
-    }
-    
-    // Find insertion point (after existing GPUs, before CPUs)
-    size_t insert_pos = num_gpus_;
-    
-    for (int i = 0; i < count; ++i) {
-        int gpu_id = next_gpu_id + i;
-        try {
-            auto device = DeviceFactory::create(
-                DeviceFactory::DeviceType::CUDA,
-                gpu_id,
-                64 * 1024 * 1024,  // 64 MB device scratch
-                16 * 1024 * 1024   // 16 MB host scratch
-            );
-            
-            DeviceInfo info(gpu_id, DeviceType::GPU, false);
-            devices_.insert(
-                devices_.begin() + insert_pos + i,
-                DeviceSlot(std::move(device), info)
-            );
-            num_gpus_++;
-            
-        } catch (const std::exception& e) {
-            throw std::runtime_error(
-                "Failed to add GPU " + std::to_string(gpu_id) + ": " + e.what()
-            );
+    // Find and mark the GPU for removal
+    for (auto& slot : devices_) {
+        if (slot.info.type == DeviceType::GPU && 
+            slot.info.device_id == device_id &&
+            !slot.marked_for_removal) {
+            slot.marked_for_removal = true;
+            return;
         }
     }
 }
 
-void DevicePool::addCPUs(int count) {
-    if (count == 0) {
-        return;
-    }
+void DevicePool::adjustToEnabledGPUs(const std::vector<int>& enabled_gpu_ids) {
+    std::lock_guard<std::mutex> lock(mutex_);
     
-    // CPUs are appended to the end
-    for (int i = 0; i < count; ++i) {
-        try {
-            auto device = DeviceFactory::create(
-                DeviceFactory::DeviceType::CPU,
-                0,
-                0,
-                16 * 1024 * 1024
-            );
-            
-            DeviceInfo info(-1, DeviceType::CPU, false);
-            devices_.emplace_back(std::move(device), info);
-            num_cpus_++;
-            
-        } catch (const std::exception& e) {
-            throw std::runtime_error(
-                "Failed to add CPU device: " + std::string(e.what())
-            );
+    // Find current GPU device_ids
+    std::vector<int> current_gpus;
+    for (const auto& slot : devices_) {
+        if (slot.info.type == DeviceType::GPU) {
+            current_gpus.push_back(slot.info.device_id);
         }
     }
-}
-
-void DevicePool::removeGPUs(int count) {
-    if (count == 0) {
-        return;
-    }
     
-    // Mark last 'count' GPUs for removal
-    size_t gpus_to_mark = std::min(static_cast<size_t>(count), num_gpus_);
-    size_t marked = 0;
+    // Convert enabled list to set for fast lookup
+    std::set<int> enabled_set(enabled_gpu_ids.begin(), enabled_gpu_ids.end());
     
-    for (size_t i = 0; i < devices_.size() && marked < gpus_to_mark; ++i) {
-        if (devices_[i].info.type == DeviceType::GPU && !devices_[i].marked_for_removal) {
-            // Mark GPUs from the end (highest device_id first)
-            size_t target_idx = num_gpus_ - 1 - marked;
-            for (size_t j = 0; j < devices_.size(); ++j) {
-                if (devices_[j].info.type == DeviceType::GPU && 
-                    !devices_[j].marked_for_removal &&
-                    devices_[j].info.device_id == static_cast<int>(target_idx)) {
-                    devices_[j].marked_for_removal = true;
-                    marked++;
+    // Remove GPUs that are no longer enabled
+    for (int gpu_id : current_gpus) {
+        if (enabled_set.find(gpu_id) == enabled_set.end()) {
+            // Mark for removal
+            for (auto& slot : devices_) {
+                if (slot.info.type == DeviceType::GPU && 
+                    slot.info.device_id == gpu_id &&
+                    !slot.marked_for_removal) {
+                    slot.marked_for_removal = true;
                     break;
                 }
             }
@@ -281,89 +131,102 @@ void DevicePool::removeGPUs(int count) {
     }
 }
 
-void DevicePool::removeCPUs(int count) {
-    if (count == 0) {
-        return;
-    }
-    
-    // Mark last 'count' CPUs for removal (from the end of the devices_ vector)
-    size_t cpus_to_mark = std::min(static_cast<size_t>(count), num_cpus_);
-    size_t marked = 0;
-    
-    for (auto it = devices_.rbegin(); it != devices_.rend() && marked < cpus_to_mark; ++it) {
-        if (it->info.type == DeviceType::CPU && !it->marked_for_removal) {
-            it->marked_for_removal = true;
-            marked++;
-        }
-    }
-}
-
-bool DevicePool::shouldShutdown(int worker_id) const {
-    if (worker_id < 0) {
-        return false;
-    }
-    
+std::vector<DevicePool::DeviceStatus> DevicePool::getDeviceStatus() const {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    if (devices_.empty()) {
-        return false;
+    std::vector<DeviceStatus> status_list;
+    status_list.reserve(devices_.size());
+    
+    for (size_t i = 0; i < devices_.size(); ++i) {
+        const auto& slot = devices_[i];
+        
+        DeviceStatus status;
+        status.pool_index = static_cast<int>(i);
+        status.physical_device_id = slot.info.device_id;
+        status.type = slot.info.type;
+        status.available = !slot.marked_for_removal;
+        status.free_memory = 0;  // TODO: Query from device if possible
+        
+        status_list.push_back(status);
     }
     
-    size_t device_index = worker_id % devices_.size();
-    return devices_[device_index].marked_for_removal;
+    return status_list;
 }
 
-void DevicePool::markDeviceForRemoval(int worker_id) {
-    if (worker_id < 0) {
-        return;
-    }
-    
+size_t DevicePool::numActiveGPUs() const {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    if (devices_.empty()) {
-        return;
-    }
-    
-    size_t device_index = worker_id % devices_.size();
-    devices_[device_index].marked_for_removal = true;
-}
-
-void DevicePool::finalizeRemovals() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    // Remove devices marked for removal
-    auto new_end = std::remove_if(
-        devices_.begin(),
-        devices_.end(),
-        [](const DeviceSlot& slot) { return slot.marked_for_removal; }
-    );
-    
-    // Update counts
-    size_t new_gpu_count = 0;
-    size_t new_cpu_count = 0;
-    for (auto it = devices_.begin(); it != new_end; ++it) {
-        if (it->info.type == DeviceType::GPU) {
-            new_gpu_count++;
-        } else {
-            new_cpu_count++;
-        }
-    }
-    
-    devices_.erase(new_end, devices_.end());
-    num_gpus_ = new_gpu_count;
-    num_cpus_ = new_cpu_count;
-}
-
-size_t DevicePool::activeDeviceCount() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    size_t active = 0;
+    size_t count = 0;
     for (const auto& slot : devices_) {
-        if (!slot.marked_for_removal) {
-            active++;
+        if (slot.info.type == DeviceType::GPU && !slot.marked_for_removal) {
+            count++;
         }
     }
-    return active;
+    return count;
 }
 
+size_t DevicePool::numActiveCPUs() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    size_t count = 0;
+    for (const auto& slot : devices_) {
+        if (slot.info.type == DeviceType::CPU && !slot.marked_for_removal) {
+            count++;
+        }
+    }
+    return count;
+}
+
+void DevicePool::createGPU(int device_id) {
+    // Check CUDA availability
+    if (!DeviceFactory::isCudaAvailable()) {
+        throw std::runtime_error(
+            "CUDA not available, cannot create GPU " + std::to_string(device_id)
+        );
+    }
+    
+    try {
+        auto device = DeviceFactory::create(
+            DeviceFactory::DeviceType::CUDA,
+            device_id,
+            64 * 1024 * 1024,  // 64 MB device scratch
+            16 * 1024 * 1024   // 16 MB host scratch
+        );
+        
+        DeviceInfo info(device_id, DeviceType::GPU, false);
+        
+        // Insert after existing GPUs, before CPUs
+        size_t insert_pos = num_gpus_;
+        devices_.insert(
+            devices_.begin() + insert_pos,
+            DeviceSlot(std::move(device), info)
+        );
+        num_gpus_++;
+        
+    } catch (const std::exception& e) {
+        throw std::runtime_error(
+            "Failed to create GPU " + std::to_string(device_id) + ": " + e.what()
+        );
+    }
+}
+
+void DevicePool::createCPU() {
+    try {
+        auto device = DeviceFactory::create(
+            DeviceFactory::DeviceType::CPU,
+            0,
+            0,
+            16 * 1024 * 1024
+        );
+        
+        DeviceInfo info(-1, DeviceType::CPU, false);
+        devices_.emplace_back(std::move(device), info);
+        num_cpus_++;
+        
+    } catch (const std::exception& e) {
+        throw std::runtime_error(
+            "Failed to create CPU device: " + std::string(e.what())
+        );
+    }
+}
 } // namespace entropy

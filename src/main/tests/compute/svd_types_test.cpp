@@ -55,26 +55,30 @@ TEST(SVDSpecTest, DefaultConstructor) {
     SVDSpec spec;
     
     // Check default values
-    EXPECT_EQ(spec.vectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.lvectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.rvectors, SVDVectors::THIN);
     EXPECT_EQ(spec.algorithm, SVDAlgorithm::AUTO);
     EXPECT_EQ(spec.rank, -1);
     EXPECT_EQ(spec.oversampling, 10);
-    EXPECT_EQ(spec.power_iterations, 0);
+    EXPECT_EQ(spec.power_iterations, 2);
     EXPECT_DOUBLE_EQ(spec.tolerance, 1e-7);
     EXPECT_EQ(spec.max_sweeps, 100);
 }
 
 TEST(SVDSpecTest, ConvenienceConstructor) {
-    SVDSpec spec1(SVDVectors::ALL);
-    EXPECT_EQ(spec1.vectors, SVDVectors::ALL);
+    SVDSpec spec1(SVDVectors::ALL, SVDVectors::ALL);
+    EXPECT_EQ(spec1.lvectors, SVDVectors::ALL);
+    EXPECT_EQ(spec1.rvectors, SVDVectors::ALL);
     EXPECT_EQ(spec1.algorithm, SVDAlgorithm::AUTO);
     
-    SVDSpec spec2(SVDVectors::THIN, SVDAlgorithm::RANDOMIZED);
-    EXPECT_EQ(spec2.vectors, SVDVectors::THIN);
+    SVDSpec spec2(SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::RANDOMIZED);
+    EXPECT_EQ(spec2.lvectors, SVDVectors::THIN);
+    EXPECT_EQ(spec2.rvectors, SVDVectors::THIN);
     EXPECT_EQ(spec2.algorithm, SVDAlgorithm::RANDOMIZED);
     
-    SVDSpec spec3(SVDVectors::NONE, SVDAlgorithm::QR);
-    EXPECT_EQ(spec3.vectors, SVDVectors::NONE);
+    SVDSpec spec3(SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::QR);
+    EXPECT_EQ(spec3.lvectors, SVDVectors::NONE);
+    EXPECT_EQ(spec3.rvectors, SVDVectors::NONE);
     EXPECT_EQ(spec3.algorithm, SVDAlgorithm::QR);
 }
 
@@ -82,8 +86,10 @@ TEST(SVDSpecTest, MemberModification) {
     SVDSpec spec;
     
     // Modify vectors
-    spec.vectors = SVDVectors::ALL;
-    EXPECT_EQ(spec.vectors, SVDVectors::ALL);
+    spec.lvectors = SVDVectors::ALL;
+    spec.rvectors = SVDVectors::ALL;
+    EXPECT_EQ(spec.lvectors, SVDVectors::ALL);
+    EXPECT_EQ(spec.rvectors, SVDVectors::ALL);
     
     // Modify algorithm
     spec.algorithm = SVDAlgorithm::POLAR;
@@ -106,14 +112,16 @@ TEST(SVDSpecTest, MemberModification) {
 
 TEST(SVDSpecTest, CopyConstructor) {
     SVDSpec spec1;
-    spec1.vectors = SVDVectors::ALL;
+    spec1.lvectors = SVDVectors::ALL;
+    spec1.rvectors = SVDVectors::ALL;
     spec1.algorithm = SVDAlgorithm::RANDOMIZED;
     spec1.rank = 100;
     spec1.tolerance = 1e-10;
     
     SVDSpec spec2(spec1);
     
-    EXPECT_EQ(spec2.vectors, SVDVectors::ALL);
+    EXPECT_EQ(spec2.lvectors, SVDVectors::ALL);
+    EXPECT_EQ(spec2.rvectors, SVDVectors::ALL);
     EXPECT_EQ(spec2.algorithm, SVDAlgorithm::RANDOMIZED);
     EXPECT_EQ(spec2.rank, 100);
     EXPECT_DOUBLE_EQ(spec2.tolerance, 1e-10);
@@ -121,14 +129,16 @@ TEST(SVDSpecTest, CopyConstructor) {
 
 TEST(SVDSpecTest, Assignment) {
     SVDSpec spec1;
-    spec1.vectors = SVDVectors::NONE;
+    spec1.lvectors = SVDVectors::NONE;
+    spec1.rvectors = SVDVectors::NONE;
     spec1.algorithm = SVDAlgorithm::QR;
     spec1.max_sweeps = 500;
     
     SVDSpec spec2;
     spec2 = spec1;
     
-    EXPECT_EQ(spec2.vectors, SVDVectors::NONE);
+    EXPECT_EQ(spec2.lvectors, SVDVectors::NONE);
+    EXPECT_EQ(spec2.rvectors, SVDVectors::NONE);
     EXPECT_EQ(spec2.algorithm, SVDAlgorithm::QR);
     EXPECT_EQ(spec2.max_sweeps, 500);
 }
@@ -139,36 +149,40 @@ TEST(SVDSpecTest, Assignment) {
 
 TEST(SVDSpecTest, UsagePattern_SingularValuesOnly) {
     // Common case: only need singular values, not vectors
-    SVDSpec spec(SVDVectors::NONE, SVDAlgorithm::AUTO);
+    SVDSpec spec(SVDVectors::NONE, SVDVectors::NONE, SVDAlgorithm::AUTO);
     
-    EXPECT_EQ(spec.vectors, SVDVectors::NONE);
+    EXPECT_EQ(spec.lvectors, SVDVectors::NONE);
+    EXPECT_EQ(spec.rvectors, SVDVectors::NONE);
     EXPECT_EQ(spec.algorithm, SVDAlgorithm::AUTO);
 }
 
 TEST(SVDSpecTest, UsagePattern_EconomySVD) {
     // Common case: economy-size SVD (thin U and V)
-    SVDSpec spec(SVDVectors::THIN, SVDAlgorithm::QR);
+    SVDSpec spec(SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::QR);
     
-    EXPECT_EQ(spec.vectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.lvectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.rvectors, SVDVectors::THIN);
     EXPECT_EQ(spec.algorithm, SVDAlgorithm::QR);
 }
 
 TEST(SVDSpecTest, UsagePattern_FullSVD) {
     // Full SVD with all singular vectors
-    SVDSpec spec(SVDVectors::ALL, SVDAlgorithm::QR);
+    SVDSpec spec(SVDVectors::ALL, SVDVectors::ALL, SVDAlgorithm::QR);
     
-    EXPECT_EQ(spec.vectors, SVDVectors::ALL);
+    EXPECT_EQ(spec.lvectors, SVDVectors::ALL);
+    EXPECT_EQ(spec.rvectors, SVDVectors::ALL);
     EXPECT_EQ(spec.algorithm, SVDAlgorithm::QR);
 }
 
 TEST(SVDSpecTest, UsagePattern_LowRankApproximation) {
     // Randomized SVD for low-rank approximation
-    SVDSpec spec(SVDVectors::THIN, SVDAlgorithm::RANDOMIZED);
+    SVDSpec spec(SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::RANDOMIZED);
     spec.rank = 50;
     spec.oversampling = 10;
     spec.power_iterations = 2;
     
-    EXPECT_EQ(spec.vectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.lvectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.rvectors, SVDVectors::THIN);
     EXPECT_EQ(spec.algorithm, SVDAlgorithm::RANDOMIZED);
     EXPECT_EQ(spec.rank, 50);
     EXPECT_EQ(spec.oversampling, 10);
@@ -177,9 +191,10 @@ TEST(SVDSpecTest, UsagePattern_LowRankApproximation) {
 
 TEST(SVDSpecTest, UsagePattern_HighAccuracy) {
     // Polar SVD for high accuracy
-    SVDSpec spec(SVDVectors::THIN, SVDAlgorithm::POLAR);
+    SVDSpec spec(SVDVectors::THIN, SVDVectors::THIN, SVDAlgorithm::POLAR);
     
-    EXPECT_EQ(spec.vectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.lvectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.rvectors, SVDVectors::THIN);
     EXPECT_EQ(spec.algorithm, SVDAlgorithm::POLAR);
 }
 
@@ -188,7 +203,8 @@ TEST(SVDSpecTest, UsagePattern_DefaultAuto) {
     SVDSpec spec;
     
     // Sensible defaults
-    EXPECT_EQ(spec.vectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.lvectors, SVDVectors::THIN);
+    EXPECT_EQ(spec.rvectors, SVDVectors::THIN);
     EXPECT_EQ(spec.algorithm, SVDAlgorithm::AUTO);
 }
 

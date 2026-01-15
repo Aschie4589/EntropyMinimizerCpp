@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace entropy {
+namespace utils {
 
 /*
 MessageSink - Abstract base class for message sinks (loggers, printers, etc.)
@@ -19,6 +19,6 @@ public:
     virtual bool shouldSend(int level) const { return true; }
 };
 
-} // namespace entropy
+} // namespace utils
 
 #endif // MESSAGE_SINK_H

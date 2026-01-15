@@ -13,6 +13,8 @@
 #include "utilities/cuda/cuda_blas_handle.h"
 #include "utilities/cuda/error_handling.h"
 
+namespace channel {
+
 int RandomGenerator::generate(std::vector<std::complex<double>>* kraus) {
     /*
     Returns a vector of Kraus operators, each represented as a flat vector in column-major order
@@ -74,3 +76,4 @@ int RandomGenerator::generate(std::vector<std::complex<double>>* kraus) {
     }
 }
 
+} // namespace channel

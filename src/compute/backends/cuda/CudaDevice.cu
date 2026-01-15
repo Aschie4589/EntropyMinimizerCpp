@@ -12,41 +12,45 @@
 #include <iostream>
 #include <complex>
 
+// DEBUG LOGGING
+#include "utilities/messaging/DEBUG_LOGGER.h"
+
 namespace compute {
 
 // ============================================================================
 // DeviceGuard Implementation
 // ============================================================================
 
-CudaDevice::DeviceGuard::DeviceGuard(int device_id)
-    : previous_device_(-1), need_restore_(false) {
+CudaDevice::DeviceGuard::DeviceGuard(int device_id) {
+    DEBUG_LOG("DeviceGuard: Initializing a device guard!", "cuda_device_log.txt");
     // Get current device
     cudaError_t err = cudaGetDevice(&previous_device_);
     if (err != cudaSuccess) {
-        // If we can't get current device, don't try to restore
-        need_restore_ = false;
-        previous_device_ = -1;
+        throw std::runtime_error(
+            std::string("DeviceGuard: Failed to get current device: ") + cudaGetErrorString(err)
+        );
+        return;
     } else {
-        need_restore_ = true;
-    }
-    
-    // Set to target device
-    if (previous_device_ != device_id) {
-        err = cudaSetDevice(device_id);
-        if (err != cudaSuccess) {
-            throw std::runtime_error(
-                std::string("DeviceGuard: Failed to set device ") + 
-                std::to_string(device_id) + ": " + cudaGetErrorString(err)
-            );
+        DEBUG_LOG("DeviceGuard: Previous device ID = " + std::to_string(previous_device_), "cuda_device_log.txt");
+        // Set to target device
+        if (previous_device_ != device_id) {
+            DEBUG_LOG("DeviceGuard: Switching to device ID = " + std::to_string(device_id), "cuda_device_log.txt");
+            err = cudaSetDevice(device_id);
+            if (err != cudaSuccess) {
+                throw std::runtime_error(
+                    std::string("DeviceGuard: Failed to set device ") + 
+                    std::to_string(device_id) + ": " + cudaGetErrorString(err)
+                );
+            }
+        } else {
+            DEBUG_LOG("DeviceGuard: Already on target device ID = " + std::to_string(device_id), "cuda_device_log.txt");
         }
     }
 }
 
 CudaDevice::DeviceGuard::~DeviceGuard() {
-    // Restore previous device (don't throw in destructor)
-    if (need_restore_ && previous_device_ >= 0) {
-        cudaSetDevice(previous_device_);
-    }
+    // Destructor shouldn't do anything! 
+    DEBUG_LOG("DeviceGuard: Destroying device guard!", "cuda_device_log.txt");
 }
 
 // ============================================================================
@@ -86,8 +90,10 @@ __global__ void convertFloatToDoubleKernel(
 CudaDevice::CudaDevice(int device_id, size_t device_scratch_size, size_t host_scratch_size)
     : device_id_(device_id)
 {
+    DEBUG_LOG("CudaDevice: Initializing CUDA device with ID " + std::to_string(device_id_), "cuda_device_log.txt");
     // Set CUDA device
     cudaError_t cuda_err = cudaSetDevice(device_id_);
+    DEBUG_LOG("CudaDevice: Set CUDA device to ID " + std::to_string(device_id_), "cuda_device_log.txt");
     if (cuda_err != cudaSuccess) {
         throw std::runtime_error(
             std::string("Failed to set CUDA device ") + std::to_string(device_id_) +
@@ -98,7 +104,9 @@ CudaDevice::CudaDevice(int device_id, size_t device_scratch_size, size_t host_sc
     // Create scratch memory pools
     device_scratch_ = std::make_unique<CudaScratchMemory>(device_scratch_size, device_id_);
     host_scratch_ = std::make_unique<CpuScratchMemory>(host_scratch_size);
-
+    DEBUG_LOG("CudaDevice: Created scratch memory pools", "cuda_device_log.txt");
+    DEBUG_LOG("CudaDevice: Device scratch size = " + std::to_string(device_scratch_size), "cuda_device_log.txt");
+    DEBUG_LOG("CudaDevice: Host scratch size = " + std::to_string(host_scratch_size), "cuda_device_log.txt");
     std::cout << "CudaDevice initialized (device " << device_id_ << ")" << std::endl;
     std::cout << "  Device scratch: " << (device_scratch_size / 1024 / 1024) << " MB" << std::endl;
     std::cout << "  Host scratch: " << (host_scratch_size / 1024 / 1024) << " MB" << std::endl;
@@ -106,6 +114,7 @@ CudaDevice::CudaDevice(int device_id, size_t device_scratch_size, size_t host_sc
 
 CudaDevice::~CudaDevice() {
     // Scratch pools cleaned up automatically via unique_ptr
+    DEBUG_LOG("CudaDevice: Destroying CUDA device with ID " + std::to_string(device_id_), "cuda_device_log.txt");
 }
 
 CudaDevice::CudaDevice(CudaDevice&& other) noexcept
@@ -130,42 +139,50 @@ std::string CudaDevice::getName() const {
     
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, device_id_);
+    DEBUG_LOG("CudaDevice: Retrieved device name: " + std::string(prop.name), "cuda_device_log.txt");
     return std::string(prop.name);
 }
 
 std::unique_ptr<IDeviceMemory> CudaDevice::allocate(size_t bytes) {
     DeviceGuard guard(device_id_);
-    return std::make_unique<CudaMemory>(bytes, device_id_);
+    DEBUG_LOG("CudaDevice: Allocating " + std::to_string(bytes) + " bytes of device memory", "cuda_device_log.txt");
+    std::unique_ptr<IDeviceMemory> mem = std::make_unique<CudaMemory>(bytes, device_id_);
+    DEBUG_LOG("CudaDevice: Allocated device memory at " + std::to_string(reinterpret_cast<uintptr_t>(mem->data())), "cuda_device_log.txt");
+    return mem;
 }
 
 std::unique_ptr<IStream> CudaDevice::createStream() {
     DeviceGuard guard(device_id_);
+    DEBUG_LOG("CudaDevice: Creating CUDA stream", "cuda_device_log.txt");
     return std::make_unique<CudaStream>(device_id_);
 }
 
 ILinearAlgebra* CudaDevice::getLinearAlgebra() {
     DeviceGuard guard(device_id_);
-    
+    DEBUG_LOG("CudaDevice: Getting linear algebra interface", "cuda_device_log.txt");
     if (!linalg_) {
         linalg_ = std::make_unique<CudaLinearAlgebra>(device_id_);
+        DEBUG_LOG("CudaDevice: Created CudaLinearAlgebra instance", "cuda_device_log.txt");
     }
     return linalg_.get();
 }
 
 ISolver* CudaDevice::getSolver() {
     DeviceGuard guard(device_id_);
-    
+    DEBUG_LOG("CudaDevice: Getting solver interface", "cuda_device_log.txt");
     if (!solver_) {
         solver_ = std::make_unique<CudaSolver>(device_id_);
+        DEBUG_LOG("CudaDevice: Created CudaSolver instance", "cuda_device_log.txt");
     }
     return solver_.get();
 }
 
 IRandomGenerator* CudaDevice::getRandomGenerator() {
     DeviceGuard guard(device_id_);
-    
+    DEBUG_LOG("CudaDevice: Getting random generator interface", "cuda_device_log.txt");
     if (!random_) {
         random_ = std::make_unique<CudaRandom>(device_id_);
+        DEBUG_LOG("CudaDevice: Created CudaRandom instance", "cuda_device_log.txt");
     }
     return random_.get();
 }
@@ -176,6 +193,7 @@ std::unique_ptr<ISVDSolver> CudaDevice::createSVDSolver(
     PrecisionType precision
 ) {
     DeviceGuard guard(device_id_);
+    DEBUG_LOG("CudaDevice: Creating SVD solver", "cuda_device_log.txt");
     
     // Create new CudaSVDSolver (owns its own handles)
     return std::unique_ptr<ISVDSolver>(new CudaSVDSolver(
@@ -237,13 +255,15 @@ void CudaDevice::convertPrecision(
 
 void CudaDevice::synchronize() {
     DeviceGuard guard(device_id_);
-    
+    DEBUG_LOG("CudaDevice: Synchronizing device", "cuda_device_log.txt");
     cudaError_t err = cudaDeviceSynchronize();
     if (err != cudaSuccess) {
+        DEBUG_LOG("CudaDevice: Synchronization failed: " + std::string(cudaGetErrorString(err)), "cuda_device_log.txt");
         throw std::runtime_error(
             std::string("CUDA synchronization failed: ") + cudaGetErrorString(err)
         );
     }
+    DEBUG_LOG("CudaDevice: Device synchronized successfully", "cuda_device_log.txt");
 }
 
 } // namespace compute

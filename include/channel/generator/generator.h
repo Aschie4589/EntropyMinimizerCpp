@@ -11,6 +11,7 @@ They will also either do that on CPU or GPU.
 #include <memory>
 #include <complex>
 
+namespace channel {
 
 // Template config for generator
 template<typename ConfigType>
@@ -28,6 +29,8 @@ protected:
 public:
     Generator(const ConfigType& cfg) : config(cfg) {}
 };
+} // namespace channel
+
 
 
 

@@ -5,7 +5,6 @@
 #include "minimizer/stopping/max_iterations_condition.h"
 #include "minimizer/stopping/convergence_condition.h"
 #include "minimizer/stopping/numerical_instability_condition.h"
-#include "minimizer/stopping/target_entropy_condition.h"
 #include "minimizer/stopping/conditions_checker.h"
 
 using namespace entropy;
@@ -149,7 +148,8 @@ TEST(StopReasonTest, ToStringConversion) {
     EXPECT_EQ(to_string(StopReason::CONVERGED), "CONVERGED");
     EXPECT_EQ(to_string(StopReason::MAX_ITERATIONS), "MAX_ITERATIONS");
     EXPECT_EQ(to_string(StopReason::NUMERICAL_INSTABILITY), "NUMERICAL_INSTABILITY");
-    EXPECT_EQ(to_string(StopReason::TARGET_REACHED), "TARGET_REACHED");
+    EXPECT_EQ(to_string(StopReason::FORECASTED_DIVERGENCE), "FORECASTED_DIVERGENCE");
+    EXPECT_EQ(to_string(StopReason::TARGET_UNREACHABLE), "TARGET_UNREACHABLE");
 }
 
 // ============================================================================
@@ -269,39 +269,7 @@ TEST(NumericalInstabilityConditionTest, Reset) {
     EXPECT_EQ(condition.check(0, 1.0, 0.9), StopReason::CONTINUE);
 }
 
-// ============================================================================
-// TargetEntropyCondition Tests
-// ============================================================================
 
-TEST(TargetEntropyConditionTest, ContinuesAboveTarget) {
-    TargetEntropyCondition condition(0.5);
-    
-    EXPECT_EQ(condition.check(0, 1.0, 1.1), StopReason::CONTINUE);
-    EXPECT_EQ(condition.check(1, 0.8, 1.0), StopReason::CONTINUE);
-    EXPECT_EQ(condition.check(2, 0.6, 0.8), StopReason::CONTINUE);
-}
-
-TEST(TargetEntropyConditionTest, StopsAtTarget) {
-    TargetEntropyCondition condition(0.5);
-    
-    EXPECT_EQ(condition.check(0, 0.5, 0.6), StopReason::TARGET_REACHED);
-}
-
-TEST(TargetEntropyConditionTest, StopsBelowTarget) {
-    TargetEntropyCondition condition(0.5);
-    
-    EXPECT_EQ(condition.check(0, 0.3, 0.6), StopReason::TARGET_REACHED);
-}
-
-TEST(TargetEntropyConditionTest, ToleranceHandling) {
-    TargetEntropyCondition condition(0.5, 1e-6);
-    
-    // Slightly above target but within tolerance
-    EXPECT_EQ(condition.check(0, 0.5 + 0.5e-6, 0.6), StopReason::TARGET_REACHED);
-    
-    // Above tolerance
-    EXPECT_EQ(condition.check(1, 0.5 + 2e-6, 0.6), StopReason::CONTINUE);
-}
 
 // ============================================================================
 // ConditionsChecker Tests
@@ -322,21 +290,21 @@ TEST(ConditionsCheckerTest, SingleCondition) {
     EXPECT_EQ(checker.checkStoppingConditions(10, 1.0, 1.1), StopReason::MAX_ITERATIONS);
 }
 
-TEST(ConditionsCheckerTest, MultipleConditionsPriority) {
+TEST(ConditionsCheckerTest, MultipleConditions) {
     ConditionsChecker checker;
     
     // Add conditions in priority order
+    checker.addCondition(std::make_unique<NumericalInstabilityCondition>(5));
     checker.addCondition(std::make_unique<MaxIterationsCondition>(100));
-    checker.addCondition(std::make_unique<TargetEntropyCondition>(0.5));
     
     EXPECT_EQ(checker.size(), 2);
     
-    // At iteration 100, both conditions would trigger
-    // MaxIterations should win (added first = higher priority)
+    // At iteration 100, MaxIterations triggers
     EXPECT_EQ(checker.checkStoppingConditions(100, 0.3, 0.6), StopReason::MAX_ITERATIONS);
     
-    // Below max iterations, target entropy triggers
-    EXPECT_EQ(checker.checkStoppingConditions(50, 0.3, 0.6), StopReason::TARGET_REACHED);
+    // Below max iterations, numerical instability can trigger
+    // Entropy increases: 0.6 > 0.3
+    EXPECT_EQ(checker.checkStoppingConditions(50, 0.6, 0.3), StopReason::NUMERICAL_INSTABILITY);
 }
 
 TEST(ConditionsCheckerTest, Reset) {
@@ -360,9 +328,8 @@ TEST(ConditionsCheckerTest, ComplexScenario) {
     checker.addCondition(std::make_unique<NumericalInstabilityCondition>(20));
     checker.addCondition(std::make_unique<MaxIterationsCondition>(1000));
     checker.addCondition(std::make_unique<ConvergenceCondition>(20, 1e-15));
-    checker.addCondition(std::make_unique<TargetEntropyCondition>(0.0));
     
-    EXPECT_EQ(checker.size(), 4);
+    EXPECT_EQ(checker.size(), 3);
     
     // Simulate decreasing entropy sequence
     double entropy = 1.0;

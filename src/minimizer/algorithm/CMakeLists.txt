@@ -19,7 +19,8 @@ target_include_directories(minimizer_algorithm PUBLIC
 
 target_link_libraries(minimizer_algorithm PUBLIC
     minimizer_state
-    compute_device
+    compute_cuda
+    compute_cpu
     CUDA::cudart
     CUDA::cublas
     CUDA::cusolver

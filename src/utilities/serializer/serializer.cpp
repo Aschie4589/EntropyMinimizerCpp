@@ -2,7 +2,7 @@
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
-namespace entropy {
+namespace utils {
 
 VectorSerializer::VectorSerializer(/* args */)
 {
@@ -267,5 +267,5 @@ uint32_t VectorSerializer::calculateChecksum(const std::vector<uint8_t>& buffer)
     return ~crc;
 }
 
-} // namespace entropy
+} // namespace utils
 

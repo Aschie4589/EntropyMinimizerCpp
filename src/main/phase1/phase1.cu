@@ -59,8 +59,8 @@ int main(int argc, char** argv){
     }
 
     // Create a message handler object
-    auto msg_handler = std::make_unique<MessageHandler>();
-    msg_handler->addSink(std::make_unique<Printer>(0, true));
+    auto msg_handler = std::make_unique<utils::MessageHandler>();
+    msg_handler->addSink(std::make_unique<utils::Printer>(0, true));
 
     // Create TensorEntropyEstimator to get the tensor entropy of the channels
     TensorEntropyEstimator<double>* tensor_estimator = new TensorEntropyEstimator<double>();
@@ -81,7 +81,7 @@ int main(int argc, char** argv){
         int N = nd.first;
         int d = nd.second;
         std::cout << "Preparing to generate channels for N=" << N << ", d=" << d << std::endl;
-        RandomGeneratorConfig rg_config;
+        channel::RandomGeneratorConfig rg_config;
         rg_config.kraus_number = d;
         rg_config.kraus_in_dimension = N;
         rg_config.kraus_out_dimension = N;
@@ -89,7 +89,7 @@ int main(int argc, char** argv){
         // For each channel
         for (int ch=0; ch<num_channels; ch++){
             std::cout << "Generating channel " << ch+1 << " of " << num_channels << std::endl;
-            RandomGenerator rg(rg_config, *msg_handler);
+            channel::RandomGenerator rg(rg_config, *msg_handler);
             
             // Generate unique string: kraus_N_{N}_d_{d}_ch_{ch}_{YY_MM_DD-hh_mm_ss}
             std::ostringstream oss;

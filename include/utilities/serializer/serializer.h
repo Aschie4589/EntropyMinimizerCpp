@@ -10,7 +10,7 @@
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
-namespace entropy {
+namespace utils {
 
 // Data structure for deserialized data. Update if metadata changes.
 struct DeserializedData {
@@ -98,6 +98,6 @@ private:
 
 };
 
-} // namespace entropy
+} // namespace utils
 
 #endif

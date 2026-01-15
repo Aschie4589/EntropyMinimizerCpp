@@ -1,0 +1,63 @@
+# GPU Device Configuration
+# Controls which GPUs are available for entropy minimization
+#
+# This file can be modified during runtime - changes will be detected
+# and applied dynamically (if allow_dynamic_scaling is enabled).
+
+# GPU device list
+# Each entry corresponds to a CUDA device ID (0, 1, 2, ...)
+# Use nvidia-smi to see available devices
+gpus:
+  # GPU 0
+  - device_id: 0
+    enabled: false
+    # Optional: Set memory limit per device (future enhancement)
+    # max_memory_mb: 30000
+    
+  # GPU 1
+  - device_id: 1
+    enabled: true
+
+  # GPU 2    
+  - device_id: 2
+    enabled: true
+
+  # GPU 3
+  - device_id: 3
+    enabled: true 
+
+    
+# Polling interval for configuration file changes (milliseconds)
+# Lower values = faster response to changes, but more I/O overhead
+# Typical values: 1000-5000ms
+poll_interval_ms: 1000
+
+# Memory buffer percentage (safety margin)
+# E.g., 20 means only use 80% of reported free memory
+# This prevents out-of-memory errors from race conditions
+# Typical values: 10-30%
+memory_buffer_percent: 20
+
+# Configuration Notes:
+#
+# 1. Device IDs must match CUDA device IDs (see nvidia-smi)
+# 2. Device IDs must be unique
+# 3. At least one GPU must be enabled (unless CPU fallback allowed)
+# 4. Invalid device IDs will cause errors at runtime
+# 5. Changes take effect within poll_interval_ms
+#
+# Example Multi-Process Workflow:
+# 
+# Terminal 1: Run with GPU 0-1
+#   gpus:
+#     - {device_id: 0, enabled: true}
+#     - {device_id: 1, enabled: true}
+#     - {device_id: 2, enabled: false}
+#
+# Terminal 2: Run with GPU 2
+#   gpus:
+#     - {device_id: 0, enabled: false}
+#     - {device_id: 1, enabled: false}
+#     - {device_id: 2, enabled: true}
+#
+# This allows multiple processes to share GPU resources cooperatively.
