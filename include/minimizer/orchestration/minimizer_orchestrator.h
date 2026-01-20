@@ -7,7 +7,6 @@
 #include "minimizer/orchestration/concurrent_queue.h"
 #include "minimizer/orchestration/result_collector.h"
 #include "minimizer/config/minimizer_config.h"
-#include "minimizer/config/resource_config.h"
 #include "minimizer/algorithm/minimization_strategy.h"
 #include <random>
 #include <memory>
@@ -119,7 +118,6 @@ public:
      * @param config Complete minimizer configuration
      * @param kraus_ops Kraus operators defining the quantum channel
      * @param input_dim Input dimension for quantum state vectors
-     * @param resource_config Resource configuration for dynamic device management
      * @return RunResult with minimum entropy across all attempts
      * 
      * @throws std::invalid_argument if config invalid
@@ -128,8 +126,7 @@ public:
     RunResult findMOE(
         const MinimizerConfig& config,
         const HostKrausOperators& kraus_ops,
-        int input_dim,
-        const ResourceConfig& resource_config
+        int input_dim
     );
     
 private:
@@ -168,7 +165,7 @@ private:
     /**
      * @brief Configuration change callback (Phase 4)
      * 
-     * Called by DeviceRegistry when gpu_config.yaml changes.
+     * Called by GPURegistry when gpu_config.yaml changes.
      * Adjusts DevicePool and WorkerThreadPool to match new configuration.
      * 
      * @param enabled_gpus Vector of currently enabled GPU device IDs

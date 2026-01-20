@@ -12,7 +12,7 @@
 namespace entropy {
 
 // Forward declarations
-class DeviceRegistry;
+class GPURegistry;
 
 /**
  * @brief Device type classification
@@ -40,12 +40,14 @@ struct DeviceInfo {
  * @brief Manages a pool of compute devices for work distribution
  * 
  * Owns and manages IComputeDevice instances (GPU and CPU backends).
- * Provides round-robin assignment of devices to worker threads.
- * Initialized with static resource limits from ResourceLimits.
+ * Provides assignment of devices to worker threads.
+ * Initialized with static resource limits from ResourceConfig (i.e. how
+ * many GPUs and CPUs can be used at most, other devices if implemented).
  * 
  * Design:
  * - Each worker thread gets assigned one device via getDeviceForWorker()
- * - Assignment is deterministic: worker N gets device (N % pool_size)
+ * - Assignment is deterministic: worker N gets device N.
+ * - If more workers than devices, devices are reused round-robin.
  * - Devices are owned by the pool (RAII)
  * - Thread-safe for concurrent worker initialization
  * 
@@ -55,11 +57,11 @@ struct DeviceInfo {
  * 
  * Usage:
  * @code
- * ResourceLimits limits;
- * limits.max_gpus = 2;
- * limits.max_cpus = 4;
+ * ResourceConfig config;
+ * config.max_gpus = 2;
+ * config.max_cpus = 4;
  * 
- * DevicePool pool(limits);
+ * DevicePool pool(config);
  * 
  * // Worker threads
  * for (int i = 0; i < 6; ++i) {
@@ -95,7 +97,30 @@ public:
     DevicePool& operator=(DevicePool&&) = delete;
     
     /**
+     * @brief Acquire a device from the pool
+     * 
+     * Selects the least-loaded available device (not marked for removal).
+     * Increments reference count to track usage.
+     * 
+     * @return Pointer to acquired device
+     * @throws std::runtime_error if no devices available
+     */
+    IComputeDevice* acquireDevice();
+    
+    /**
+     * @brief Release a previously acquired device
+     * 
+     * Decrements reference count. When count reaches 0 and device is
+     * marked for removal, it becomes eligible for cleanup.
+     * 
+     * @param device Pointer to device to release
+     */
+    void releaseDevice(IComputeDevice* device);
+    
+    /**
      * @brief Get device for worker thread (round-robin assignment)
+     * 
+     * @deprecated Use acquireDevice/releaseDevice pattern instead
      * 
      * Returns reference to device at index (worker_id % num_devices).
      * Same worker_id always gets same device.
@@ -149,15 +174,15 @@ public:
     // ========================================================================
     
     /**
-     * @brief Initialize devices from DeviceRegistry based on ResourceConfig
+     * @brief Initialize devices from GPURegistry based on ResourceConfig
      * 
-     * Uses DeviceRegistry to select best available GPUs.
+     * Uses GPURegistry to select best available GPUs.
      * Creates CPU devices as specified in config.
      * 
-     * @param registry DeviceRegistry instance to query for GPUs
+     * @param registry GPURegistry instance to query for GPUs
      * @throws std::runtime_error if no devices available and no fallback
      */
-    void initializeFromRegistry(DeviceRegistry& registry);
+    void initializeFromRegistry(GPURegistry& registry);
     
     /**
      * @brief Add specific GPU to the pool
@@ -189,6 +214,48 @@ public:
      * @param enabled_gpu_ids List of enabled GPU device IDs
      */
     void adjustToEnabledGPUs(const std::vector<int>& enabled_gpu_ids);
+    
+    /**
+     * @brief Mark device for removal
+     * 
+     * Prevents new acquisitions but allows current workers to finish.
+     * Device will be cleaned up when reference count reaches 0.
+     * 
+     * @param physical_device_id CUDA device ID
+     */
+    void markDeviceForRemoval(int physical_device_id);
+    
+    /**
+     * @brief Clean up devices marked for removal with zero references
+     * 
+     * Removes devices from pool and frees resources.
+     * Only removes devices where reference_count == 0.
+     */
+    void cleanupMarkedDevices();
+    
+    /**
+     * @brief Get physical device ID from device pointer
+     * 
+     * @param device Device pointer
+     * @return CUDA device ID (GPU) or -1 (CPU)
+     * @throws std::runtime_error if device not found in pool
+     */
+    int getPhysicalDeviceID(const IComputeDevice* device) const;
+    
+    /**
+     * @brief Get list of device IDs marked for removal
+     * 
+     * @return Vector of physical device IDs pending cleanup
+     */
+    std::vector<int> getDevicesMarkedForRemoval() const;
+    
+    /**
+     * @brief Get current reference count for a device
+     * 
+     * @param device Device pointer
+     * @return Number of workers currently using this device
+     */
+    int getReferenceCount(const IComputeDevice* device) const;
     
     /**
      * @brief Device status for monitoring
@@ -232,9 +299,10 @@ private:
         std::unique_ptr<IComputeDevice> device;  ///< Owned device instance
         DeviceInfo info;                          ///< Device metadata
         bool marked_for_removal;                  ///< Pending removal flag
+        int reference_count;                      ///< Number of workers using this device
         
         DeviceSlot(std::unique_ptr<IComputeDevice> dev, DeviceInfo inf)
-            : device(std::move(dev)), info(inf), marked_for_removal(false) {}
+            : device(std::move(dev)), info(inf), marked_for_removal(false), reference_count(0) {}
     };
     
 

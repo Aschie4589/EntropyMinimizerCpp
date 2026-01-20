@@ -5,7 +5,7 @@ add_library(minimizer_orchestration
     run_orchestrator.cpp
     worker_thread_pool.cpp
     minimizer_orchestrator.cpp
-    device_registry.cpp
+    gpu_registry.cpp
 )
 
 target_include_directories(minimizer_orchestration PUBLIC
@@ -15,6 +15,7 @@ target_include_directories(minimizer_orchestration PUBLIC
 target_link_libraries(minimizer_orchestration PUBLIC
     yaml-cpp
     CUDA::cudart
+    gpu_utilities
     minimizer_algorithm
     minimizer_state
     minimizer_stopping

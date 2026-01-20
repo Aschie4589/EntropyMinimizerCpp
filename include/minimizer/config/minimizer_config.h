@@ -6,6 +6,7 @@
 #include "minimizer/config/prediction_config.h"
 #include "minimizer/config/checkpoint_config.h"
 #include "minimizer/config/logging_config.h"
+#include "minimizer/config/resource_config.h"
 #include "minimizer/config/multi_run_config.h"
 #include <string>
 #include <stdexcept>
@@ -23,20 +24,23 @@ struct MinimizerConfig {
     // Algorithm execution parameters
     AlgorithmConfig algorithm;
     
-    // Stopping conditions
-    StoppingConfig stopping;
-    
-    // Prediction system
-    PredictionConfig prediction;
-    
     // Checkpoint management
     CheckpointConfig checkpoint;
-    
+
     // Logging system
     LoggingConfig logging;
-    
+
     // Multi-run orchestration
     MultiRunConfig multi_run;
+    
+    // Prediction system
+    PredictionConfig prediction;        
+
+    // Resource management (GPU/CPU allocation)
+    ResourceConfig resource;
+
+    // Stopping conditions
+    StoppingConfig stopping;
     
     // Configuration version for compatibility tracking
     std::string version = "1.0.0";
@@ -58,6 +62,7 @@ struct MinimizerConfig {
             checkpoint.validate();
             logging.validate();
             multi_run.validate();
+            resource.validate();
         } catch (const std::invalid_argument& e) {
             throw std::invalid_argument(
                 std::string("MinimizerConfig validation failed: ") + e.what()
@@ -72,11 +77,12 @@ struct MinimizerConfig {
         std::string result = "MinimizerConfig{\n";
         result += "  version: " + version + "\n";
         result += "  " + algorithm.to_string() + "\n";
-        result += "  " + stopping.to_string() + "\n";
-        result += "  " + prediction.to_string() + "\n";
         result += "  " + checkpoint.to_string() + "\n";
         result += "  " + logging.to_string() + "\n";
         result += "  " + multi_run.to_string() + "\n";
+        result += "  " + prediction.to_string() + "\n";
+        result += "  " + resource.to_string() + "\n";
+        result += "  " + stopping.to_string() + "\n";
         result += "}";
         return result;
     }
@@ -89,6 +95,7 @@ struct MinimizerConfig {
                checkpoint == other.checkpoint &&
                logging == other.logging &&
                multi_run == other.multi_run &&
+               resource == other.resource &&
                version == other.version;
     }
     

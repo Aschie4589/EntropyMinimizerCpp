@@ -80,7 +80,7 @@ struct ResourceConfig {
         /**
          * @brief Pick GPUs with most free memory (default)
          * 
-         * Queries cudaMemGetInfo and sorts by free memory descending.
+         * Queries NVML (or cudaMemGetInfo fallback) and sorts by free memory descending.
          * Best for memory-intensive workloads.
          */
         MOST_FREE_MEMORY,
@@ -317,6 +317,23 @@ struct ResourceConfig {
         config.allow_dynamic_scaling = false;
         config.fallback_to_cpu = true;
         return config;
+    }
+
+    // Equality comparison for testing
+    bool operator==(const ResourceConfig& other) const {
+        return desired_gpus == other.desired_gpus &&
+               desired_cpus == other.desired_cpus &&
+               gpu_policy == other.gpu_policy &&
+               preferred_gpu_ids == other.preferred_gpu_ids &&
+               min_gpu_memory == other.min_gpu_memory &&
+               allow_dynamic_scaling == other.allow_dynamic_scaling &&
+               poll_interval == other.poll_interval &&
+               gpu_config_file == other.gpu_config_file &&
+               fallback_to_cpu == other.fallback_to_cpu;
+    }
+
+    bool operator!=(const ResourceConfig& other) const {
+        return !(*this == other);
     }
 };
 

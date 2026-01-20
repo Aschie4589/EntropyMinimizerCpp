@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include "minimizer/orchestration/worker_thread_pool.h"
 #include "minimizer/orchestration/device_pool.h"
-#include "minimizer/orchestration/device_registry.h"
+#include "minimizer/orchestration/gpu_registry.h"
 #include "minimizer/orchestration/concurrent_queue.h"
 #include "minimizer/orchestration/result_collector.h"
 #include "minimizer/config/resource_config.h"
@@ -49,7 +49,7 @@ protected:
         // Create device pool (CPU-only for deterministic testing)
         ResourceConfig resource_config = ResourceConfig::createCPUOnly(4);
         device_pool_ = std::make_unique<DevicePool>(resource_config);
-        DeviceRegistry& registry = DeviceRegistry::instance();
+        GPURegistry& registry = GPURegistry::instance();
         device_pool_->initializeFromRegistry(registry);
     }
     

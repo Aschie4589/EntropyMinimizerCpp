@@ -21,6 +21,7 @@ target_link_libraries(minimizer_algorithm PUBLIC
     minimizer_state
     compute_cuda
     compute_cpu
+    gpu_utilities
     CUDA::cudart
     CUDA::cublas
     CUDA::cusolver

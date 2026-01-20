@@ -1,4 +1,5 @@
 #include "utilities/gpu/gpu_resource_manager.h"
+#include "utilities/gpu/nvml_wrapper.h"
 
 #include <iostream>
 #include <sstream>
@@ -129,24 +130,17 @@ void GPUResourceManager::reloadConfig() {
 void GPUResourceManager::updateGPUMemoryInfo(int gpu_id) {
     if (gpu_id < 0 || gpu_id >= num_gpus) return;
     
-    int current_device;
-    cudaGetDevice(&current_device);
+    // Use NVML to query memory without initializing CUDA context
+    utils::NVMLWrapper& nvml = utils::NVMLWrapper::instance();
+    utils::NVMLWrapper::DeviceInfo info;
     
-    cudaSetDevice(gpu_id);
-    
-    size_t free_mem, total_mem;
-    cudaError_t err = cudaMemGetInfo(&free_mem, &total_mem);
-    
-    if (err == cudaSuccess) {
-        gpu_states[gpu_id].free_memory = free_mem;
+    if (nvml.getDeviceInfo(gpu_id, info)) {
+        gpu_states[gpu_id].free_memory = info.free_memory;
         gpu_states[gpu_id].last_check = std::chrono::system_clock::now();
     } else {
         std::cerr << "Error getting memory info for GPU " << gpu_id 
-                  << ": " << cudaGetErrorString(err) << std::endl;
+                  << ": " << nvml.getLastError() << std::endl;
     }
-    
-    // Restore original device
-    cudaSetDevice(current_device);
 }
 
 bool GPUResourceManager::checkGPUMemory(int gpu_id, size_t required_memory) {

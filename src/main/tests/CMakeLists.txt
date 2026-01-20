@@ -538,7 +538,7 @@ add_executable(device_pool_tests
 # Compile device sources directly
 target_sources(device_pool_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/device_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/device_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/gpu_registry.cpp
     ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaMemory.cpp
     ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaStream.cpp
     ${CMAKE_SOURCE_DIR}/src/compute/backends/cuda/CudaRandom.cpp
@@ -559,6 +559,7 @@ target_sources(device_pool_tests PRIVATE
 target_link_libraries(device_pool_tests PRIVATE
     GTest::gtest
     GTest::gtest_main
+    gpu_utilities
     CUDA::cudart
     CUDA::curand
     CUDA::cublas
@@ -632,6 +633,7 @@ target_sources(run_orchestrator_tests PRIVATE
 target_link_libraries(run_orchestrator_tests PRIVATE
     GTest::gtest
     GTest::gtest_main
+    gpu_utilities
     CUDA::cudart
     CUDA::curand
     CUDA::cublas
@@ -677,7 +679,7 @@ target_sources(worker_pool_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/worker_thread_pool.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/run_orchestrator.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/device_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/device_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/gpu_registry.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/algorithm_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/strategy_factory.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/generic_minimization_strategy.cpp
@@ -714,6 +716,7 @@ target_sources(worker_pool_tests PRIVATE
 target_link_libraries(worker_pool_tests PRIVATE
     GTest::gtest
     GTest::gtest_main
+    gpu_utilities
     CUDA::cudart
     CUDA::curand
     CUDA::cublas
@@ -760,7 +763,7 @@ target_sources(minimizer_orchestrator_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/worker_thread_pool.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/run_orchestrator.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/device_pool.cpp
-    ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/device_registry.cpp
+    ${CMAKE_SOURCE_DIR}/src/minimizer/orchestration/gpu_registry.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/algorithm_manager.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/strategy_factory.cpp
     ${CMAKE_SOURCE_DIR}/src/minimizer/algorithm/generic_minimization_strategy.cpp
@@ -797,6 +800,7 @@ target_sources(minimizer_orchestrator_tests PRIVATE
 target_link_libraries(minimizer_orchestrator_tests PRIVATE
     GTest::gtest
     GTest::gtest_main
+    gpu_utilities
     CUDA::cudart
     CUDA::curand
     CUDA::cublas
@@ -862,6 +866,7 @@ target_sources(strategy_factory_tests PRIVATE
 target_link_libraries(strategy_factory_tests PRIVATE
     GTest::gtest
     GTest::gtest_main
+    gpu_utilities
     CUDA::cudart
     CUDA::curand
     CUDA::cublas

@@ -201,6 +201,26 @@ public:
      */
     int getActiveWorkerCount() const;
     
+    /**
+     * @brief Remove workers that are using a specific physical device
+     * 
+     * Gracefully stops workers assigned to the given device.
+     * Workers will complete their current task before stopping.
+     * Blocks until all affected workers have joined.
+     * 
+     * @param physical_device_id CUDA device ID
+     * @return Number of workers removed
+     */
+    int removeWorkersUsingDevice(int physical_device_id);
+    
+    /**
+     * @brief Get worker IDs using a specific device
+     * 
+     * @param physical_device_id CUDA device ID
+     * @return Vector of worker IDs assigned to this device
+     */
+    std::vector<int> getWorkerIDsUsingDevice(int physical_device_id) const;
+    
 private:
     /**
      * @brief Worker state structure
@@ -210,6 +230,7 @@ private:
         std::atomic<bool> should_stop{false};
         std::atomic<bool> is_active{false};
         int worker_id;
+        IComputeDevice* assigned_device = nullptr;  ///< Device assigned to this worker
         
         Worker(int id) : worker_id(id) {}
     };

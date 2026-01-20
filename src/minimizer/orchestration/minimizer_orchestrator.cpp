@@ -1,8 +1,10 @@
 #include "minimizer/orchestration/minimizer_orchestrator.h"
-#include "minimizer/orchestration/device_registry.h"
+#include "minimizer/orchestration/gpu_registry.h"
 #include <cmath>
 #include <stdexcept>
 #include <iostream>
+#include <set>
+#include <algorithm>
 
 namespace entropy {
 
@@ -85,13 +87,11 @@ void MinimizerOrchestrator::fillWorkQueue(
 RunResult MinimizerOrchestrator::findMOE(
     const MinimizerConfig& config,
     const HostKrausOperators& kraus_ops,
-    int input_dim,
-    const ResourceConfig& resource_config
-) {
+    int input_dim
+    ) {
     // 1. Validate configurations
     try {
         config.validate();
-        resource_config.validate();
     } catch (const std::exception& e) {
         throw std::invalid_argument(
             std::string("MinimizerOrchestrator::findMOE: Invalid configuration: ") + e.what()
@@ -114,15 +114,15 @@ RunResult MinimizerOrchestrator::findMOE(
     
     std::cout << "Validated configuration!" << std::endl;
     
-    // 2. Initialize DeviceRegistry. This tells the minimizer what devices are available.
-    DeviceRegistry& registry = DeviceRegistry::instance();
+    // 2. Initialize GPURegistry. This tells the minimizer what devices are available.
+    GPURegistry& registry = GPURegistry::instance();
     try {
-        registry.loadConfig(resource_config.gpu_config_file);
+        registry.loadConfig(config.resource.gpu_config_file);
     } catch (const std::exception& e) {
         std::cerr << "Warning: Could not load GPU config, using default: " << e.what() << std::endl;
     }
 
-    std::cout << "Initialized DeviceRegistry with "
+    std::cout << "Initialized GPURegistry with "
               << registry.getAllGPUInfo().size() << " available devices. Of them, "
                 << registry.getEnabledGPUs().size() << " are enabled."
               << std::endl;
@@ -130,7 +130,7 @@ RunResult MinimizerOrchestrator::findMOE(
     std::cout << "Creating DevicePool and initializing from registry..." << std::endl;
 
     // 3. Create orchestration components. DevicePool is a pool of compute devices for work distribution, which are created dynamically based on the available hardware.
-    DevicePool device_pool(resource_config);
+    DevicePool device_pool(config.resource);
     device_pool.initializeFromRegistry(registry);
 
     std::cout << "Initialized DevicePool with "
@@ -176,13 +176,13 @@ RunResult MinimizerOrchestrator::findMOE(
     worker_pool_ = &worker_pool;
     
     // 6. Subscribe to configuration changes (if enabled)
-    if (resource_config.allow_dynamic_scaling) {
+    if (config.resource.allow_dynamic_scaling) {
         registry.subscribeToChanges(
             [this](const std::vector<int>& enabled_gpus) {
                 this->onConfigurationChanged(enabled_gpus);
             }
         );
-        registry.startWatching(resource_config.poll_interval);
+        registry.startWatching(config.resource.poll_interval);
     }
     
     worker_pool.start();
@@ -207,7 +207,7 @@ RunResult MinimizerOrchestrator::findMOE(
     }
     
     // 8. Stop watching for changes
-    if (resource_config.allow_dynamic_scaling) {
+    if (config.resource.allow_dynamic_scaling) {
         registry.stopWatching();
     }
     
@@ -266,40 +266,162 @@ MinimizerOrchestrator::OrchestrationStats MinimizerOrchestrator::getStats() cons
 // ============================================================================
 
 void MinimizerOrchestrator::onConfigurationChanged(const std::vector<int>& enabled_gpus) {
+    std::cout << "MinimizerOrchestrator: Configuration changed, adjusting resources..." << std::endl;
     if (!device_pool_ || !worker_pool_) {
+        std::cout << "MinimizerOrchestrator: Device pool or worker pool not initialized. Skipping adjustment." << std::endl;
         return;  // Not initialized yet or already cleaned up
     }
     
     try {
+        std::cout << "MinimizerOrchestrator: New enabled GPUs: ";
+        for (int gpu_id : enabled_gpus) {
+            std::cout << gpu_id << " ";
+        }
+        std::cout << std::endl;
         adjustResources(enabled_gpus);
+
+        std::cout << "MinimizerOrchestrator: Resource adjustment complete." << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Error adjusting resources: " << e.what() << std::endl;
     }
 }
 
 void MinimizerOrchestrator::adjustResources(const std::vector<int>& enabled_gpus) {
+    std::cout << "MinimizerOrchestrator: ===== Resource Adjustment Started =====" << std::endl;
+    
     if (!device_pool_ || !worker_pool_) {
+        std::cout << "MinimizerOrchestrator: Pools not initialized, skipping." << std::endl;
         return;
     }
     
-    // Update device pool to reflect new enabled GPUs
-    device_pool_->adjustToEnabledGPUs(enabled_gpus);
+    // ========================================================================
+    // STEP 1: Identify devices to remove and add
+    // ========================================================================
     
-    // Adjust worker count to match new device count
-    int new_device_count = device_pool_->numDevices();
-    int current_workers = worker_pool_->getWorkerCount();
-    
-    if (new_device_count > current_workers) {
-        // Scale up: add workers
-        int workers_to_add = new_device_count - current_workers;
-        worker_pool_->addWorkers(workers_to_add);
-        std::cout << "Scaled up: added " << workers_to_add << " workers" << std::endl;
-    } else if (new_device_count < current_workers) {
-        // Scale down: remove workers
-        int workers_to_remove = current_workers - new_device_count;
-        worker_pool_->removeWorkers(workers_to_remove);
-        std::cout << "Scaled down: removed " << workers_to_remove << " workers" << std::endl;
+    std::vector<int> current_gpus;
+    for (const auto& status : device_pool_->getDeviceStatus()) {
+        if (status.type == DeviceType::GPU && status.available) {
+            current_gpus.push_back(status.physical_device_id);
+        }
     }
+    
+    std::set<int> enabled_set(enabled_gpus.begin(), enabled_gpus.end());
+    std::set<int> current_set(current_gpus.begin(), current_gpus.end());
+    
+    // Devices to remove: in current but not in enabled
+    std::vector<int> devices_to_remove;
+    std::set_difference(current_set.begin(), current_set.end(),
+                       enabled_set.begin(), enabled_set.end(),
+                       std::back_inserter(devices_to_remove));
+    
+    // Devices to add: in enabled but not in current
+    std::vector<int> devices_to_add;
+    std::set_difference(enabled_set.begin(), enabled_set.end(),
+                       current_set.begin(), current_set.end(),
+                       std::back_inserter(devices_to_add));
+    
+    std::cout << "MinimizerOrchestrator: Current GPUs: ";
+    for (int id : current_gpus) std::cout << id << " ";
+    std::cout << std::endl;
+    
+    std::cout << "MinimizerOrchestrator: Enabled GPUs: ";
+    for (int id : enabled_gpus) std::cout << id << " ";
+    std::cout << std::endl;
+    
+    std::cout << "MinimizerOrchestrator: Devices to remove: " << devices_to_remove.size();
+    if (!devices_to_remove.empty()) {
+        std::cout << " (";
+        for (size_t i = 0; i < devices_to_remove.size(); ++i) {
+            std::cout << devices_to_remove[i];
+            if (i < devices_to_remove.size() - 1) std::cout << ", ";
+        }
+        std::cout << ")";
+    }
+    std::cout << std::endl;
+    
+    std::cout << "MinimizerOrchestrator: Devices to add: " << devices_to_add.size();
+    if (!devices_to_add.empty()) {
+        std::cout << " (";
+        for (size_t i = 0; i < devices_to_add.size(); ++i) {
+            std::cout << devices_to_add[i];
+            if (i < devices_to_add.size() - 1) std::cout << ", ";
+        }
+        std::cout << ")";
+    }
+    std::cout << std::endl;
+    
+    // ========================================================================
+    // STEP 2: Mark devices for removal (prevents new acquisitions)
+    // ========================================================================
+    
+    for (int device_id : devices_to_remove) {
+        std::cout << "MinimizerOrchestrator: Marking device " << device_id << " for removal" << std::endl;
+        device_pool_->markDeviceForRemoval(device_id);
+    }
+    
+    // ========================================================================
+    // STEP 3: Gracefully remove workers using marked devices
+    // ========================================================================
+    
+    int total_workers_removed = 0;
+    for (int device_id : devices_to_remove) {
+        auto worker_ids = worker_pool_->getWorkerIDsUsingDevice(device_id);
+        std::cout << "MinimizerOrchestrator: Device " << device_id 
+                  << " has " << worker_ids.size() << " worker(s) assigned" << std::endl;
+        
+        std::cout << "MinimizerOrchestrator: Removing workers using device " << device_id << std::endl;
+        int removed = worker_pool_->removeWorkersUsingDevice(device_id);
+        total_workers_removed += removed;
+        std::cout << "MinimizerOrchestrator: Removed " << removed << " worker(s) from device " << device_id << std::endl;
+    }
+    
+    std::cout << "MinimizerOrchestrator: Total workers removed: " << total_workers_removed << std::endl;
+    
+    // ========================================================================
+    // STEP 4: Clean up devices (now safe, ref_count == 0)
+    // ========================================================================
+    
+    std::cout << "MinimizerOrchestrator: Cleaning up marked devices..." << std::endl;
+    device_pool_->cleanupMarkedDevices();
+    
+    // ========================================================================
+    // STEP 5: Add new devices
+    // ========================================================================
+    
+    for (int device_id : devices_to_add) {
+        std::cout << "MinimizerOrchestrator: Adding device " << device_id << std::endl;
+        try {
+            device_pool_->addGPU(device_id);
+            std::cout << "MinimizerOrchestrator: Successfully added device " << device_id << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "MinimizerOrchestrator: Failed to add device " << device_id 
+                      << ": " << e.what() << std::endl;
+        }
+    }
+    
+    // ========================================================================
+    // STEP 6: Add workers for new devices
+    // ========================================================================
+    
+    int workers_to_add = devices_to_add.size();
+    if (workers_to_add > 0) {
+        std::cout << "MinimizerOrchestrator: Adding " << workers_to_add << " worker(s) for new devices" << std::endl;
+        try {
+            worker_pool_->addWorkers(workers_to_add);
+            std::cout << "MinimizerOrchestrator: Successfully added " << workers_to_add << " worker(s)" << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "MinimizerOrchestrator: Failed to add workers: " << e.what() << std::endl;
+        }
+    }
+    
+    // ========================================================================
+    // Final Status
+    // ========================================================================
+    
+    std::cout << "MinimizerOrchestrator: ===== Resource Adjustment Complete =====" << std::endl;
+    std::cout << "MinimizerOrchestrator: Total devices: " << device_pool_->numDevices() << std::endl;
+    std::cout << "MinimizerOrchestrator: Total workers: " << worker_pool_->getWorkerCount() << std::endl;
+    std::cout << "MinimizerOrchestrator: Active workers: " << worker_pool_->getActiveWorkerCount() << std::endl;
 }
 
 } // namespace entropy

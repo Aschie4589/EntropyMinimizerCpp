@@ -33,7 +33,7 @@ enum class StrategyType {
  * 1. Check device.getBackend() (CUDA vs CPU)
  * 2. If CUDA:
  *    - Estimate workspace via estimateWorkspaceSize()
- *    - Query free GPU memory via cudaMemGetInfo()
+ *    - Query free GPU memory via NVML (no context init) or cudaMemGetInfo()
  *    - If free >= 1.3 × workspace: CudaMinimizationStrategy (30% buffer)
  *    - Else: GenericMinimizationStrategy (fallback)
  * 3. If CPU: GenericMinimizationStrategy
@@ -145,7 +145,8 @@ public:
     /**
      * @brief Query available memory on device
      * 
-     * For CUDA: Queries free GPU memory via cudaMemGetInfo()
+     * For CUDA: Queries free GPU memory via NVML (doesn't initialize CUDA context)
+     *           Falls back to cudaMemGetInfo() if NVML fails
      * For CPU: Returns SIZE_MAX (no practical memory limit)
      * 
      * @param device Compute device to query

@@ -23,8 +23,9 @@ namespace entropy {
 class ConfigBuilder {
 public:
     ConfigBuilder() = default;
-    
-    // Algorithm configuration
+    // -----------------------------------------
+    //          Algorithm configuration
+    // -----------------------------------------
     ConfigBuilder& setEpsilon(double epsilon) {
         config_.algorithm.epsilon = epsilon;
         return *this;
@@ -40,33 +41,98 @@ public:
         return *this;
     }
     
-    // Stopping configuration
-    ConfigBuilder& setMaxIterations(int max_iterations) {
-        config_.stopping.max_iterations = max_iterations;
+    // -----------------------------------------
+    //         Checkpoint configuration
+    // -----------------------------------------
+    ConfigBuilder& enableCheckpoints(bool enabled = true) {
+        config_.checkpoint.enabled = enabled;
         return *this;
     }
     
-    ConfigBuilder& setConvergenceTolerance(double tolerance) {
-        config_.stopping.convergence_tolerance = tolerance;
+    ConfigBuilder& setCheckpointInterval(int interval) {
+        config_.checkpoint.interval = interval;
         return *this;
     }
     
-    ConfigBuilder& setConvergenceWindow(size_t window) {
-        config_.stopping.convergence_window = window;
+    ConfigBuilder& setCheckpointDirectory(const std::string& directory) {
+        config_.checkpoint.directory = directory;
         return *this;
     }
     
-    ConfigBuilder& setTargetEntropy(double target) {
-        config_.stopping.target_entropy = target;
+    ConfigBuilder& setCheckpointFilenamePattern(const std::string& pattern) {
+        config_.checkpoint.filename_pattern = pattern;
         return *this;
     }
     
-    ConfigBuilder& clearTargetEntropy() {
-        config_.stopping.target_entropy = std::nullopt;
+    ConfigBuilder& setKeepLastN(int n) {
+        config_.checkpoint.keep_last_n = n;
         return *this;
     }
     
-    // Prediction configuration
+    ConfigBuilder& enableCompression(bool enabled = true) {
+        config_.checkpoint.compress = enabled;
+        return *this;
+    }
+    
+    // -----------------------------------------
+    //         Logging configuration
+    // -----------------------------------------
+    ConfigBuilder& enableLogging(bool enabled = true) {
+        config_.logging.enabled = enabled;
+        return *this;
+    }
+    
+    ConfigBuilder& setLogLevel(LogLevel level) {
+        config_.logging.level = level;
+        return *this;
+    }
+    
+    ConfigBuilder& setLogFilePath(const std::string& file_path) {
+        config_.logging.file_path = file_path;
+        return *this;
+    }
+    
+    ConfigBuilder& setLogInterval(int interval) {
+        config_.logging.log_interval = interval;
+        return *this;
+    }
+    
+    ConfigBuilder& setPrintToConsole(bool enabled = true) {
+        config_.logging.print_to_console = enabled;
+        return *this;
+    }
+    
+    ConfigBuilder& setColorEnabled(bool enabled = true) {
+        config_.logging.color_enabled = enabled;
+        return *this;
+    }
+    
+    // -----------------------------------------
+    //         Multi-run configuration
+    // -----------------------------------------
+    ConfigBuilder& setNumAttempts(int num_attempts) {
+        config_.multi_run.num_attempts = num_attempts;
+        return *this;
+    }
+    
+    ConfigBuilder& setTrackGlobalMoe(bool track = true) {
+        config_.multi_run.track_global_moe = track;
+        return *this;
+    }
+    
+    ConfigBuilder& setRestartOnFailure(bool restart = true) {
+        config_.multi_run.restart_on_failure = restart;
+        return *this;
+    }
+    
+    ConfigBuilder& setMaxFailures(int max_failures) {
+        config_.multi_run.max_failures = max_failures;
+        return *this;
+    }
+    
+    // -----------------------------------------
+    //         Prediction configuration
+    // -----------------------------------------
     ConfigBuilder& enablePrediction(bool enabled = true) {
         config_.prediction.enabled = enabled;
         return *this;
@@ -101,87 +167,81 @@ public:
         config_.prediction.min_data_points = min_points;
         return *this;
     }
-    
-    // Checkpoint configuration
-    ConfigBuilder& enableCheckpoints(bool enabled = true) {
-        config_.checkpoint.enabled = enabled;
+
+    // -----------------------------------------
+    //       Resource configuration
+    // -----------------------------------------
+
+    ConfigBuilder& setDesiredGpus(int num_gpus) {
+        config_.resource.desired_gpus = num_gpus;
+        return *this;
+    }
+
+    ConfigBuilder& setDesiredCpus(int num_cores) {
+        config_.resource.desired_cpus = num_cores;
+        return *this;
+    }
+
+    ConfigBuilder& setGpuSelectionPolicy(ResourceConfig::GPUSelectionPolicy policy) {
+        config_.resource.gpu_policy = policy;
+        return *this;
+    }
+
+    ConfigBuilder& setPreferredGpuIds(const std::vector<int>& gpu_ids) {
+        config_.resource.preferred_gpu_ids = gpu_ids;
+        return *this;
+    }
+
+    ConfigBuilder& setMinGpuMemory(size_t bytes) {
+        config_.resource.min_gpu_memory = bytes;
+        return *this;
+    }
+
+    ConfigBuilder& setAllowDynamicScaling(bool allow = true) {
+        config_.resource.allow_dynamic_scaling = allow;
+        return *this;
+    }
+
+    ConfigBuilder& setPollInterval(std::chrono::milliseconds interval) {
+        config_.resource.poll_interval = interval;
+        return *this;
+    }
+
+    ConfigBuilder& setFallbackToCpu(bool fallback = true) {
+        config_.resource.fallback_to_cpu = fallback;
+        return *this;
+    }
+
+    ConfigBuilder& setGpuConfigFile(const std::string& file_path) {
+        config_.resource.gpu_config_file = file_path;
+        return *this;
+    }
+
+    // -----------------------------------------
+    //         Stopping configuration
+    // -----------------------------------------
+    ConfigBuilder& setMaxIterations(int max_iterations) {
+        config_.stopping.max_iterations = max_iterations;
         return *this;
     }
     
-    ConfigBuilder& setCheckpointInterval(int interval) {
-        config_.checkpoint.interval = interval;
+    ConfigBuilder& setConvergenceTolerance(double tolerance) {
+        config_.stopping.convergence_tolerance = tolerance;
         return *this;
     }
     
-    ConfigBuilder& setCheckpointDirectory(const std::string& directory) {
-        config_.checkpoint.directory = directory;
+    ConfigBuilder& setConvergenceWindow(size_t window) {
+        config_.stopping.convergence_window = window;
         return *this;
     }
     
-    ConfigBuilder& setCheckpointFilenamePattern(const std::string& pattern) {
-        config_.checkpoint.filename_pattern = pattern;
+    ConfigBuilder& setTargetEntropy(double target) {
+        config_.stopping.target_entropy = target;
         return *this;
     }
     
-    ConfigBuilder& setKeepLastN(int n) {
-        config_.checkpoint.keep_last_n = n;
-        return *this;
-    }
-    
-    ConfigBuilder& enableCompression(bool enabled = true) {
-        config_.checkpoint.compress = enabled;
-        return *this;
-    }
-    
-    // Logging configuration
-    ConfigBuilder& enableLogging(bool enabled = true) {
-        config_.logging.enabled = enabled;
-        return *this;
-    }
-    
-    ConfigBuilder& setLogLevel(LogLevel level) {
-        config_.logging.level = level;
-        return *this;
-    }
-    
-    ConfigBuilder& setLogFilePath(const std::string& file_path) {
-        config_.logging.file_path = file_path;
-        return *this;
-    }
-    
-    ConfigBuilder& setLogInterval(int interval) {
-        config_.logging.log_interval = interval;
-        return *this;
-    }
-    
-    ConfigBuilder& setPrintToConsole(bool enabled = true) {
-        config_.logging.print_to_console = enabled;
-        return *this;
-    }
-    
-    ConfigBuilder& setColorEnabled(bool enabled = true) {
-        config_.logging.color_enabled = enabled;
-        return *this;
-    }
-    
-    // Multi-run configuration
-    ConfigBuilder& setNumAttempts(int num_attempts) {
-        config_.multi_run.num_attempts = num_attempts;
-        return *this;
-    }
-    
-    ConfigBuilder& setTrackGlobalMoe(bool track = true) {
-        config_.multi_run.track_global_moe = track;
-        return *this;
-    }
-    
-    ConfigBuilder& setRestartOnFailure(bool restart = true) {
-        config_.multi_run.restart_on_failure = restart;
-        return *this;
-    }
-    
-    ConfigBuilder& setMaxFailures(int max_failures) {
-        config_.multi_run.max_failures = max_failures;
+    ConfigBuilder& clearTargetEntropy() {
+        config_.stopping.target_entropy = std::nullopt;
         return *this;
     }
     

@@ -201,45 +201,6 @@ endfunction()
 #     ${LAPACK_LIBRARIES}
 # )
 
-# =============================================================================
-# TARGET: phase1_parallel (Parallel Phase 1 with Task Queue)
-# =============================================================================
-# TEMPORARILY DISABLED - needs update to new API (missing tensor_entropy.h)
-# add_executable(phase1_parallel
-#     "${SRC_DIR}/main/phase1/phase1_parallel.cu"
-# )
-
-# target_link_libraries(phase1_parallel PRIVATE
-    # Channel libraries
-#     kraus_generators
-#     channel_utils
-    
-    # Utility libraries
-#     messaging
-#     gpu_utilities
-    
-    # Minimizer libraries
-#     minimizer_analysis
-    
-    # Configuration
-#     yaml-cpp::yaml-cpp
-    
-    # CUDA libraries
-#     CUDA::cudart
-#     CUDA::cublas
-#     CUDA::cusolver
-#     CUDA::curand
-    
-    # Profiling
-#     nvtx3-cpp
-    
-    # LAPACK backend
-#     ${LAPACK_LIBRARIES}
-# )
-
-# set_target_properties(phase1_parallel PROPERTIES
-#     CUDA_SEPARABLE_COMPILATION OFF
-# )
 
 
 # =============================================================================
@@ -323,21 +284,6 @@ target_link_libraries(my_tests PRIVATE
 )
 
 
-
-# =============================================================================
-# TARGET: stage1 (Placeholder for your next executable)
-# =============================================================================
-
-# Uncomment and modify when ready to add stage1 executable
-# create_executable(stage1 "${SRC_DIR}/main/stage1")
-# 
-# target_link_libraries(stage1 PRIVATE
-#     # Add your libraries here
-#     minimizer_algorithm
-#     minimizer_core
-#     # ... etc
-#     ${LAPACK_LIBRARIES}
-# )
 
 ###############################################################################
 # TEST TARGETS

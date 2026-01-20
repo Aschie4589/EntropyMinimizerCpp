@@ -85,7 +85,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_ValidConfig) {
     MinimizerOrchestrator orchestrator;
     
     EXPECT_NO_THROW(
-        orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2))
+        orchestrator.findMOE(config_, kraus_ops_, input_dim_)
     );
 }
 
@@ -94,7 +94,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_SingleRun) {
     
     config_.multi_run.num_attempts = 1;
     
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     EXPECT_EQ(result.run_id, 0);
     EXPECT_TRUE(result.isSuccess());
@@ -107,7 +107,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_MultipleRuns) {
     
     config_.multi_run.num_attempts = 10;
     
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     EXPECT_TRUE(result.isSuccess());
     EXPECT_TRUE(std::isfinite(result.final_entropy));
@@ -123,7 +123,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_ReturnsMinimum) {
     double min_entropy = std::numeric_limits<double>::infinity();
     
     for (int trial = 0; trial < 3; ++trial) {
-        RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+        RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
         EXPECT_TRUE(result.isSuccess());
         min_entropy = std::min(min_entropy, result.final_entropy);
     }
@@ -139,7 +139,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_ResultValid) {
     
     config_.multi_run.num_attempts = 5;
     
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     // Verify result structure
     EXPECT_GE(result.run_id, 0);
@@ -163,7 +163,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_ZeroAttempts_Throws) {
     config_.multi_run.num_attempts = 0;
     
     EXPECT_THROW(
-        orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2)),
+        orchestrator.findMOE(config_, kraus_ops_, input_dim_),
         std::invalid_argument
     );
 }
@@ -174,7 +174,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_NegativeAttempts_Throws) {
     config_.multi_run.num_attempts = -5;
     
     EXPECT_THROW(
-        orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2)),
+        orchestrator.findMOE(config_, kraus_ops_, input_dim_),
         std::invalid_argument
     );
 }
@@ -184,12 +184,12 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_InvalidInputDim_Throws) {
     ResourceConfig resource_config = ResourceConfig::createCPUOnly(2);
     
     EXPECT_THROW(
-        orchestrator.findMOE(config_, kraus_ops_, 0, resource_config),
+        orchestrator.findMOE(config_, kraus_ops_, 0),
         std::invalid_argument
     );
     
     EXPECT_THROW(
-        orchestrator.findMOE(config_, kraus_ops_, -5, resource_config),
+        orchestrator.findMOE(config_, kraus_ops_, -5),
         std::invalid_argument
     );
 }
@@ -200,7 +200,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_InvalidStoppingConfig_Throws) {
     config_.stopping.max_iterations = 0;  // Invalid
     
     EXPECT_THROW(
-        orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2)),
+        orchestrator.findMOE(config_, kraus_ops_, input_dim_),
         std::invalid_argument
     );
 }
@@ -214,7 +214,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_CPUOnly) {
     
     config_.multi_run.num_attempts = 5;
     
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     EXPECT_TRUE(result.isSuccess());
 }
@@ -224,7 +224,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_MultipleWorkers) {
     
     config_.multi_run.num_attempts = 20;
     
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     EXPECT_TRUE(result.isSuccess());
 }
@@ -239,7 +239,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_LargeAttemptCount) {
     config_.multi_run.num_attempts = 50;
     config_.stopping.max_iterations = 5;  // Keep iterations low for speed
     
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     EXPECT_TRUE(result.isSuccess());
 }
@@ -272,7 +272,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_SmallDimension) {
     
     config_.multi_run.num_attempts = 5;
     
-    RunResult result = orchestrator.findMOE(config_, small_kraus, small_dim, ResourceConfig::createCPUOnly(2));
+    RunResult result = orchestrator.findMOE(config_, small_kraus, small_dim);
     
     EXPECT_TRUE(result.isSuccess());
     EXPECT_EQ(result.final_vector.dimension, small_dim);
@@ -298,7 +298,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_LargeDimension) {
     config_.multi_run.num_attempts = 3;
     config_.stopping.max_iterations = 5;  // Keep low for speed
     
-    RunResult result = orchestrator.findMOE(config_, large_kraus, large_dim, ResourceConfig::createCPUOnly(2));
+    RunResult result = orchestrator.findMOE(config_, large_kraus, large_dim);
     
     EXPECT_TRUE(result.isSuccess());
     EXPECT_EQ(result.final_vector.dimension, large_dim);
@@ -314,13 +314,13 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_MultipleSequentialCalls) {
     config_.multi_run.num_attempts = 5;
     
     // Call findMOE multiple times
-    RunResult result1 = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result1 = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     EXPECT_TRUE(result1.isSuccess());
     
-    RunResult result2 = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result2 = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     EXPECT_TRUE(result2.isSuccess());
     
-    RunResult result3 = orchestrator.findMOE(config_, kraus_ops_, input_dim_, ResourceConfig::createCPUOnly(2));
+    RunResult result3 = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     EXPECT_TRUE(result3.isSuccess());
     
     // Results should be valid but not necessarily identical (different random init)
@@ -342,7 +342,7 @@ TEST_F(MinimizerOrchestratorTest, InitialVectors_AreUnique) {
     config_.multi_run.num_attempts = 10;
     
     ResourceConfig resource_config = ResourceConfig::createCPUOnly(2);
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, resource_config);
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     // If all initial vectors were identical, we'd get identical final vectors
     // The fact that we get varying entropies suggests unique initial vectors
@@ -356,7 +356,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_ConsistentWithConfiguration) {
     config_.stopping.max_iterations = 20;
     
     ResourceConfig resource_config = ResourceConfig::createCPUOnly(2);
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, resource_config);
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     // Verify result respects configuration
     EXPECT_LE(result.iterations_taken, config_.stopping.max_iterations);
@@ -374,7 +374,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_VeryLargeAttemptCount) {
     config_.stopping.max_iterations = 3;  // Very low for speed
     
     ResourceConfig resource_config = ResourceConfig::createCPUOnly(4);
-    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, resource_config);
+    RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
     
     EXPECT_TRUE(result.isSuccess());
 }
@@ -389,7 +389,7 @@ TEST_F(MinimizerOrchestratorTest, FindMOE_ManySequentialCalls) {
     
     // Execute many times to test for resource leaks
     for (int i = 0; i < 10; ++i) {
-        RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_, resource_config);
+        RunResult result = orchestrator.findMOE(config_, kraus_ops_, input_dim_);
         EXPECT_TRUE(result.isSuccess());
     }
 }

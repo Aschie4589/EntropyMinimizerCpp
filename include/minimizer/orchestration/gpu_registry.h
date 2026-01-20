@@ -17,7 +17,9 @@ namespace entropy {
 /**
  * @brief Singleton registry for GPU device configuration and availability
  * 
- * Central authority for:
+ * Central authority for GPU availability within the application.
+ * 
+ * Features:
  * - Loading GPU configuration from YAML files
  * - Querying GPU availability and properties via CUDA APIs
  * - Selecting best GPUs based on memory and utilization
@@ -43,7 +45,7 @@ namespace entropy {
  * 
  * Usage:
  * @code
- * DeviceRegistry& registry = DeviceRegistry::instance();
+ * GPURegistry& registry = GPURegistry::instance();
  * registry.loadConfig("configs/gpu_config.yaml");
  * 
  * // Get enabled GPUs
@@ -59,7 +61,7 @@ namespace entropy {
  * registry.startWatching();
  * @endcode
  */
-class DeviceRegistry {
+class GPURegistry {
 public:
     /**
      * @brief Information about a GPU device
@@ -67,8 +69,8 @@ public:
     struct GPUInfo {
         int device_id;                      ///< CUDA device ID
         bool enabled;                       ///< Enabled in configuration
-        size_t total_memory;                ///< Total memory (bytes) from cudaMemGetInfo
-        size_t free_memory;                 ///< Free memory (bytes) from cudaMemGetInfo
+        size_t total_memory;                ///< Total memory (bytes) from NVML or cudaDeviceProp
+        size_t free_memory;                 ///< Free memory (bytes) from NVML
         float utilization;                  ///< GPU utilization 0-100% (future: NVML)
         int compute_capability_major;       ///< Compute capability major version
         int compute_capability_minor;       ///< Compute capability minor version
@@ -101,7 +103,7 @@ public:
     /**
      * @brief Get singleton instance
      */
-    static DeviceRegistry& instance();
+    static GPURegistry& instance();
     
     /**
      * @brief Load configuration from YAML file
@@ -242,14 +244,14 @@ public:
     
 private:
     // Singleton: private constructor/destructor
-    DeviceRegistry() = default;
-    ~DeviceRegistry();
+    GPURegistry() = default;
+    ~GPURegistry();
     
     // Non-copyable, non-movable
-    DeviceRegistry(const DeviceRegistry&) = delete;
-    DeviceRegistry& operator=(const DeviceRegistry&) = delete;
-    DeviceRegistry(DeviceRegistry&&) = delete;
-    DeviceRegistry& operator=(DeviceRegistry&&) = delete;
+    GPURegistry(const GPURegistry&) = delete;
+    GPURegistry& operator=(const GPURegistry&) = delete;
+    GPURegistry(GPURegistry&&) = delete;
+    GPURegistry& operator=(GPURegistry&&) = delete;
     
     /**
      * @brief Background thread function for file watching

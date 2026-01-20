@@ -11,12 +11,10 @@ gpus:
   # GPU 0
   - device_id: 0
     enabled: false
-    # Optional: Set memory limit per device (future enhancement)
-    # max_memory_mb: 30000
     
   # GPU 1
   - device_id: 1
-    enabled: true
+    enabled: false
 
   # GPU 2    
   - device_id: 2
@@ -24,8 +22,7 @@ gpus:
 
   # GPU 3
   - device_id: 3
-    enabled: true 
-
+    enabled: false
     
 # Polling interval for configuration file changes (milliseconds)
 # Lower values = faster response to changes, but more I/O overhead

@@ -1,6 +1,7 @@
 #include "minimizer/algorithm/strategy_factory.h"
 #include "minimizer/algorithm/generic_minimization_strategy.h"
 #include "minimizer/algorithm/cuda_minimization_strategy.h"
+#include "utilities/gpu/nvml_wrapper.h"
 #include <stdexcept>
 #include <sstream>
 #include <limits>
@@ -142,6 +143,18 @@ size_t StrategyFactory::estimateWorkspaceSize(
 
 size_t StrategyFactory::getAvailableMemory(IComputeDevice& device) {
     if (device.getBackend() == DeviceBackend::CUDA) {
+        // Try NVML first (doesn't initialize CUDA context)
+        utils::NVMLWrapper& nvml = utils::NVMLWrapper::instance();
+        
+        // Get device ID without initializing CUDA context
+        int device_id = device.getDeviceID();
+        
+        utils::NVMLWrapper::DeviceInfo info;
+        if (nvml.getDeviceInfo(device_id, info)) {
+            return info.free_memory;
+        }
+        
+        // Fallback to CUDA runtime if NVML fails
         size_t free_bytes = 0;
         size_t total_bytes = 0;
         

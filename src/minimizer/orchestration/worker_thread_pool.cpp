@@ -133,7 +133,22 @@ void WorkerThreadPool::addWorkers(int count) {
     // Spawn new workers
     for (int i = 0; i < count; ++i) {
         std::cout << "WorkerThreadPool: Spawning worker " << (start_id + i) << "." << std::endl;
-        int worker_id = start_id + i;
+        // As id, choose the first available integer (check for holes)
+        int worker_id;
+        for (int wid = 0; ; ++wid) {
+            bool id_in_use = false;
+            for (const auto& w : worker_objects_) {
+                if (w->worker_id == wid) {
+                    id_in_use = true;
+                    break;
+                }
+            }
+            if (!id_in_use) {
+                worker_id = wid;
+                break;
+            }
+        }
+
         auto worker = std::make_unique<Worker>(worker_id);
         
         // Give the worker its thread, running the worker loop
@@ -141,7 +156,28 @@ void WorkerThreadPool::addWorkers(int count) {
             std::string log_filename = "worker_" + std::to_string(worker_id) + "_log.txt";
             DEBUG_LOG("Worker " + std::to_string(worker_id) + " thread started.", log_filename);
 
-
+            // ====== NEW: Acquire device at worker start ======
+            IComputeDevice* device = nullptr;
+            try {
+                device = device_pool_.acquireDevice();
+                DEBUG_LOG("Acquired device: ID=" + std::to_string(device->getDeviceID()) + 
+                         ", Name=" + device->getName(), log_filename);
+                
+                // Store device pointer in Worker object
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    for (auto& w : worker_objects_) {
+                        if (w->worker_id == worker_id) {
+                            w->assigned_device = device;
+                            break;
+                        }
+                    }
+                }
+            } catch (const std::exception& e) {
+                DEBUG_LOG("FATAL: Failed to acquire device: " + std::string(e.what()), log_filename);
+                return;  // Exit worker thread - cannot proceed without device
+            }
+            // ==================================================
             
             // Get worker object
             Worker* worker_ptr = nullptr;
@@ -157,6 +193,7 @@ void WorkerThreadPool::addWorkers(int count) {
             
             if (!worker_ptr) {
                 DEBUG_LOG("Worker " + std::to_string(worker_id) + " could not find its Worker object, exiting.", log_filename);
+                device_pool_.releaseDevice(device);
                 return;
             }
             
@@ -222,10 +259,10 @@ void WorkerThreadPool::addWorkers(int count) {
                     DEBUG_LOG(kraus_ss.str(), log_filename);
 
                     try {
-                        DEBUG_LOG("Attempting to get device for worker " + std::to_string(worker_id), log_filename);
-                        // Get device for this worker
-                        IComputeDevice& device = device_pool_.getDeviceForWorker(worker_id);
-                        DEBUG_LOG("Device obtained successfully", log_filename);
+                        DEBUG_LOG("Using assigned device for worker " + std::to_string(worker_id), log_filename);
+                        
+                        // ====== CHANGE: Use acquired device instead of getDeviceForWorker ======
+                        // Device was already acquired at worker thread start
                         
                         // Get configuration
                         DEBUG_LOG("Getting config_id=" + std::to_string(task.config_id), log_filename);
@@ -244,8 +281,8 @@ void WorkerThreadPool::addWorkers(int count) {
                         DEBUG_LOG("Kraus operator output_dim: " + std::to_string(kraus_ops_.output_dim), log_filename);
 
                         // And log device info
-                        DEBUG_LOG("Using device: ID=" + std::to_string(device.getDeviceID()) + 
-                            ", Name=" + device.getName(), log_filename);
+                        DEBUG_LOG("Using device: ID=" + std::to_string(device->getDeviceID()) + 
+                            ", Name=" + device->getName(), log_filename);
 
                         // Create RunOrchestrator for this task
                         DEBUG_LOG("Creating RunOrchestrator for run_id=" + std::to_string(task.run_id), log_filename);
@@ -258,7 +295,7 @@ void WorkerThreadPool::addWorkers(int count) {
                             config,
                             kraus_ops_,
                             input_dim_,
-                            device,
+                            *device,  // Dereference acquired device pointer
                             nullptr  // No progress callback to avoid reference capture issues
                         );
                         DEBUG_LOG("RunOrchestrator created successfully", log_filename);
@@ -300,6 +337,16 @@ void WorkerThreadPool::addWorkers(int count) {
             } catch (const std::exception& e) {
                 DEBUG_LOG("FATAL ERROR: " + std::string(e.what()), log_filename);
             }
+            
+            // ====== NEW: Release device at worker end ======
+            DEBUG_LOG("Releasing device before shutdown", log_filename);
+            try {
+                device_pool_.releaseDevice(device);
+                DEBUG_LOG("Device released successfully", log_filename);
+            } catch (const std::exception& e) {
+                DEBUG_LOG("Error releasing device: " + std::string(e.what()), log_filename);
+            }
+            // ===============================================
             
             DEBUG_LOG("Worker shutting down", log_filename);
         });
@@ -364,6 +411,76 @@ int WorkerThreadPool::getActiveWorkerCount() const {
         }
     }
     return count;
+}
+
+int WorkerThreadPool::removeWorkersUsingDevice(int physical_device_id) {
+    std::vector<std::unique_ptr<Worker>> workers_to_remove;
+    
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
+        // Find workers using this device
+        for (auto it = worker_objects_.begin(); it != worker_objects_.end(); ) {
+            if ((*it)->assigned_device) {
+                try {
+                    int device_id = device_pool_.getPhysicalDeviceID((*it)->assigned_device);
+                    if (device_id == physical_device_id) {
+                        DEBUG_LOG("Marking worker " + std::to_string((*it)->worker_id) + 
+                                 " for removal (uses device " + std::to_string(physical_device_id) + ")",
+                                 "worker_pool_log.txt");
+                        (*it)->should_stop = true;
+                        workers_to_remove.push_back(std::move(*it));
+                        it = worker_objects_.erase(it);
+                    } else {
+                        ++it;
+                    }
+                } catch (const std::exception& e) {
+                    DEBUG_LOG("Error checking device for worker " + std::to_string((*it)->worker_id) + 
+                             ": " + e.what(), "worker_pool_log.txt");
+                    ++it;
+                }
+            } else {
+                ++it;
+            }
+        }
+    }
+    
+    // Join threads outside lock (blocks until workers finish current task)
+    for (auto& worker : workers_to_remove) {
+        if (worker->thread && worker->thread->joinable()) {
+            DEBUG_LOG("Waiting for worker " + std::to_string(worker->worker_id) + " to finish...",
+                     "worker_pool_log.txt");
+            worker->thread->join();
+            DEBUG_LOG("Worker " + std::to_string(worker->worker_id) + " joined successfully",
+                     "worker_pool_log.txt");
+        }
+    }
+    
+    int removed_count = workers_to_remove.size();
+    std::cout << "WorkerThreadPool: Removed " << removed_count 
+              << " worker(s) using device " << physical_device_id << std::endl;
+    
+    return removed_count;
+}
+
+std::vector<int> WorkerThreadPool::getWorkerIDsUsingDevice(int physical_device_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    std::vector<int> worker_ids;
+    for (const auto& worker : worker_objects_) {
+        if (worker->assigned_device) {
+            try {
+                int device_id = device_pool_.getPhysicalDeviceID(worker->assigned_device);
+                if (device_id == physical_device_id) {
+                    worker_ids.push_back(worker->worker_id);
+                }
+            } catch (...) {
+                // Device not found, skip
+            }
+        }
+    }
+    
+    return worker_ids;
 }
 
 } // namespace entropy

@@ -9,7 +9,7 @@
 #include <iomanip>
 #include <ctime>
 #include <string>
-#define DEBUG_LOG(msg, filename) do { } while(0)//\
+#define DEBUG_LOG(msg, filename) do { \
     std::ofstream log_file((filename), std::ios::app); \
     auto now = std::chrono::system_clock::now(); \
     auto time_t_now = std::chrono::system_clock::to_time_t(now); \

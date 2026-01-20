@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "minimizer/orchestration/device_pool.h"
-#include "minimizer/orchestration/device_registry.h"
+#include "minimizer/orchestration/gpu_registry.h"
 #include "minimizer/config/resource_config.h"
 #include <thread>
 #include <vector>
@@ -20,13 +20,13 @@ protected:
             cuda_device_count_ = DeviceFactory::getCudaDeviceCount();
         }
         
-        // Get DeviceRegistry instance
-        registry_ = &DeviceRegistry::instance();
+        // Get GPURegistry instance
+        registry_ = &GPURegistry::instance();
     }
     
     bool cuda_available_;
     int cuda_device_count_;
-    DeviceRegistry* registry_;
+    GPURegistry* registry_;
 };
 
 // ============================================================================
