@@ -10,11 +10,11 @@
 gpus:
   # GPU 0
   - device_id: 0
-    enabled: false
+    enabled: true
     
   # GPU 1
   - device_id: 1
-    enabled: false
+    enabled: true
 
   # GPU 2    
   - device_id: 2
@@ -22,7 +22,7 @@ gpus:
 
   # GPU 3
   - device_id: 3
-    enabled: false
+    enabled: true
     
 # Polling interval for configuration file changes (milliseconds)
 # Lower values = faster response to changes, but more I/O overhead

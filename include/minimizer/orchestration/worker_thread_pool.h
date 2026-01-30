@@ -15,6 +15,9 @@
 
 namespace entropy {
 
+// Forward declaration
+class ProgressTracker;
+
 /**
  * @brief Thread pool for parallel minimization run execution
  * 
@@ -221,6 +224,21 @@ public:
      */
     std::vector<int> getWorkerIDsUsingDevice(int physical_device_id) const;
     
+    /**
+     * @brief Set progress tracker for monitoring worker progress
+     * 
+     * Optional. If set, workers will report progress updates to this tracker.
+     * The tracker must outlive the WorkerThreadPool (typically owned by main).
+     * 
+     * Thread Safety:
+     * - Safe to call before start() or while workers are running
+     * - New workers will use the updated tracker
+     * - Existing workers will continue using old tracker until task completion
+     * 
+     * @param tracker Pointer to ProgressTracker (nullptr to disable tracking)
+     */
+    void setProgressTracker(ProgressTracker* tracker);
+    
 private:
     /**
      * @brief Worker state structure
@@ -244,6 +262,9 @@ private:
     // Data needed for RunOrchestrator creation
     HostKrausOperators kraus_ops_;  ///< Copied (each worker needs own copy)
     int input_dim_;                 ///< Input dimension for vectors
+    
+    // Progress tracking (optional)
+    ProgressTracker* progress_tracker_ = nullptr;  ///< Non-owning pointer to progress tracker
     
     // Thread management
     std::vector<std::unique_ptr<Worker>> worker_objects_;  ///< Worker state objects

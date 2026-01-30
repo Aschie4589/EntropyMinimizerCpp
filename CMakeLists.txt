@@ -207,43 +207,51 @@ endfunction()
 # TARGET: phase1 (Main Phase 1 Application)
 # =============================================================================
 # TEMPORARILY DISABLED - needs update to new API (missing tensor_entropy.h)
-# add_executable(phase1
-#     "${SRC_DIR}/main/phase1/phase1.cu"
-# )
+add_executable(phase1
+    "${SRC_DIR}/main/phase1/phase1.cu"
+    "${SRC_DIR}/main/phase1/tensor_entropy.cu"
+)
 
-# target_link_libraries(phase1 PRIVATE
+target_include_directories(phase1 PRIVATE
+    "${SRC_DIR}/main/phase1"
+    "${CMAKE_SOURCE_DIR}/src/external"
+)
+
+target_link_libraries(phase1 PRIVATE
     # Channel libraries
-#     kraus_generators
-#     channel_utils
+    kraus_generators
+    channel_utils
     
     # Utility libraries
-#     messaging
+    messaging
+    serializer
+    gpu_utilities
     
     # Minimizer libraries
-#     minimizer_analysis
+    minimizer_orchestration
     
     # Configuration
-#     yaml-cpp::yaml-cpp
+    yaml-cpp::yaml-cpp
     
     # CUDA libraries
-#     CUDA::cudart
-#     CUDA::cublas
-#     CUDA::cusolver
-#     CUDA::curand
+    CUDA::cudart
+    CUDA::cublas
+    CUDA::cusolver
+    CUDA::curand
     
     # Profiling
-#     nvtx3-cpp
+    nvtx3-cpp
     
     # Parallelization
-#     OpenMP::OpenMP_CXX
+    OpenMP::OpenMP_CXX
     
     # LAPACK backend
-#     ${LAPACK_LIBRARIES}
-# )
+    ${LAPACK_LIBRARIES}
+)
 
-# set_target_properties(phase1 PROPERTIES
-#     CUDA_SEPARABLE_COMPILATION OFF
-# )
+set_target_properties(phase1 PROPERTIES
+    CUDA_SEPARABLE_COMPILATION OFF
+)
 
 # =============================================================================
 # TARGET: my_tests (Main Tests Application)
@@ -285,12 +293,6 @@ target_link_libraries(my_tests PRIVATE
 
 
 
-###############################################################################
-# TEST TARGETS
-###############################################################################
-
-# Add tests subdirectory
-add_subdirectory(src/main/tests)
 
 ###############################################################################
 # BUILD SUMMARY

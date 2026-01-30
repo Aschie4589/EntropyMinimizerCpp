@@ -43,6 +43,7 @@ target_include_directories(compute_cuda PUBLIC
 target_link_libraries(compute_cuda PUBLIC
     CUDA::cublas
     CUDA::cusolver
+    CUDA::curand
     CUDA::cudart
 )
 set_target_properties(compute_cuda PROPERTIES

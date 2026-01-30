@@ -10,7 +10,7 @@
 #include "channel/generator/random_generator.h"
 #include "utilities/messaging/message_handler.h"
 #include "utilities/messaging/printer.h"
-
+#include "minimizer/orchestration/types.h"
 
 int main(int argc, char const *argv[])
 {
@@ -44,10 +44,10 @@ int main(int argc, char const *argv[])
         // Algorithm
         .setEpsilon(1e-4)
         .setPrecision(PrecisionType::DOUBLE)
-        .setMaxIterations(100) // For testing
-        .setConvergenceTolerance(1e-12)
+        .setMaxIterations(100000) // For testing
+        .setConvergenceTolerance(1e-14)
         .setConvergenceWindow(20)
-        .setNumAttempts(100)
+        .setNumAttempts(20)
 
         // Prediction
         .enablePrediction(false)
@@ -81,8 +81,8 @@ int main(int argc, char const *argv[])
         .build();
 
     // Convert kraus operators to HostKrausOperators
-    HostKrausOperators host_kraus;
-    host_kraus = HostKrausOperators::fromDouble(
+    entropy::HostKrausOperators host_kraus;
+    host_kraus = entropy::HostKrausOperators::fromDouble(
         kraus_ops,
         rg_config.kraus_number,
         rg_config.kraus_in_dimension,

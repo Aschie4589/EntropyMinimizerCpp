@@ -9,6 +9,10 @@
 #include <iomanip>
 #include <ctime>
 #include <string>
+
+//#define DEBUG_LOGGER_ENABLED 
+
+#ifdef DEBUG_LOGGER_ENABLED 
 #define DEBUG_LOG(msg, filename) do { \
     std::ofstream log_file((filename), std::ios::app); \
     auto now = std::chrono::system_clock::now(); \
@@ -20,6 +24,8 @@
              << "] " << (msg) << std::endl; \
     log_file.close(); \
 } while(0)
-
+#else
+#define DEBUG_LOG(msg, filename) do { } while(0)
+#endif
 
 #endif // DEBUG_LOGGER_H_

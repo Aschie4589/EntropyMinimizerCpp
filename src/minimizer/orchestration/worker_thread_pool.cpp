@@ -1,5 +1,6 @@
 #include "minimizer/orchestration/worker_thread_pool.h"
 #include "minimizer/orchestration/run_orchestrator.h"
+#include "minimizer/orchestration/progress_tracker.h"
 #include <stdexcept>
 #include <chrono>
 #include <iostream>
@@ -287,16 +288,22 @@ void WorkerThreadPool::addWorkers(int count) {
                         // Create RunOrchestrator for this task
                         DEBUG_LOG("Creating RunOrchestrator for run_id=" + std::to_string(task.run_id), log_filename);
 
-
-
-
+                        // Create progress callback if tracker is available
+                        RunOrchestrator::ProgressCallback progress_cb = nullptr;
+                        if (progress_tracker_) {
+                            // Capture tracker by pointer (safe - tracker outlives workers)
+                            ProgressTracker* tracker_ptr = progress_tracker_;
+                            progress_cb = [tracker_ptr](int run_id, int iteration, double entropy) {
+                                tracker_ptr->updateProgress(run_id, iteration, entropy);
+                            };
+                        }
 
                         RunOrchestrator orchestrator(
                             config,
                             kraus_ops_,
                             input_dim_,
                             *device,  // Dereference acquired device pointer
-                            nullptr  // No progress callback to avoid reference capture issues
+                            progress_cb  // Pass progress callback (or nullptr if no tracker)
                         );
                         DEBUG_LOG("RunOrchestrator created successfully", log_filename);
                         
@@ -481,6 +488,13 @@ std::vector<int> WorkerThreadPool::getWorkerIDsUsingDevice(int physical_device_i
     }
     
     return worker_ids;
+}
+
+void WorkerThreadPool::setProgressTracker(ProgressTracker* tracker) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    progress_tracker_ = tracker;
+    std::cout << "WorkerThreadPool: Progress tracker " 
+              << (tracker ? "enabled" : "disabled") << std::endl;
 }
 
 } // namespace entropy

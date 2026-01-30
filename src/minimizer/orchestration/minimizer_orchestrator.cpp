@@ -25,8 +25,8 @@ HostVector MinimizerOrchestrator::generateInitialVector(int dim) {
     vec.dimension = dim;
     vec.data.resize(dim);
     
-    // Fill with random complex values
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    // Fill with random complex values. Sample from normal distribution for both real and imaginary parts.
+    std::normal_distribution<double> dist(0.0, 1.0);
     
     for (int i = 0; i < dim; ++i) {
         double real_part = dist(rng_);
@@ -288,7 +288,7 @@ void MinimizerOrchestrator::onConfigurationChanged(const std::vector<int>& enabl
 
 void MinimizerOrchestrator::adjustResources(const std::vector<int>& enabled_gpus) {
     std::cout << "MinimizerOrchestrator: ===== Resource Adjustment Started =====" << std::endl;
-    
+
     if (!device_pool_ || !worker_pool_) {
         std::cout << "MinimizerOrchestrator: Pools not initialized, skipping." << std::endl;
         return;

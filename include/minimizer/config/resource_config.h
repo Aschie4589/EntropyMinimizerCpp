@@ -210,9 +210,6 @@ struct ResourceConfig {
         if (desired_gpus == 0 && desired_cpus == 0 && !fallback_to_cpu) {
             throw std::invalid_argument("ResourceConfig::validate: At least one device required (or enable fallback_to_cpu)");
         }
-        if (min_gpu_memory < 0) {
-            throw std::invalid_argument("ResourceConfig::validate: min_gpu_memory must be >= 0");
-        }
         if (poll_interval.count() <= 0) {
             throw std::invalid_argument("ResourceConfig::validate: poll_interval must be > 0");
         }

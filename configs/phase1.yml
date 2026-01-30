@@ -3,25 +3,31 @@
 # Workflow-specific configuration
 config:
   params:
-    N: [256]
-    d: [4, 6]
+    N: [1024, 2048]
+    d: [30, 40]
     eps: 1e-6
     moe-tensor-estimation:
       eps: 1e-6
     channel-gen:
-      num-channels: 3
+      num-channels: 4
     first-pass:
       iters: 1000
-      vecs: 100
-      vec-survival: 0.1 # Top 10% of vectors survive
+      num-vectors: 10
+      vec-survival: 0.2 # Top 20% of vectors survive
     second-pass:
-      iters: 10000
-      vec-survival: 0.1 # Top 1% of remaining vectors survive
+      iters: 20000
+      vec-survival: 0.1 # Top 10% of remaining vectors survive
       channel-survival: 0.2 # Top 20% of channels survive
     third-pass:
       iters: 500000
   output:
-    output-directory: "results/phase11"
+    output-directory: "/home/tommasoa/ucph-erda-home/results/phase1.1"
+    index-yaml: "index.yml"
+    info-yaml: "info.yml"
+    vectors-dirname: "vecs"
+    first-pass-dirname: "first_pass"
+    second-pass-dirname: "second_pass"
+    third-pass-dirname: "third_pass"
 
 # Minimizer configuration (used by all passes)
 minimizer:
@@ -61,29 +67,43 @@ minimizer:
     track_global_moe: true
     restart_on_failure: false
 
+  resource:
+    gpu_config_file: "/home/tommasoa/EntropyMinimizerCpp/configs/gpu_config.yaml"
+    allow_dynamic_scaling: true
+    poll_interval: 1000
+    desired_gpus: 4                # Number of GPUs to use (0 = CPU only)
+    desired_cpus: 0                # Number of CPU workers
+    gpu_policy: MOST_FREE_MEMORY
+    fallback_to_cpu: false  
+
 
 
 # Folder structure:
 # results/
 # └── phase1/
 #     ├── channel1uid/
-#     │   ├── first_pass/
-#     │   │   ├── vec1/
-#     │   │   ├── vec2/
-#     │   │   ├── ...
-#     │   │   └── vecs.json <-- contains vec parameters and results (eps entropy and estimated entropy) for each vec, as well as names
-#     │   ├── second_pass/
-#     │   │   ├── vec1/
-#     │   │   ├── vec2/
-#     │   │   ├── ...
-#     │   │   └── vecs.json
-#     │   ├── third_pass/ <-- only for the best surviving channels
-#     │   │   ├── vec1/
-#     │   │   ├── vec2/
-#     │   │   ├── ...
-#     │   │   └── vecs.json
-#     │   ├── channel.json  <-- contains N, d, uid, tensor_entropy
+#     │   ├── vecs/
+#     │   │   ├── first_pass/
+#     │   │   │   ├── initial/
+#     │   │   │   |   ├── vec1.dat
+#     │   │   │   |   ├── vec2.dat
+#     │   │   │   |   └── ...
+#     │   │   │   ├── final/
+#     │   │   │   │   ├── vec1.dat
+#     │   │   │   │   ├── vec2.dat
+#     │   │   │   │   └── ...
+#     │   │   ├── second_pass/
+#     │   │   │   ├── initial/
+#     │   │   │   │   └ ...
+#     │   │   │   └── final/
+#     │   │   │       └ ...
+#     │   │   └── third_pass/ <-- only for the best surviving channels
+#     │   │   │   ├── initial/
+#     │   │   │   │   └ ...
+#     │   │   │   └── final/
+#     │   │   │       └ ...
+#     │   ├── info.json  <-- contains channel parameters and results (eps entropy and estimated entropy). Also contains a list of all initial vectors, with their strings, paths, and entropies, and whether they survived each pass
 #     │   └── kraus.dat
 #     ├── channel2uid/
 #     ├── ...
-#     └── summary.json
+#     └── index.yml <-- contains list of channels with their unique strings, kraus paths, folders, and whether they survived each pass

@@ -2,11 +2,13 @@
 #define CONFIG_LOADER_H_
 
 #include "minimizer/config/minimizer_config.h"
+#include "minimizer/config/resource_config.h"
 #include <yaml-cpp/yaml.h>
 #include <string>
 #include <stdexcept>
 #include <regex>
 #include <cstdlib>
+#include <chrono>
 
 namespace entropy {
 
@@ -96,6 +98,10 @@ private:
         
         if (minimizer_node["multi_run"]) {
             parseMultiRunConfig(minimizer_node["multi_run"], config.multi_run, source);
+        }
+
+        if (minimizer_node["resource"]) {
+            parseResourceConfig(minimizer_node["resource"], config.resource, source);
         }
         
         // Validate complete configuration
@@ -277,6 +283,105 @@ private:
         if (node["max_failures"]) {
             config.max_failures = node["max_failures"].as<int>();
         }
+    }
+    
+    static void parseResourceConfig(const YAML::Node& node, ResourceConfig& config, const std::string& source) {
+        if (node["desired_gpus"]) {
+            config.desired_gpus = node["desired_gpus"].as<int>();
+        }
+        
+        if (node["desired_cpus"]) {
+            config.desired_cpus = node["desired_cpus"].as<int>();
+        }
+        
+        if (node["gpu_policy"]) {
+            std::string policy_str = node["gpu_policy"].as<std::string>();
+            
+            if (policy_str == "MOST_FREE_MEMORY" || policy_str == "most_free_memory") {
+                config.gpu_policy = ResourceConfig::GPUSelectionPolicy::MOST_FREE_MEMORY;
+            } else if (policy_str == "LEAST_UTILIZED" || policy_str == "least_utilized") {
+                config.gpu_policy = ResourceConfig::GPUSelectionPolicy::LEAST_UTILIZED;
+            } else if (policy_str == "ROUND_ROBIN" || policy_str == "round_robin") {
+                config.gpu_policy = ResourceConfig::GPUSelectionPolicy::ROUND_ROBIN;
+            } else if (policy_str == "PREFER_SPECIFIC" || policy_str == "prefer_specific") {
+                config.gpu_policy = ResourceConfig::GPUSelectionPolicy::PREFER_SPECIFIC;
+            } else {
+                throw ConfigLoadError(
+                    source + ": Invalid GPU policy '" + policy_str + 
+                    "', must be MOST_FREE_MEMORY, LEAST_UTILIZED, ROUND_ROBIN, or PREFER_SPECIFIC"
+                );
+            }
+        }
+        
+        if (node["preferred_gpu_ids"]) {
+            config.preferred_gpu_ids.clear();
+            for (const auto& gpu_id : node["preferred_gpu_ids"]) {
+                config.preferred_gpu_ids.push_back(gpu_id.as<int>());
+            }
+        }
+        
+        if (node["min_gpu_memory"]) {
+            // Support different units: bytes, MB, GB
+            if (node["min_gpu_memory"].IsScalar()) {
+                // Could be a number (bytes) or string with unit
+                std::string mem_str = node["min_gpu_memory"].as<std::string>();
+                config.min_gpu_memory = parseMemorySize(mem_str);
+            }
+        }
+        
+        if (node["allow_dynamic_scaling"]) {
+            config.allow_dynamic_scaling = node["allow_dynamic_scaling"].as<bool>();
+        }
+        
+        if (node["poll_interval"] || node["poll_interval_ms"]) {
+            const YAML::Node& interval_node = node["poll_interval"] ? node["poll_interval"] : node["poll_interval_ms"];
+            int interval_ms = interval_node.as<int>();
+            config.poll_interval = std::chrono::milliseconds(interval_ms);
+        }
+        
+        if (node["gpu_config_file"]) {
+            config.gpu_config_file = expandEnvVars(node["gpu_config_file"].as<std::string>());
+        }
+        
+        if (node["fallback_to_cpu"]) {
+            config.fallback_to_cpu = node["fallback_to_cpu"].as<bool>();
+        }
+    }
+    
+    /**
+     * @brief Parse memory size with unit support
+     * Supports: "1024" (bytes), "512MB", "2GB", "1024KB"
+     */
+    static size_t parseMemorySize(const std::string& mem_str) {
+        // Try to parse as plain number (bytes)
+        try {
+            return std::stoull(mem_str);
+        } catch (...) {
+            // Parse with unit suffix
+        }
+        
+        std::regex mem_regex(R"((\d+(?:\.\d+)?)\s*(B|KB|MB|GB))", std::regex::icase);
+        std::smatch match;
+        
+        if (std::regex_match(mem_str, match, mem_regex)) {
+            double value = std::stod(match[1].str());
+            std::string unit = match[2].str();
+            
+            // Convert to uppercase for comparison
+            for (auto& c : unit) c = std::toupper(c);
+            
+            if (unit == "B") {
+                return static_cast<size_t>(value);
+            } else if (unit == "KB") {
+                return static_cast<size_t>(value * 1024);
+            } else if (unit == "MB") {
+                return static_cast<size_t>(value * 1024 * 1024);
+            } else if (unit == "GB") {
+                return static_cast<size_t>(value * 1024 * 1024 * 1024);
+            }
+        }
+        
+        throw ConfigLoadError("Invalid memory size format: '" + mem_str + "'. Use format like '1024', '512MB', or '2GB'");
     }
     
     /**
