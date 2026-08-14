@@ -3,7 +3,30 @@
 ###############################################################################
 
 cmake_minimum_required(VERSION 3.15)
-project(EntropyMinimizer LANGUAGES CXX CUDA)
+project(EntropyMinimizer LANGUAGES CXX)
+
+
+# Enable CUDA language support if a compiler is detected
+include(CheckLanguage)
+
+if(NOT CMAKE_CUDA_COMPILER)
+    find_program(CUDA_NVCC_EXECUTABLE nvcc
+        HINTS
+            ENV CUDA_PATH
+            /opt/cuda
+        PATH_SUFFIXES bin
+    )
+    if(CUDA_NVCC_EXECUTABLE)
+        set(CMAKE_CUDA_COMPILER "${CUDA_NVCC_EXECUTABLE}" CACHE FILEPATH
+            "CUDA compiler" FORCE)
+    endif()
+endif()
+
+check_language(CUDA)
+
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+endif()
 
 # =============================================================================
 # GLOBAL COMPILATION SETTINGS (Applied to all targets)
@@ -13,7 +36,7 @@ project(EntropyMinimizer LANGUAGES CXX CUDA)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# CUDA architecture
+# CUDA architecture (has no effect if CUDA is not enabled)
 set(CMAKE_CUDA_ARCHITECTURES 89)
 
 # Common compiler flags (optimization, native, vectorization)
@@ -40,42 +63,62 @@ set(INCLUDE_DIR "${CMAKE_SOURCE_DIR}/include")
 include_directories(${INCLUDE_DIR})
 
 # =============================================================================
-# PLATFORM DETECTION
-# =============================================================================
-
-if(APPLE)
-    set(PLATFORM "apple")
-elseif(UNIX)
-    set(PLATFORM "linux")
-else()
-    message(FATAL_ERROR "Unsupported platform.")
-endif()
-
-# =============================================================================
 # EXTERNAL DEPENDENCIES
 # =============================================================================
+include(FetchContent)
 
-# CUDA Toolkit
-find_package(CUDAToolkit REQUIRED)
+# CUDA and NVTX (NVIDIA Tools Extension)
+if (CMAKE_CUDA_COMPILER)
+    message(STATUS "CUDA compiler detected: ${CMAKE_CUDA_COMPILER}")
 
-# OpenMP
+    # CUDA Toolkit
+    find_package(CUDAToolkit REQUIRED)
+
+    # NVTX (NVIDIA Tools Extension)
+    FetchContent_Declare(
+        NVTX
+        GIT_REPOSITORY https://github.com/NVIDIA/NVTX.git
+        GIT_TAG        dev
+    )
+    FetchContent_MakeAvailable(NVTX)
+
+else()
+    message(WARNING "No CUDA compiler detected. CUDA-dependent targets will not be built.")
+endif()
+
+#Yaml-cpp (for configuration parsing)
+FetchContent_Declare(
+    yaml-cpp
+    GIT_REPOSITORY https://github.com/jbeder/yaml-cpp
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(yaml-cpp)
+
+# Argparse
+FetchContent_Declare(
+    argparse
+    GIT_REPOSITORY https://github.com/p-ranav/argparse
+    GIT_TAG        master
+)
+FetchContent_MakeAvailable(argparse)
+
+# Nlohmann JSON (for JSON parsing)
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json
+    GIT_TAG        develop
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
+# OpenMP (for parallelization)
 find_package(OpenMP REQUIRED)
 
-# NVTX (NVIDIA Tools Extension)
-add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../NVTX" "ImportNVTX")
-
 # Google Test (for unit testing)
-include(FetchContent)
 FetchContent_Declare(
   googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
   GIT_TAG        v1.15.2
 )
-# For Windows: Prevent overriding the parent project's compiler/linker settings
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
-
-# Enable testing
 enable_testing()
 include(GoogleTest)
 
@@ -100,9 +143,9 @@ elseif(LAPACK STREQUAL "openblas")
     set(OPENBLAS_ROOT "$ENV{HOME}/.local")
     
     # Find OpenBLAS and LAPACKE with NO_DEFAULT_PATH to prioritize local install
-    find_library(OPENBLAS_LIB openblas PATHS ${OPENBLAS_ROOT}/lib NO_DEFAULT_PATH REQUIRED)
-    find_library(LAPACKE_LIB lapacke PATHS ${OPENBLAS_ROOT}/lib NO_DEFAULT_PATH REQUIRED)
-    
+    find_library(OPENBLAS_LIB openblas REQUIRED)
+    find_library(LAPACKE_LIB lapacke REQUIRED)
+
     message(STATUS "LAPACK Backend: OpenBLAS")
     message(STATUS "  OpenBLAS: ${OPENBLAS_LIB}")
     message(STATUS "  LAPACKE:  ${LAPACKE_LIB}")
@@ -303,7 +346,6 @@ message(STATUS "========== BUILD CONFIGURATION SUMMARY ==========")
 message(STATUS "Project:              ${PROJECT_NAME}")
 message(STATUS "C++ Standard:         ${CMAKE_CXX_STANDARD}")
 message(STATUS "CUDA Architecture:    ${CMAKE_CUDA_ARCHITECTURES}")
-message(STATUS "Platform:             ${PLATFORM}")
 message(STATUS "LAPACK Backend:       ${LAPACK}")
 message(STATUS "Build Type:           ${CMAKE_BUILD_TYPE}")
 message(STATUS "================================================")

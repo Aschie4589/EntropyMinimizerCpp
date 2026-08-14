@@ -46,7 +46,7 @@
 
 */
 
-#define PHASE1_CONFIG_FILE "/home/tommasoa/EntropyMinimizerCpp/configs/phase1.yml"
+#define PHASE1_CONFIG_FILE "/home/aschie4589/Projects/EntropyMinimizerCpp/configs/phase1.yml"
 
 
 /**
