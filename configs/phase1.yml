@@ -21,7 +21,7 @@ config:
     third-pass:
       iters: 500000
   output:
-    output-directory: "/home/tommasoa/ucph-erda-home/results/phase1.1"
+    output-directory: "/home/aschie4589/Projects/EntropyMinimizerCpp/results/phase1"
     index-yaml: "index.yml"
     info-yaml: "info.yml"
     vectors-dirname: "vecs"
@@ -68,7 +68,7 @@ minimizer:
     restart_on_failure: false
 
   resource:
-    gpu_config_file: "/home/tommasoa/EntropyMinimizerCpp/configs/gpu_config.yaml"
+    gpu_config_file: "/home/aschie4589/Projects/EntropyMinimizerCpp/configs/gpu_config.yaml"
     allow_dynamic_scaling: true
     poll_interval: 1000
     desired_gpus: 4                # Number of GPUs to use (0 = CPU only)

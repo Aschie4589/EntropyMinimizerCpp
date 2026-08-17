@@ -106,7 +106,7 @@ FetchContent_MakeAvailable(argparse)
 FetchContent_Declare(
     nlohmann_json
     GIT_REPOSITORY https://github.com/nlohmann/json
-    GIT_TAG        develop
+    GIT_TAG        v3.12.0
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
@@ -139,9 +139,7 @@ if(LAPACK STREQUAL "accelerate")
     set(LAPACK_LIBRARIES "-framework Accelerate")
     add_compile_definitions(LAPACK_ACCELERATE ACCELERATE_NEW_LAPACK)
 
-elseif(LAPACK STREQUAL "openblas")
-    set(OPENBLAS_ROOT "$ENV{HOME}/.local")
-    
+elseif(LAPACK STREQUAL "openblas")   
     # Find OpenBLAS and LAPACKE with NO_DEFAULT_PATH to prioritize local install
     find_library(OPENBLAS_LIB openblas REQUIRED)
     find_library(LAPACKE_LIB lapacke REQUIRED)
@@ -205,7 +203,7 @@ function(create_executable TARGET_NAME MAIN_SOURCE_DIR)
 endfunction()
 
 # =============================================================================
-# TARGET: moe (Main Optimization Engine)
+# TARGET: moe
 # =============================================================================
 # TEMPORARILY DISABLED - needs update to new API
 # create_executable(moe "${SRC_DIR}/main/moe")

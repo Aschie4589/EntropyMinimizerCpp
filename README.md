@@ -6,7 +6,7 @@ This project provides a highly optimized implementation of an entropy minimizati
 
 Here we provide instructions for running the algorithm. A C++ compiler and `cmake` need to be available on the system. On top of that, you will have to install the NVIDIA Toolkit and NVCC compiler. On Arch linux, they can be obtained with `sudo pacman -S gcc cmake cuda`. 
 
-You will also need the CBLAS and Lapack libraries: `sudo pacman -S openblas lapack lapacke`. If you are compiling for MacOS, openblas and lapack are provided as part of Apple's Accelerate, and this project supports passing the flag BACKEND=accelerate to use these optimized libraries.
+You will also need the CBLAS and Lapack libraries: `sudo pacman -S openblas lapack lapacke`. If you are compiling for MacOS, openblas and lapack are provided as part of Apple's Accelerate, and this project supports passing the flag -DLAPACK=accelerate to use these optimized libraries.
 
 As a first step, clone this Git repository:
 ```bash
@@ -94,7 +94,7 @@ quantum-additivity/
 │   └── version/
 │
 ├── build/                       # local build directory (git-ignored)
-│
+│Likewise, source files are only compiled if you explicitly attach them to a target:
 ├── configs/                     # YAML/JSON experiment configs
 │   ├── phase1.yml
 │   ├── phase2.yml

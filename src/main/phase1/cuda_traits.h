@@ -28,7 +28,6 @@
     } while(0)
 
 
-// Make versions for different precisions. For example, maek CudaTraits<T>::Complex be either cuDoubleComplex or cuComplex depending on the argument
 template<typename T> struct CudaTraits;
 
 template<>
